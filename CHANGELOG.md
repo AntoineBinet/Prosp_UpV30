@@ -2,6 +2,62 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.40] — 2026-05-11 · Dashboard · Fix compteurs RDV + accès rapide besoins/EC
+
+Trois corrections sur `/v30/dashboard` :
+
+- **KPI « RDV sem. » du hero** : affichait 0 alors qu'on avait 3 RDV
+  programmés cette semaine. Le compteur utilisait `rdv_taken_week`
+  (events `rdv_taken`), qui ne reflète pas les RDV *programmés* avec un
+  `rdvDate` cette semaine. Ajout d'un nouveau compteur
+  `week.rdv_scheduled` calculé sur `prospects.rdvDate ∈ [monday;sunday]`
+  et utilisé pour le KPI hero. `week.rdv_total` reste réservé à la
+  gamification et au breakdown Performance (« X pris »).
+- **Sous-titre « X RDV aujourd'hui »** : utilisait `pipeline.due_today`
+  (= prospects dont `nextFollowUp` est aujourd'hui), ce qui pouvait
+  inclure des relances non-RDV. Bascule sur `week.rdv_today` (count des
+  `rdvDate` qui tombent aujourd'hui).
+- **Bug gamification « Prendre 1 RDV Prosp 1/1 »** : la query SQL de
+  `rdv_taken_today` / `rdv_taken_week` faisait un UNION avec un fallback
+  sur les prospects `statut='Rendez-vous'` ET `lastContact` dans la
+  période. Conséquence : tout edit/sync touchant un prospect déjà en
+  Rendez-vous (qui met à jour `lastContact`) incrémentait l'objectif.
+  Fallback supprimé — on ne compte plus que les events `rdv_taken`
+  explicites (créés par `upsert_all` à la transition vers Rendez-vous ou
+  au changement de `rdvDate`).
+
+Ajout d'une nouvelle section **Quick access** en haut du dashboard,
+juste sous le hero, avant Performance/Objectifs :
+
+- **Besoins ouverts** (carte gauche) — top 5 besoins `statut='ouvert'`
+  ou `'en_cours'`, triés par statut puis priority/updated_at. Affiche
+  intitulé, client/entreprise, localisation, date de besoin, nombre de
+  candidats associés, badge statut. Compteur total dans le header.
+  Clic → fiche besoin `/v30/besoins/<id>`. Empty state : CTA « Créer un
+  besoin ».
+- **Derniers candidats vus en EC** (carte droite) — top 5 candidats avec
+  `entretien_date` renseigné, triés par date EC desc puis updatedAt.
+  Affiche nom, rôle/seniority/localisation, date EC relative, lieu.
+  Clic → fiche candidat `/v30/candidat/<id>`. Empty state : CTA « Voir
+  le sourcing ».
+
+Layout responsive : grille 2 colonnes en desktop (`v30-bento-quick`,
+≥ 1100 px), 1 colonne en dessous. Cards alignées sur le design system
+v30 existant (`.card-flush`, `.card-header`, `.avatar`, badges).
+
+API : extension de `GET /api/dashboard` avec deux nouveaux blocs dans
+le payload :
+- `besoins` : `{open_total, inprogress_total, items[]}` (max 5 items).
+- `recent_ec` : `Candidate[]` (max 5), champs `id, name, role, location,
+  tech, seniority, status, entretien_date, entretien_lieu`.
+
+Aucune migration DB. Aucun nouvel endpoint dédié (tout passe par
+`/api/dashboard` pour économiser un round-trip au chargement).
+
+Toile : 4 nouvelles actions sur le nœud « Dashboard » (`besoins-quick`,
+`ec-quick`, `besoin-open-link`, `candidat-ec-link`) — voir
+`routes/pages.py:_build_sitemap_data()`.
+
 ## [32.39] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
 
 Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :

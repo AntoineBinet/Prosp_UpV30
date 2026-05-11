@@ -6194,51 +6194,27 @@ def api_dashboard():
             calls_week = 0
 
         # Event-based KPIs (for goals)
-        # Fallback UNION: pour les prospects qui n'ont jamais eu d'event rdv_taken (DB ancienne sans prospect_events),
-        # on comptabilise aussi les prospects statut='Rendez-vous' dont lastContact est dans la période
-        # Condition "NOT EXISTS (ANY event)" pour éviter le surcômptage des RDV anciens déjà comptabilisés.
+        # On compte uniquement les events explicites rdv_taken (créés lors de
+        # la transition statut→Rendez-vous ou changement de rdvDate, cf.
+        # upsert_all). L'ancien fallback sur p.lastContact provoquait des
+        # faux positifs : éditer un prospect déjà au statut Rendez-vous
+        # (sync, simple update) suffisait à incrémenter la gamification.
         try:
             rdv_taken_today = conn.execute(
-                """SELECT COUNT(DISTINCT pid) FROM (
-                    SELECT e.prospect_id AS pid
-                    FROM prospect_events e
-                    JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
-                    WHERE e.type='rdv_taken' AND e.date=?
-                      AND (p.deleted_at IS NULL OR p.deleted_at='')
-                    UNION
-                    SELECT p.id AS pid
-                    FROM prospects p
-                    WHERE p.owner_id=? AND p.statut='Rendez-vous'
-                      AND (p.deleted_at IS NULL OR p.deleted_at='')
-                      AND p.rdvDate IS NOT NULL AND p.rdvDate != ''
-                      AND substr(p.lastContact,1,10)=?
-                      AND NOT EXISTS (
-                          SELECT 1 FROM prospect_events e2
-                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
-                      )
-                )""",
-                (uid, today, uid, today),
+                """SELECT COUNT(DISTINCT e.prospect_id)
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date=?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')""",
+                (uid, today),
             ).fetchone()[0]
             rdv_taken_week = conn.execute(
-                """SELECT COUNT(DISTINCT pid) FROM (
-                    SELECT e.prospect_id AS pid
-                    FROM prospect_events e
-                    JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
-                    WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
-                      AND (p.deleted_at IS NULL OR p.deleted_at='')
-                    UNION
-                    SELECT p.id AS pid
-                    FROM prospects p
-                    WHERE p.owner_id=? AND p.statut='Rendez-vous'
-                      AND (p.deleted_at IS NULL OR p.deleted_at='')
-                      AND p.rdvDate IS NOT NULL AND p.rdvDate != ''
-                      AND substr(p.lastContact,1,10) BETWEEN ? AND ?
-                      AND NOT EXISTS (
-                          SELECT 1 FROM prospect_events e2
-                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
-                      )
-                )""",
-                (uid, monday, today, uid, monday, today),
+                """SELECT COUNT(DISTINCT e.prospect_id)
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')""",
+                (uid, monday, today),
             ).fetchone()[0]
         except Exception:
             rdv_taken_today = 0
@@ -6345,6 +6321,75 @@ def api_dashboard():
         except Exception:
             note_events = []
 
+        # Besoins ouverts (statut='ouvert' ou 'en_cours') — top 5 récents
+        # pour le panneau quick-access du dashboard.
+        try:
+            besoins_open_rows = conn.execute(
+                """SELECT b.id, b.intitule, b.client, b.localisation,
+                          b.date_besoin, b.statut, b.priority, b.candidats_json,
+                          b.updated_at, b.created_at,
+                          p.name AS prospect_name, c.groupe AS company_name
+                   FROM besoins b
+                   LEFT JOIN prospects p ON p.id = b.prospect_id
+                   LEFT JOIN companies c ON c.id = b.company_id
+                   WHERE b.owner_id=? AND b.statut IN ('ouvert','en_cours')
+                     AND (b.deleted_at IS NULL OR b.deleted_at='')
+                   ORDER BY
+                       CASE b.statut WHEN 'ouvert' THEN 0 ELSE 1 END,
+                       b.priority DESC,
+                       b.updated_at DESC, b.created_at DESC, b.id DESC
+                   LIMIT 5;""",
+                (uid,),
+            ).fetchall()
+            besoins_ouverts = []
+            for r in besoins_open_rows:
+                d = dict(r)
+                cands_count = 0
+                try:
+                    arr = json.loads(d.get("candidats_json") or "[]")
+                    if isinstance(arr, list):
+                        cands_count = len(arr)
+                except Exception:
+                    cands_count = 0
+                d.pop("candidats_json", None)
+                d["candidats_count"] = cands_count
+                besoins_ouverts.append(d)
+            besoins_open_total = conn.execute(
+                "SELECT COUNT(*) FROM besoins WHERE owner_id=? AND statut='ouvert' AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+            besoins_inprogress_total = conn.execute(
+                "SELECT COUNT(*) FROM besoins WHERE owner_id=? AND statut='en_cours' AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+        except Exception as _e:
+            besoins_ouverts = []
+            besoins_open_total = 0
+            besoins_inprogress_total = 0
+
+        # Derniers candidats vus en EC (entretien_date renseigné) — top 5,
+        # ordre décroissant sur entretien_date puis updatedAt.
+        try:
+            ec_rows = conn.execute(
+                """SELECT id, name, role, location, tech, seniority,
+                          status, entretien_date, entretien_lieu,
+                          updatedAt
+                   FROM candidates
+                   WHERE owner_id=?
+                     AND (deleted_at IS NULL OR deleted_at='')
+                     AND (is_archived IS NULL OR is_archived=0)
+                     AND entretien_date IS NOT NULL
+                     AND entretien_date != ''
+                   ORDER BY entretien_date DESC,
+                            COALESCE(updatedAt, createdAt) DESC,
+                            id DESC
+                   LIMIT 5;""",
+                (uid,),
+            ).fetchall()
+            recent_ec_candidates = [dict(r) for r in ec_rows]
+        except Exception:
+            recent_ec_candidates = []
+
     # Merge manual KPI "contact" adjustments into calls counts (for graph + totals)
     for _d, _cnt in manual_calls_by_date.items():
         calls_by_date[_d] = calls_by_date.get(_d, 0) + _cnt
@@ -6401,8 +6446,21 @@ def api_dashboard():
     due_today = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
     due_week = [p for p in prospects_list if monday <= (p.get("nextFollowUp") or "").strip() <= today]
 
-    # RDV count
+    # RDV count (pipeline = nb actuel de prospects au statut Rendez-vous)
     rdv_total = sum(1 for p in prospects_list if p.get("statut") == "Rendez-vous")
+
+    # RDV programmés cette semaine (rdvDate ∈ [monday;sunday]) — c'est ce
+    # qu'attend l'utilisateur derrière le KPI "RDV sem.". Distinct de
+    # `rdv_taken_week` (event-based) qui compte les transitions vers RDV.
+    week_sunday = (datetime.date.fromisoformat(monday) + datetime.timedelta(days=6)).isoformat()
+    rdv_scheduled_week = sum(
+        1 for p in prospects_list
+        if monday <= ((p.get("rdvDate") or "").strip()[:10]) <= week_sunday
+    )
+    rdv_today_count = sum(
+        1 for p in prospects_list
+        if ((p.get("rdvDate") or "").strip()[:10]) == today
+    )
 
     # Notes/push for activity feed — full week range for past weeks, today only otherwise
     feed_start = monday if is_past_week else today
@@ -6492,7 +6550,13 @@ def api_dashboard():
             "push_total": count_push_range(monday, today),
             "push_email": count_push_channel(monday, today, "email"),
             "push_linkedin": count_push_channel(monday, today, "linkedin"),
+            # RDV "pris" cette semaine (event rdv_taken) — utilisé pour la
+            # gamification et le breakdown Performance.
             "rdv_total": rdv_taken_week,
+            # RDV programmés cette semaine (par rdvDate) — utilisé pour le
+            # KPI "RDV sem." du hero.
+            "rdv_scheduled": rdv_scheduled_week,
+            "rdv_today": rdv_today_count,
             "days": week_days,
         },
         "prev_week": {
@@ -6554,6 +6618,37 @@ def api_dashboard():
             [p for p in prospects_list if (p.get("rdvDate") or "").strip()[:10] > today],
             key=lambda x: x.get("rdvDate", "")
         )[:5]],
+        # Quick access — besoins ouverts (statut ouvert/en_cours) pour
+        # accéder vite à la priorité métier la plus haute depuis le dashboard.
+        "besoins": {
+            "open_total": besoins_open_total,
+            "inprogress_total": besoins_inprogress_total,
+            "items": [{
+                "id": b.get("id"),
+                "intitule": b.get("intitule") or "Sans titre",
+                "client": b.get("client") or "",
+                "company_name": b.get("company_name") or "",
+                "prospect_name": b.get("prospect_name") or "",
+                "localisation": b.get("localisation") or "",
+                "date_besoin": b.get("date_besoin") or "",
+                "statut": b.get("statut") or "ouvert",
+                "priority": b.get("priority") or 0,
+                "candidats_count": b.get("candidats_count") or 0,
+                "updated_at": b.get("updated_at") or b.get("created_at") or "",
+            } for b in besoins_ouverts],
+        },
+        # Quick access — derniers candidats vus en Entretien Conseil.
+        "recent_ec": [{
+            "id": c.get("id"),
+            "name": c.get("name") or "",
+            "role": c.get("role") or "",
+            "location": c.get("location") or "",
+            "tech": c.get("tech") or "",
+            "seniority": c.get("seniority") or "",
+            "status": c.get("status") or "",
+            "entretien_date": c.get("entretien_date") or "",
+            "entretien_lieu": c.get("entretien_lieu") or "",
+        } for c in recent_ec_candidates],
     })
 
 

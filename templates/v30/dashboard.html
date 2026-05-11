@@ -57,6 +57,57 @@
     </div>
   </section>
 
+  {# ─── Quick access — Besoins ouverts + Derniers candidats EC (v32.x) ─── #}
+  {# Affiché en haut pour donner accès rapide au métier le plus prioritaire #}
+  <div class="v30-bento-quick">
+
+    {# Besoins ouverts — priorité métier la plus importante #}
+    <div class="card card-flush v30-quick" data-v30-besoins>
+      <div class="card-header">
+        <div class="card-title">
+          {{ ui.icon('report') }} Besoins ouverts
+          <span class="v30-quick__count" data-field="count">—</span>
+        </div>
+        <a href="/v30/besoins" class="btn btn-ghost btn-sm">Tout voir</a>
+      </div>
+      <div class="v30-quick__list" data-field="rows">
+        {% for _ in range(3) %}
+        <div class="v30-quick__row">
+          <span class="skel" style="width:32px;height:32px;border-radius:var(--r-md);"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:65%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:45%;height:11px;"></div>
+          </div>
+          <span class="skel" style="width:50px;height:18px;border-radius:999px;"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Derniers candidats vus en EC #}
+    <div class="card card-flush v30-quick" data-v30-recent-ec>
+      <div class="card-header">
+        <div class="card-title">
+          {{ ui.icon('users') }} Derniers candidats vus en EC
+        </div>
+        <a href="/v30/sourcing" class="btn btn-ghost btn-sm">Tout voir</a>
+      </div>
+      <div class="v30-quick__list" data-field="rows">
+        {% for _ in range(3) %}
+        <div class="v30-quick__row">
+          <span class="skel" style="width:32px;height:32px;border-radius:50%;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:80%;height:11px;"></div>
+          </div>
+          <span class="skel" style="width:42px;height:11px;"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
   {# ─── Bento row 0 : [Performance + Action center stack] · Objectifs (v30.7) ─── #}
   <div class="v30-bento-0">
 

@@ -78,13 +78,20 @@
     var subtitle = $('[data-v30-dash="hero-subtitle"]');
     if (subtitle) {
       var overdue = (data && data.pipeline && data.pipeline.overdue) || 0;
-      var dueToday = (data && data.pipeline && data.pipeline.due_today) || 0;
+      // "RDV aujourd'hui" = nb prospects dont rdvDate tombe aujourd'hui,
+      // pas relances dues (qui s'affichent déjà via "X relances en retard").
+      var rdvToday = (data && data.week && data.week.rdv_today != null)
+        ? data.week.rdv_today
+        : ((data && data.today_appointments && data.today_appointments.length) || 0);
       subtitle.innerHTML = 'Tu as <b>' + overdue + ' relance' + (overdue > 1 ? 's' : '') +
-        '</b> en retard et <b>' + dueToday + ' RDV</b> aujourd\'hui.';
+        '</b> en retard et <b>' + rdvToday + ' RDV</b> aujourd\'hui.';
     }
 
+    // KPI "RDV sem." = RDV programmés (rdvDate) cette semaine — c'est ce
+    // qu'attend l'utilisateur. `rdv_total` reste réservé à la gamification
+    // (events rdv_taken) et au breakdown Performance.
     var kpis = [
-      { key: 'rdv',      cur: data.week && data.week.rdv_total,   prev: null },
+      { key: 'rdv',      cur: data.week && (data.week.rdv_scheduled != null ? data.week.rdv_scheduled : data.week.rdv_total), prev: null },
       { key: 'push',     cur: data.week && data.week.push_total,  prev: data.prev_week && data.prev_week.push_total },
       { key: 'contacts', cur: data.pipeline && data.pipeline.total, prev: null }
     ];
@@ -948,12 +955,107 @@
     window.location.href = '/v30/sourcing#inmails';
   }
 
+  // ─── Quick access — Besoins ouverts ──────────────────────────────
+  var BESOIN_STATUT = {
+    'ouvert':    { cls: 'badge-danger', label: 'Ouvert' },
+    'en_cours':  { cls: 'badge-warn',   label: 'En cours' },
+    'pourvu':    { cls: 'badge-info',   label: 'Pourvu' },
+    'abandonne': { cls: 'badge-info',   label: 'Abandonné' }
+  };
+
+  function renderBesoinsOuverts(payload) {
+    var host = $('[data-v30-besoins]');
+    if (!host) return;
+    var rows = host.querySelector('[data-field="rows"]');
+    var count = host.querySelector('[data-field="count"]');
+    var items = (payload && payload.items) || [];
+    var openTotal = (payload && payload.open_total) || 0;
+    var inprogTotal = (payload && payload.inprogress_total) || 0;
+    var total = openTotal + inprogTotal;
+
+    if (count) {
+      count.textContent = total + (total > 1 ? ' besoins' : ' besoin');
+    }
+    if (!rows) return;
+    if (!items.length) {
+      rows.innerHTML = '<div class="empty" style="padding:18px 16px;text-align:center;font-size:12.5px;color:var(--text-3);">' +
+        'Aucun besoin ouvert pour l\'instant. ' +
+        '<a href="/v30/besoins" style="color:var(--accent);">Créer un besoin →</a>' +
+        '</div>';
+      return;
+    }
+    var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
+    rows.innerHTML = items.map(function (b) {
+      var st = BESOIN_STATUT[b.statut] || { cls: 'badge-info', label: b.statut || '' };
+      var sub = b.company_name || b.client || b.prospect_name || '—';
+      if (b.localisation) sub += ' · ' + b.localisation;
+      var cands = b.candidats_count || 0;
+      var dateHint = b.date_besoin
+        ? '<span class="v30-quick__hint">' + esc(b.date_besoin) + '</span>'
+        : '';
+      var candHint = cands > 0
+        ? '<span class="v30-quick__hint">' + cands + ' cand.</span>'
+        : '';
+      return '<a class="v30-quick__row" href="/v30/besoins/' + encodeURIComponent(b.id) + '">' +
+        '<span class="v30-quick__icon v30-quick__icon--besoin">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>' +
+        '</span>' +
+        '<div style="min-width:0;flex:1;">' +
+          '<div class="v30-quick__name truncate">' + esc(b.intitule) + '</div>' +
+          '<div class="v30-quick__sub truncate">' + esc(sub) + '</div>' +
+        '</div>' +
+        '<div class="v30-quick__tail">' +
+          dateHint + candHint +
+          '<span class="badge ' + st.cls + '">' + esc(st.label) + '</span>' +
+        '</div>' +
+      '</a>';
+    }).join('');
+  }
+
+  // ─── Quick access — Derniers candidats EC ────────────────────────
+  function renderRecentEC(items) {
+    var host = $('[data-v30-recent-ec]');
+    if (!host) return;
+    var rows = host.querySelector('[data-field="rows"]');
+    if (!rows) return;
+    items = items || [];
+    if (!items.length) {
+      rows.innerHTML = '<div class="empty" style="padding:18px 16px;text-align:center;font-size:12.5px;color:var(--text-3);">' +
+        'Aucun candidat vu en EC. ' +
+        '<a href="/v30/sourcing" style="color:var(--accent);">Voir le sourcing →</a>' +
+        '</div>';
+      return;
+    }
+    var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
+    rows.innerHTML = items.map(function (c) {
+      var roleParts = [];
+      if (c.role) roleParts.push(c.role);
+      if (c.seniority) roleParts.push(c.seniority);
+      if (c.location) roleParts.push(c.location);
+      var sub = roleParts.join(' · ') || (c.tech ? c.tech : '—');
+      var dateLabel = relativeTime(c.entretien_date) || esc(c.entretien_date || '');
+      var lieu = c.entretien_lieu ? ' · ' + esc(c.entretien_lieu) : '';
+      return '<a class="v30-quick__row" href="/v30/candidat/' + encodeURIComponent(c.id) + '">' +
+        '<span class="avatar">' + esc(initials(c.name)) + '</span>' +
+        '<div style="min-width:0;flex:1;">' +
+          '<div class="v30-quick__name truncate">' + esc(c.name) + '</div>' +
+          '<div class="v30-quick__sub truncate">' + esc(sub) + '</div>' +
+        '</div>' +
+        '<div class="v30-quick__tail">' +
+          '<span class="v30-quick__hint">EC ' + dateLabel + lieu + '</span>' +
+        '</div>' +
+      '</a>';
+    }).join('');
+  }
+
   function hydrate() {
     var url = '/api/dashboard' + (PERF_STATE.weekOffset < 0 ? ('?week=' + encodeURIComponent(isoWeek(PERF_STATE.weekOffset))) : '');
     fetchJSON(url)
       .then(function (res) {
         var data = (res && res.data) || {};
         renderHero(data);
+        renderBesoinsOuverts(data.besoins);
+        renderRecentEC(data.recent_ec);
         renderPerformance(data);
         renderObjectifs(data.goals);
         renderGoals(data.goals);

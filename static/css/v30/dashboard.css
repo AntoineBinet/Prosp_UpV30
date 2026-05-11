@@ -124,6 +124,99 @@
   gap: 16px;
 }
 
+/* ─── Quick access — Besoins ouverts + Derniers candidats EC ─── */
+.v30-bento-quick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.v30-quick {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.v30-quick__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.v30-quick__list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.v30-quick__row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.12s ease;
+}
+.v30-quick__row:last-child { border-bottom: 0; }
+.v30-quick__row:hover { background: var(--surface-2); }
+.v30-quick__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.v30-quick__icon--besoin {
+  background: oklch(0.92 0.05 280);
+  color: oklch(0.50 0.15 280);
+}
+:root[data-theme="dark"] .v30-quick__icon--besoin {
+  background: oklch(0.22 0.07 280);
+  color: oklch(0.78 0.13 280);
+}
+.v30-quick__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+}
+.v30-quick__sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.v30-quick__tail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.v30-quick__hint {
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.v30-quick .v30-quick__row .avatar {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  width: 32px;
+  height: 32px;
+}
+
 /* ─────────── Action center ─────────── */
 .v30-ac__row {
   display: grid;
@@ -767,6 +860,7 @@
 @media (max-width: 1100px) {
   .v30-bento-0 { grid-template-columns: 1fr; }
   .v30-bento-1 { grid-template-columns: 1fr; }
+  .v30-bento-quick { grid-template-columns: 1fr; }
   .v30-hero { grid-template-columns: 1fr; }
   .v30-hero__kpis { flex-wrap: wrap; }
   .v30-perf__topbar {
