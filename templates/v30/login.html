@@ -138,12 +138,9 @@
     }
     .mq-marquise__track {
       display: inline-flex; align-items: stretch; height: 100%;
-      animation: mq-marquee 60s linear infinite;
+      transform: translate3d(0, 0, 0);
       will-change: transform;
-    }
-    @keyframes mq-marquee {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
+      backface-visibility: hidden;
     }
     .mq-tick {
       display: inline-flex; align-items: center; gap: 18px;
@@ -205,16 +202,12 @@
     .mq-editorial::before {
       content: "";
       position: absolute;
-      inset: -32px -72px;
-      background: radial-gradient(
-        ellipse 78% 82% at 38% 52%,
-        var(--cream) 0%,
-        color-mix(in srgb, var(--cream) 88%, transparent) 35%,
-        color-mix(in srgb, var(--cream) 55%, transparent) 65%,
-        transparent 100%
-      );
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
+      inset: -8px -16px;
+      background: color-mix(in srgb, var(--cream) 45%, transparent);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      -webkit-mask-image: radial-gradient(ellipse 52% 68% at 32% 50%, #000 18%, rgba(0,0,0,0.55) 50%, transparent 92%);
+              mask-image: radial-gradient(ellipse 52% 68% at 32% 50%, #000 18%, rgba(0,0,0,0.55) 50%, transparent 92%);
       z-index: -1;
       pointer-events: none;
     }
@@ -603,13 +596,37 @@
   }
   var lastHash = JSON.stringify(FALLBACK);
   render(FALLBACK);
+
+  /* Défilement piloté par rAF (cf. login.html racine). */
+  var SPEED = 60, offset = 0, prev = 0, halfWidth = 0;
+  var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function measure() { halfWidth = (track.scrollWidth / 2) || 0; }
+  measure();
+  function step(now) {
+    if (prev && halfWidth > 0) {
+      var dt = (now - prev) / 1000;
+      if (dt > 0.25) dt = 0.25;
+      offset -= SPEED * dt;
+      if (offset <= -halfWidth) offset += halfWidth;
+      track.style.transform = 'translate3d(' + offset.toFixed(2) + 'px, 0, 0)';
+    }
+    prev = now;
+    requestAnimationFrame(step);
+  }
+  if (!reduced) requestAnimationFrame(step);
+  window.addEventListener('resize', measure);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) prev = 0; });
+
   function poll() {
     fetch('/api/tick', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (Array.isArray(data) && data.length && isClean(data)) {
           var hash = JSON.stringify(data);
-          if (hash !== lastHash) { lastHash = hash; render(data); }
+          if (hash !== lastHash) {
+            lastHash = hash; render(data); measure();
+            while (halfWidth > 0 && offset <= -halfWidth) offset += halfWidth;
+          }
         }
       })
       .catch(function () {});
