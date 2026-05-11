@@ -26,6 +26,10 @@
       </div>
     </div>
     <div class="v30-besoin-detail__actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export-pdf
+              title="Export PDF — fiche besoin + candidats positionnés">
+        {{ ui.icon('file', 13) }} Export PDF
+      </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export
               title="Export Excel traitement besoin">
         {{ ui.icon('download', 13) }} Export Excel
@@ -133,6 +137,10 @@
               <span class="v30-cand-legend__chip v30-cand-legend__chip--msg">Messagerie</span>
               <span class="v30-cand-legend__chip v30-cand-legend__chip--nope">Non dispo</span>
             </div>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-sort
+                    title="Trier automatiquement par statut : Dispo en haut, Non dispo en bas">
+              {{ ui.icon('filter', 13) }} Trier par dispo
+            </button>
             <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-search>
               {{ ui.icon('search', 13) }} Chercher un candidat
             </button>

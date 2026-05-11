@@ -248,11 +248,37 @@
 /* Header de carte (compact, toujours visible) */
 .v30-cand-card__head {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto minmax(0, 1.6fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px 8px 14px;
 }
+
+/* Poignée drag & drop pour réordonner manuellement */
+.v30-cand-card__handle {
+  width: 18px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-3, #94a3b8);
+  cursor: grab;
+  padding: 0;
+  border-radius: var(--r-sm, 6px);
+  transition: color .12s ease, background .12s ease;
+  touch-action: none;
+}
+.v30-cand-card__handle:hover {
+  color: var(--text);
+  background: var(--surface-2, var(--surface));
+}
+.v30-cand-card__handle:active { cursor: grabbing; }
+.v30-cand-card.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+.v30-cand-card.is-drop-before { box-shadow: inset 0 2px 0 0 var(--accent, #3b82f6); }
+.v30-cand-card.is-drop-after  { box-shadow: inset 0 -2px 0 0 var(--accent, #3b82f6); }
+
 .v30-cand-card__toggle {
   width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;

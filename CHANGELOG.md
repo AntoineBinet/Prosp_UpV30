@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.38] — 2026-05-11 · Login · Constellation animée derrière l'éditorial
+## [32.41] — 2026-05-11 · Login · Constellation animée derrière l'éditorial
 
 Ajoute une animation discrète de **constellation** (canvas) derrière le titre
 de `/login` et `/v30/login`, inspirée du fond hero du site
@@ -25,6 +25,105 @@ de `/login` et `/v30/login`, inspirée du fond hero du site
   → dessine une frame statique puis stoppe le RAF.
 - **Pause sur onglet caché** via `visibilitychange` ; `ResizeObserver` pour
   re-build proprement les particules quand la fenêtre change.
+
+## [32.40] — 2026-05-11 · Dashboard · Fix compteurs RDV + accès rapide besoins/EC
+
+Trois corrections sur `/v30/dashboard` :
+
+- **KPI « RDV sem. » du hero** : affichait 0 alors qu'on avait 3 RDV
+  programmés cette semaine. Le compteur utilisait `rdv_taken_week`
+  (events `rdv_taken`), qui ne reflète pas les RDV *programmés* avec un
+  `rdvDate` cette semaine. Ajout d'un nouveau compteur
+  `week.rdv_scheduled` calculé sur `prospects.rdvDate ∈ [monday;sunday]`
+  et utilisé pour le KPI hero. `week.rdv_total` reste réservé à la
+  gamification et au breakdown Performance (« X pris »).
+- **Sous-titre « X RDV aujourd'hui »** : utilisait `pipeline.due_today`
+  (= prospects dont `nextFollowUp` est aujourd'hui), ce qui pouvait
+  inclure des relances non-RDV. Bascule sur `week.rdv_today` (count des
+  `rdvDate` qui tombent aujourd'hui).
+- **Bug gamification « Prendre 1 RDV Prosp 1/1 »** : la query SQL de
+  `rdv_taken_today` / `rdv_taken_week` faisait un UNION avec un fallback
+  sur les prospects `statut='Rendez-vous'` ET `lastContact` dans la
+  période. Conséquence : tout edit/sync touchant un prospect déjà en
+  Rendez-vous (qui met à jour `lastContact`) incrémentait l'objectif.
+  Fallback supprimé — on ne compte plus que les events `rdv_taken`
+  explicites (créés par `upsert_all` à la transition vers Rendez-vous ou
+  au changement de `rdvDate`).
+
+Ajout d'une nouvelle section **Quick access** en haut du dashboard,
+juste sous le hero, avant Performance/Objectifs :
+
+- **Besoins ouverts** (carte gauche) — top 5 besoins `statut='ouvert'`
+  ou `'en_cours'`, triés par statut puis priority/updated_at. Affiche
+  intitulé, client/entreprise, localisation, date de besoin, nombre de
+  candidats associés, badge statut. Compteur total dans le header.
+  Clic → fiche besoin `/v30/besoins/<id>`. Empty state : CTA « Créer un
+  besoin ».
+- **Derniers candidats vus en EC** (carte droite) — top 5 candidats avec
+  `entretien_date` renseigné, triés par date EC desc puis updatedAt.
+  Affiche nom, rôle/seniority/localisation, date EC relative, lieu.
+  Clic → fiche candidat `/v30/candidat/<id>`. Empty state : CTA « Voir
+  le sourcing ».
+
+Layout responsive : grille 2 colonnes en desktop (`v30-bento-quick`,
+≥ 1100 px), 1 colonne en dessous. Cards alignées sur le design system
+v30 existant (`.card-flush`, `.card-header`, `.avatar`, badges).
+
+API : extension de `GET /api/dashboard` avec deux nouveaux blocs dans
+le payload :
+- `besoins` : `{open_total, inprogress_total, items[]}` (max 5 items).
+- `recent_ec` : `Candidate[]` (max 5), champs `id, name, role, location,
+  tech, seniority, status, entretien_date, entretien_lieu`.
+
+Aucune migration DB. Aucun nouvel endpoint dédié (tout passe par
+`/api/dashboard` pour économiser un round-trip au chargement).
+
+Toile : 4 nouvelles actions sur le nœud « Dashboard » (`besoins-quick`,
+`ec-quick`, `besoin-open-link`, `candidat-ec-link`) — voir
+`routes/pages.py:_build_sitemap_data()`.
+
+## [32.39] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
+
+Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :
+
+- **Bouton « Export PDF »** dans le header de la fiche besoin, à côté
+  des exports/imports Excel existants.
+- **En-tête** : eyebrow, intitulé en gros (Helvetica-Bold 20pt), méta
+  (client · contact · localisation), chip statut coloré à droite,
+  trait horizontal accent.
+- **Bloc infos générales** : grille 2 colonnes label/valeur (Client,
+  Contact, Localisation, Profil recherché, Date appel, Date besoin,
+  Durée mission, Lié au prospect).
+- **Bloc Mission** : Descriptif, Compétences requises, Connaissances
+  attendues, Expérience, Commentaires (sections affichées seulement si
+  renseignées).
+- **Bloc Candidats positionnés** : pour chaque candidat,
+  numéro `#NN`, nom en gras, méta (rôle / séniorité / lieu / diplôme),
+  contact (Tél., Email, Profil), chip statut coloré (Disponible vert,
+  Messagerie bleu, Pas contacté gris, Non disponible rouge), bande
+  verticale colorée à gauche selon le statut, grille 3×3 des champs
+  de tracking (Dispo, Appel, DT, RDV1, RDV2, RT, Envoi DT, Propal,
+  RT client), bloc Commentaires sur fond bleu clair si rempli.
+- **Bloc Préparation RT** en fin de document si renseigné.
+- **Header / footer** sur chaque page : bandeau accent en haut, eyebrow
+  « PROSP'UP · TRAITEMENT BESOIN », date de génération + numéro de page.
+- Route : `GET /api/besoins/<id>/export.pdf` → `fiche_besoin_<intitule>.pdf`.
+
+## [32.38] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
+
+Sur la fiche besoin (`/v30/besoins/<id>`), la liste des candidats
+positionnés peut maintenant être réordonnée :
+
+- **Tri automatique par dispo** : nouveau bouton « Trier par dispo »
+  dans le header de la section. Ordre obtenu : `Dispo` (vert) en haut →
+  `Messagerie` (bleu) → `Pas contacté` → `Non dispo` (rouge) en bas.
+  Toast de confirmation, tri stable au sein d'un même statut.
+- **Drag & drop manuel** : nouvelle poignée à six points à gauche de
+  chaque carte (`v30-cand-card__handle`). Indicateur d'insertion bleu
+  au survol (`is-drop-before` / `is-drop-after`). Fonctionne en desktop
+  (HTML5 drag) et mobile (touchstart + elementFromPoint).
+- L'ordre est persisté via le `PUT /api/besoins/<id>` existant
+  (auto-save 1,2 s après modification).
 
 ## [32.37] — 2026-05-11 · Login · Refonte « Marquise » (ticker animé + éditorial)
 
