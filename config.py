@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.49"
+APP_VERSION = "32.50"
 
 
 def _resolve_db_path() -> Path:
