@@ -2,6 +2,18 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.46] — 2026-05-11 · Login · Constellation rendue (canvas replaced-element)
+
+- **Constellation à nouveau visible** sur `/login` et `/v30/login`. Régression
+  introduite en 32.44 (passage à `inset: -24px`) : `<canvas>` est un *replaced
+  element* avec des dimensions intrinsèques de 300×150 px qui ne sont pas
+  écrasées par `inset` seul. Le canvas restait donc à 300×150 px en haut à
+  gauche de la section éditoriale, et le script
+  `login-constellation.js` dessinait ses points dans cette petite zone — ils
+  étaient quasi invisibles. Fix : remplacement de `inset: -24px` par
+  `top/left: -24px` + `width/height: calc(100% + 48px)`, qui force
+  explicitement la taille rendue.
+
 ## [32.45] — 2026-05-11 · Dashboard · Détail gamification + RDV aujourd'hui
 
 - **« RDV aujourd'hui » corrigé** : l'onglet du centre d'action utilisait
