@@ -2,6 +2,35 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.48] — 2026-05-11 · Sidebar · Réorganisation Admin → Paramètres
+
+- **Sidebar simplifiée** : la section « Admin » disparaît entièrement de la
+  sidebar (sur toutes les pages, mobile + desktop). Les pages Utilisateurs,
+  Snapshots, Journal et DC Generator deviennent des cartes déployables dans
+  `/v30/parametres`.
+- **Métiers IA** rejoint la section « Outils » de la sidebar (auparavant dans
+  Admin) — utilisable par tous, plus seulement par les admins.
+- **DC Generator** sort de Outils et rejoint la section « Anciens outils /
+  essais » dans Paramètres (carte déployable avec lien vers `/v30/dc`).
+- **Paramètres** : nouvelles cartes embarquées
+  (`templates/v30/parametres.html`) — Utilisateurs (table + modale création
+  /édition + onglet Historique), Journal d'activité (filtres + pagination),
+  DC Generator (raccourci). Les scripts `users.js` et `activity.js` sont
+  chargés sur la page Paramètres pour piloter ces cartes.
+- **Nouvel onglet Admin** dans la tab-bar Paramètres (regroupe Sauvegardes,
+  Utilisateurs, Journal). Onglet « Anciens outils / essais » pour DC
+  Generator. Les cartes peuvent porter plusieurs `data-tab` (espace-séparé).
+- **Auto-ouverture** : `/v30/parametres?card=<id>` (users, activity, backup,
+  dc…) déplie automatiquement la carte ciblée — utilisé par la palette de
+  commandes et les redirections.
+- **Palette (Cmd+K)** mise à jour : Utilisateurs/Snapshots/Journal/DC pointent
+  vers `/v30/parametres?card=...`.
+- **Toile d'araignée** (`routes/pages.py → _build_sitemap_data`) recâblée :
+  Métiers IA passe en `cat=outils`, DC Generator en `cat=autres`, et les
+  liens admin pointent vers Paramètres.
+- **Help** (`templates/v30/help.html`) : liens admin redirigés vers
+  Paramètres.
+
 ## [32.47] — 2026-05-11 · Login · Constellation rebasculée sur le style 32.43
 
 - Retour au style « centré + masqué » de la 32.43 (canvas

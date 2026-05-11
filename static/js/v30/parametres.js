@@ -1372,7 +1372,8 @@
     grid.setAttribute('data-active-tab', tab || 'all');
     var cards = grid.querySelectorAll('.v30-params__card[data-tab]');
     cards.forEach(function (c) {
-      var match = (tab === 'all') || (c.getAttribute('data-tab') === tab);
+      var cardTabs = (c.getAttribute('data-tab') || '').split(/\s+/).filter(Boolean);
+      var match = (tab === 'all') || cardTabs.indexOf(tab) !== -1;
       if (match) c.setAttribute('data-tab-match', '1');
       else c.removeAttribute('data-tab-match');
     });
@@ -1680,6 +1681,19 @@
     bindDepsCheck();
   }
 
+  function openCardFromQuery() {
+    var params = new URLSearchParams(window.location.search);
+    var cardId = params.get('card');
+    if (!cardId) return;
+    var attr = 'data-v30-' + cardId;
+    var card = document.querySelector('[' + attr + ']');
+    if (!card) return;
+    card.open = true;
+    setTimeout(function () {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
+
   function bind() {
     bindTabs();
     bindDeploy();
@@ -1691,6 +1705,7 @@
     bindNotif();
     bindAccount();
     bindAbout();
+    openCardFromQuery();
   }
 
   if (document.readyState === 'loading') {
