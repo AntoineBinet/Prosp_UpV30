@@ -2,6 +2,19 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.47] — 2026-05-11 · Login · Constellation rebasculée sur le style 32.43
+
+- Retour au style « centré + masqué » de la 32.43 (canvas
+  `clamp(340px, 46vw, 600px)` centré via `top/left: 50%` +
+  `transform: translate(-50%, -50%)`, mask radial qui fade les bords,
+  opacity 0.62). La version « pleine surface » (32.44 → fix 32.46) a été
+  rejetée à l'usage : trop chargée derrière le titre, moins lisible.
+- `.mq-editorial` repasse sur `position: relative; min-width: 0;` sans
+  `flex` ni `align-self: stretch` (le canvas n'a plus besoin que le
+  parent stretch pour avoir une dimension).
+- Mobile (≤ 900 px) : retour à `opacity: 0.55; width/height: 88vw`.
+- `prefers-reduced-motion` : retour à `opacity: 0.45`.
+
 ## [32.46] — 2026-05-11 · Login · Constellation rendue (canvas replaced-element)
 
 - **Constellation à nouveau visible** sur `/login` et `/v30/login`. Régression
