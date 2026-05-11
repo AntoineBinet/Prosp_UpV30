@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Prosp'Up">
-<meta name="theme-color" content="#f4f0e6">
+<meta name="theme-color" content="#fbfaf6">
 <title>Prosp'Up — Connexion</title>
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
@@ -19,591 +19,576 @@
 
 <style>
 /* ============================================================
-   /login — « Marquise » : ticker pipeline en direct
-   Light only · cream parchment · serif italic editorial
+   /login — « Marquise »
+   Bandeau ticker animé en haut, phrase éditoriale à gauche,
+   formulaire flottant à droite — fond crème papier.
+   Light only · cible 1400 × 880, responsive ≥ 600 px.
    ============================================================ */
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; height: 100%; }
 
 :root {
-  --mq-bg:        #f4f0e6;
-  --mq-bg-2:      #efeadc;
-  --mq-text:      #161821;
-  --mq-text-2:    #3b3e49;
-  --mq-text-3:    #6f7382;
-  --mq-text-4:    #98a;
-  --mq-line:      rgba(20,22,30,0.10);
-  --mq-line-soft: rgba(20,22,30,0.06);
-  --mq-accent:    #1d4ed8;
-  --mq-accent-2:  #2563eb;
-  --mq-green:     #1f7a44;
-  --mq-purple:    #5b3aa6;
-  --mq-orange:    #b9531f;
-  --mq-card-bg:   #faf6ec;
+  /* Cream / papier (alignés sur tokens.css → --cream, --hair-warm, …) */
+  --cream:        oklch(0.985 0.006 80);
+  --cream-2:      oklch(0.965 0.008 80);
+  --hair-warm:    oklch(0.870 0.010 80);
+  --hair-warm-2:  oklch(0.918 0.008 80);
 
-  --mq-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
-  --mq-sans:  "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mq-mono:  "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  /* Encres (alignées sur tokens.css → --ink-*) */
+  --ink-950:      oklch(0.115 0.012 258);
+  --ink-700:      oklch(0.395 0.015 258);
+  --ink-500:      oklch(0.600 0.012 258);
+  --ink-400:      oklch(0.740 0.010 258);
+  --ink-1000:     oklch(0.060 0.010 258);
 
-  --mq-pad-x:   clamp(20px, 4vw, 56px);
-  --mq-content: 1280px;
+  /* Accent indigo (focus / soulignement) */
+  --accent:       oklch(0.58 0.17 258);
+
+  /* Tones du ticker — alignés sur --status-* */
+  --tone-rdv:     oklch(0.40 0.16 290);
+  --tone-cb:      oklch(0.44 0.16 55);
+  --tone-call:    oklch(0.40 0.14 165);
+  --tone-wait:    oklch(0.43 0.12 270);
+
+  --danger:       oklch(0.58 0.18 25);
+
+  --font-sans:    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif:   "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --ease:         cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --topbar-h:     48px;
+  --marquise-h:   60px;
+  --pad-x:        clamp(20px, 4vw, 56px);
+  --form-w:       560px;
 }
 
-html, body { height: 100%; }
 body {
-  background: var(--mq-bg);
-  color: var(--mq-text);
-  font-family: var(--mq-sans);
+  background: var(--cream);
+  color: var(--ink-950);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  font-feature-settings: "ss01";
-}
-
-/* fond papier ultra-discret (grain) */
-body::before {
-  content: "";
-  position: fixed; inset: 0;
-  pointer-events: none;
-  background-image:
-    radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
-  background-size: 3px 3px;
-  opacity: 0.6;
-  mix-blend-mode: multiply;
-  z-index: 0;
 }
 
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
 input, select, textarea { font: inherit; color: inherit; }
 
+/* ─────────── Layer 1 — filets papier verticaux (SVG pattern) ─────────── */
+.mq-paper-grid {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  z-index: 0;
+}
+
+/* ─────────── Layer 2 — grain SVG turbulence en overlay ─────────── */
+.mq-grain {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.40;
+  z-index: 1;
+}
+
+/* ─────────── Layer 3 — contenu ─────────── */
 .mq {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: var(--topbar-h) var(--marquise-h) 1fr auto;
 }
 
-/* ─────── Top bar ─────── */
+/* ─────────── Topbar ─────────── */
 .mq-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px var(--mq-pad-x);
-  border-bottom: 1px solid var(--mq-line-soft);
-}
-.mq-top__l, .mq-top__r {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
+  display: flex; align-items: center; gap: 14px;
+  height: var(--topbar-h);
+  padding: 0 32px;
+  border-bottom: 1px solid var(--hair-warm);
 }
 .mq-brand {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
+  display: inline-flex; align-items: baseline; gap: 8px;
 }
 .mq-brand__mark {
-  font-family: var(--mq-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 22px;
-  line-height: 1;
+  font-family: var(--font-serif); font-style: italic; font-weight: 400;
+  font-size: 18px; line-height: 1; color: var(--ink-950);
   letter-spacing: -0.02em;
-  color: var(--mq-text);
-  position: relative;
-  top: 1px;
 }
 .mq-brand__name {
-  font-family: var(--mq-sans);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--mq-text);
+  font-family: var(--font-sans); font-size: 12.5px; font-weight: 600;
+  color: var(--ink-950); letter-spacing: -0.005em;
 }
-.mq-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--mq-line);
-}
-.mq-live, .mq-flag {
-  font-family: var(--mq-sans);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--mq-text-3);
+.mq-divider { width: 1px; height: 12px; background: var(--hair-warm); }
+.mq-live, .mq-flag-label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 400;
+  letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-500);
   white-space: nowrap;
 }
-.mq-flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.mq-top__right {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 10px;
 }
-.mq-flag__dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--mq-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mq-accent) 18%, transparent);
+.mq-flag-dot {
+  position: relative; display: inline-flex;
+  width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+}
+.mq-flag-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: 999px;
+  background: var(--accent);
+  animation: mq-pulse 2.2s ease-out infinite;
 }
 
-/* ─────── Hero ─────── */
-.mq-hero {
-  padding: clamp(36px, 7vw, 84px) var(--mq-pad-x) clamp(36px, 6vw, 72px);
-  border-bottom: 1px solid var(--mq-line-soft);
+@keyframes mq-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
-.mq-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  font-family: var(--mq-sans);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
+
+/* ─────────── Marquise / ticker ─────────── */
+.mq-marquise {
+  position: relative;
+  height: var(--marquise-h);
+  border-bottom: 1px solid var(--hair-warm);
+  background: var(--cream-2);
+  overflow: hidden;
+  display: flex; align-items: center;
+}
+.mq-marquise__track {
+  display: inline-flex; align-items: stretch; height: 100%;
+  animation: mq-marquee 60s linear infinite;
+  will-change: transform;
+}
+@keyframes mq-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.mq-tick {
+  display: inline-flex; align-items: center; gap: 18px;
+  padding: 0 36px;
+  border-right: 1px solid var(--hair-warm);
+  height: 100%;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-950);
+}
+.mq-tick__time {
+  color: var(--ink-500);
+  letter-spacing: 0.06em;
+}
+.mq-tick__dot { width: 5px; height: 5px; border-radius: 999px; background: currentColor; }
+.mq-tick__label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--mq-text-3);
-  margin: 0 0 22px;
+}
+.mq-tick__meta {
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 15px;
+  color: var(--ink-500);
+  letter-spacing: 0;
+}
+.mq-tick[data-tone="rdv"]  .mq-tick__dot,
+.mq-tick[data-tone="rdv"]  .mq-tick__label  { color: var(--tone-rdv); }
+.mq-tick[data-tone="cb"]   .mq-tick__dot,
+.mq-tick[data-tone="cb"]   .mq-tick__label  { color: var(--tone-cb); }
+.mq-tick[data-tone="call"] .mq-tick__dot,
+.mq-tick[data-tone="call"] .mq-tick__label  { color: var(--tone-call); }
+.mq-tick[data-tone="wait"] .mq-tick__dot,
+.mq-tick[data-tone="wait"] .mq-tick__label  { color: var(--tone-wait); }
+
+/* Fades latéraux pour masquer la coupure */
+.mq-marquise__fade {
+  position: absolute; top: 0; bottom: 0; width: 120px; pointer-events: none;
+}
+.mq-marquise__fade--l { left: 0;  background: linear-gradient(90deg,  var(--cream-2), transparent); }
+.mq-marquise__fade--r { right: 0; background: linear-gradient(-90deg, var(--cream-2), transparent); }
+
+/* ─────────── Corps : 2 colonnes ─────────── */
+.mq-body {
+  display: grid;
+  grid-template-columns: 1fr var(--form-w);
+  align-items: center;
+  gap: 48px;
+  padding: clamp(36px, 6vw, 72px) var(--pad-x);
+}
+
+/* Texte éditorial (colonne gauche) */
+.mq-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 400;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-500);
+  margin-bottom: 18px;
 }
 .mq-eyebrow::before {
-  content: "";
-  display: inline-block;
-  width: 28px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.6;
+  content: ""; display: inline-block; width: 32px; height: 1px;
+  background: var(--ink-950);
 }
 .mq-title {
-  font-family: var(--mq-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(40px, 7vw, 96px);
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-  color: var(--mq-text);
-  margin: 0;
-  max-width: 18ch;
+  font-family: var(--font-serif); font-style: italic; font-weight: 400;
+  font-size: clamp(40px, 7vw, 78px);
+  line-height: 0.98; letter-spacing: -0.022em;
+  color: var(--ink-950);
+  margin: 0; max-width: 720px;
 }
-.mq-title__hl {
-  position: relative;
-  white-space: nowrap;
-}
-.mq-title__hl::after {
-  content: "";
-  position: absolute;
-  left: -2%; right: -2%;
-  bottom: -0.18em;
-  height: 0.22em;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 18' preserveAspectRatio='none'><path d='M2 13 C 60 4, 130 16, 200 8 C 270 1, 340 14, 398 6' fill='none' stroke='%231d4ed8' stroke-width='2.2' stroke-linecap='round'/></svg>");
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+.mq-title__hl { position: relative; white-space: nowrap; }
+.mq-title__hl-svg {
+  position: absolute; left: -4px; bottom: -4px;
+  width: 100%; max-width: 320px; height: 14px; overflow: visible;
   pointer-events: none;
 }
+.mq-title__hl-path {
+  fill: none; stroke: var(--accent); stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: mq-draw 1300ms 300ms var(--ease) forwards;
+}
+@keyframes mq-draw { to { stroke-dashoffset: 0; } }
 
-/* ─────── Ticker ─────── */
-.mq-ticker {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-bottom: 1px solid var(--mq-line-soft);
-}
-.mq-ticker__cell {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px var(--mq-pad-x);
-  border-right: 1px solid var(--mq-line-soft);
-  min-width: 0;
-}
-.mq-ticker__cell:last-child { border-right: 0; }
-
-.mq-time {
-  font-family: var(--mq-mono);
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  color: var(--mq-text-4);
-  white-space: nowrap;
-}
-.mq-time .sep { opacity: 0.6; padding: 0 1px; }
-
-.mq-evt {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mq-sans);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.mq-evt__dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.mq-evt--green   { color: var(--mq-green); }
-.mq-evt--purple  { color: var(--mq-purple); }
-.mq-evt--orange  { color: var(--mq-orange); }
-
-.mq-evt__meta {
-  font-family: var(--mq-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 14px;
-  color: var(--mq-text-3);
-  white-space: nowrap;
+.mq-sub {
+  margin-top: 32px; max-width: 520px;
+  font-family: var(--font-serif); font-style: italic; font-weight: 400;
+  font-size: 20px; line-height: 1.45;
+  color: var(--ink-700);
 }
 
-/* ─────── Login card ─────── */
-.mq-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(40px, 6vw, 72px) var(--mq-pad-x);
-}
-
+/* Formulaire (colonne droite) */
 .mq-card {
   position: relative;
-  width: 100%;
-  max-width: 540px;
-  padding: 28px clamp(28px, 4vw, 44px) 32px;
-  border: 1px solid var(--mq-line);
-  background: var(--mq-card-bg);
+  padding: 40px 44px;
+  background: var(--cream);
+  border: 1px solid var(--hair-warm);
   box-shadow:
-    0 1px 0 rgba(0,0,0,0.02),
-    0 24px 60px -32px rgba(20,22,30,0.18);
+    0 1px 0 oklch(0 0 0 / 0.03),
+    0 14px 40px oklch(0 0 0 / 0.06);
 }
 .mq-card__legend {
-  position: absolute;
-  top: -8px;
-  left: 28px;
-  padding: 0 10px;
-  background: var(--mq-bg);
-  font-family: var(--mq-sans);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mq-text-3);
+  position: absolute; top: -1px; left: 32px;
+  padding: 0 12px;
+  background: var(--cream);
+  transform: translateY(-50%);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 400;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-500);
 }
 
-.mq-error {
-  display: none;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 10px 12px;
-  border: 1px solid rgba(176, 32, 32, 0.30);
-  background: rgba(176, 32, 32, 0.05);
-  color: #9a1a1a;
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-.mq-error.show { display: flex; }
-.mq-error svg {
-  flex-shrink: 0;
-  width: 14px; height: 14px;
-  margin-top: 1px;
-  stroke-width: 1.8;
-}
+.mq-form { display: flex; flex-direction: column; gap: 26px; }
 
-.mq-form { display: block; }
-
-.mq-field { margin-top: 18px; }
-.mq-field:first-child { margin-top: 0; }
-
-.mq-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+.mq-field { display: flex; flex-direction: column; gap: 6px; }
+.mq-field__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
 }
-.mq-label {
-  display: block;
-  font-family: var(--mq-sans);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mq-text-2);
-  margin: 0 0 6px;
+.mq-field__label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-500);
 }
 .mq-forgot {
-  font-family: var(--mq-serif);
-  font-style: italic;
-  font-size: 14px;
-  color: var(--mq-text-3);
-  transition: color .18s ease;
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 13px; color: var(--ink-700);
+  border-bottom: 1px solid var(--hair-warm);
+  padding-bottom: 1px;
+  transition: color .18s ease, border-color .18s ease;
 }
-.mq-forgot:hover { color: var(--mq-accent); }
+.mq-forgot:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+.mq-input-wrap {
+  position: relative; height: 38px;
+}
+.mq-input-wrap::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: var(--hair-warm);
+}
+.mq-input-wrap::after {
+  content: ""; position: absolute; left: 0; bottom: -1.5px; height: 2px;
+  background: var(--accent); width: 0;
+  transition: width 600ms var(--ease);
+}
+.mq-input-wrap:focus-within::after { width: 100%; }
 
 .mq-input {
-  width: 100%;
-  padding: 6px 0 8px;
-  border: 0;
-  border-bottom: 1px solid var(--mq-line);
-  background: transparent;
-  font-family: var(--mq-serif);
-  font-size: 18px;
-  letter-spacing: 0.005em;
-  color: var(--mq-text);
-  outline: none;
-  transition: border-color .18s ease;
+  display: block; width: 100%;
+  height: 38px; line-height: 38px;
+  padding: 0; margin: 0;
+  border: 0; outline: none; background: transparent;
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 22px; letter-spacing: -0.005em;
+  color: var(--ink-950);
 }
 .mq-input::placeholder {
-  font-family: var(--mq-serif);
+  color: oklch(0.74 0.012 80);
   font-style: italic;
-  color: var(--mq-text-4);
 }
-.mq-input:focus {
-  border-bottom-color: var(--mq-accent);
-  border-bottom-width: 2px;
-  padding-bottom: 7px; /* compense le 2px */
-}
-input[type="password"].mq-input {
-  font-family: var(--mq-sans);
-  letter-spacing: 0.18em;
+input[type="password"].mq-input,
+.mq-input--mono {
+  font-family: var(--font-mono); font-style: normal;
+  font-size: 18px; letter-spacing: 0.18em;
 }
 input[type="password"].mq-input::placeholder {
-  font-family: var(--mq-sans);
-  letter-spacing: 0.32em;
-  font-style: normal;
+  color: oklch(0.74 0.012 80);
+  letter-spacing: 0.18em;
 }
 
 .mq-submit {
-  margin-top: 26px;
-  width: 100%;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background: #0d0f15;
-  color: #f4f0e6;
-  border: 0;
-  font-family: var(--mq-sans);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  transition: background .18s ease, transform .18s ease;
+  margin-top: 8px;
+  display: inline-flex; align-items: center; justify-content: space-between;
+  width: 100%; height: 48px;
+  padding: 0 18px;
+  background: var(--ink-950); color: var(--cream);
+  border: 0; border-radius: 0;
+  font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  transition: background .18s ease, transform .12s ease;
 }
-.mq-submit:hover { background: #1a1d29; }
-.mq-submit:active { transform: translateY(1px); }
-.mq-submit[disabled] { opacity: 0.7; cursor: progress; }
-.mq-submit__hint {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px; height: 24px;
-  border: 1px solid rgba(255,255,255,0.22);
-  font-family: var(--mq-mono);
-  font-size: 11px;
-  color: rgba(255,255,255,0.6);
+.mq-submit:hover    { background: var(--ink-1000); }
+.mq-submit:active   { transform: translateY(1px); }
+.mq-submit[disabled]{ opacity: 0.7; cursor: progress; }
+.mq-submit__kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border: 1px solid var(--cream);
+  opacity: 0.55;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
 }
-.mq-submit .spinner {
-  display: none;
-  width: 14px; height: 14px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: mq-spin 0.6s linear infinite;
-  margin-right: 10px;
+.mq-submit .mq-spinner {
+  display: none; width: 14px; height: 14px;
+  border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: mq-spin .6s linear infinite;
 }
-body.is-loading .mq-submit .spinner { display: inline-block; }
-body.is-loading .mq-submit .label { opacity: 0.85; }
+body.is-loading .mq-submit .mq-spinner { display: inline-block; }
+body.is-loading .mq-submit .mq-submit__kbd { display: none; }
 @keyframes mq-spin { to { transform: rotate(360deg); } }
 
 .mq-card__foot {
-  margin-top: 22px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  display: flex; align-items: baseline; justify-content: space-between;
   gap: 14px;
-  font-family: var(--mq-sans);
-  font-size: 12.5px;
-  color: var(--mq-text-3);
+  font-family: var(--font-sans); font-size: 11.5px;
+  color: var(--ink-500);
 }
 .mq-card__foot a {
-  font-family: var(--mq-serif);
-  font-style: italic;
-  font-size: 14px;
-  color: var(--mq-text-2);
-  border-bottom: 1px solid var(--mq-line);
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 13px; color: var(--ink-700);
+  border-bottom: 1px solid var(--hair-warm);
+  padding-bottom: 1px;
   transition: color .18s ease, border-color .18s ease;
 }
-.mq-card__foot a:hover {
-  color: var(--mq-accent);
-  border-bottom-color: var(--mq-accent);
-}
+.mq-card__foot a:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* ─────── Footer ─────── */
+.mq-error {
+  display: none; gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  color: oklch(0.42 0.18 25);
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 13px; line-height: 1.45;
+}
+.mq-error.show { display: flex; }
+
+/* ─────────── Footer ─────────── */
 .mq-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px var(--mq-pad-x);
-  border-top: 1px solid var(--mq-line-soft);
-  font-family: var(--mq-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--mq-text-3);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px 20px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-500);
 }
-.mq-foot__r { color: var(--mq-text-3); }
 
-/* ─────── Mobile ─────── */
+/* ─────────── Responsive ─────────── */
+@media (max-width: 1100px) {
+  :root { --form-w: 480px; }
+  .mq-title { font-size: clamp(40px, 6vw, 64px); }
+}
 @media (max-width: 900px) {
-  .mq-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 14px var(--mq-pad-x);
+  :root { --form-w: 100%; --pad-x: 24px; }
+  .mq-body {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding: 36px var(--pad-x);
   }
-  .mq-top__l { flex-wrap: wrap; gap: 10px; }
-  .mq-top__r { flex-wrap: wrap; }
+  .mq-card { padding: 32px 28px; }
+  .mq-title { font-size: clamp(36px, 6.5vw, 52px); }
+  .mq-sub { font-size: 17px; }
+  .mq-top { padding: 0 var(--pad-x); }
   .mq-divider { display: none; }
-  .mq-hero { padding: 36px var(--mq-pad-x); }
-  .mq-title { max-width: none; }
-  .mq-ticker {
-    grid-template-columns: 1fr 1fr;
-  }
-  .mq-ticker__cell:nth-child(2n) { border-right: 0; }
-  .mq-ticker__cell:nth-child(-n+2) { border-bottom: 1px solid var(--mq-line-soft); }
-  .mq-stage { padding: 32px var(--mq-pad-x); }
-  .mq-card { padding: 24px 22px 28px; }
+  .mq-foot { padding: 0 var(--pad-x) 16px; flex-wrap: wrap; gap: 6px; }
+}
+@media (max-width: 600px) {
+  :root { --marquise-h: 52px; --topbar-h: 44px; }
+  .mq-title { font-size: 36px; line-height: 1.0; }
+  .mq-sub { font-size: 16px; }
+  .mq-card { padding: 28px 22px; }
   .mq-card__legend { left: 20px; }
-  .mq-foot {
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-start;
-  }
-}
-@media (max-width: 540px) {
-  .mq-ticker { grid-template-columns: 1fr; }
-  .mq-ticker__cell { border-right: 0; border-bottom: 1px solid var(--mq-line-soft); }
-  .mq-ticker__cell:last-child { border-bottom: 0; }
-  .mq-evt__meta { display: none; }
+  .mq-grain, .mq-paper-grid { display: none; } /* perfs */
+  .mq-live { display: none; }
+  .mq-flag-label--long { display: none; }
+  .mq-foot__long { display: none; }
 }
 
-/* Reduced-motion */
+/* ─────────── A11y / motion ─────────── */
 @media (prefers-reduced-motion: reduce) {
-  .mq-submit .spinner { animation: none; }
+  .mq-marquise__track,
+  .mq-flag-dot::after,
+  .mq-submit .mq-spinner { animation: none; }
+  .mq-input-wrap::after { transition: none; }
+  .mq-title__hl-path { animation: none; stroke-dashoffset: 0; }
 }
 
-/* Force light : on ignore localStorage 'theme'='dark' sur cette page */
-:root[data-theme="dark"] body { background: var(--mq-bg); color: var(--mq-text); }
+/* Le composant respecte le data-theme=dark mais reste light : la page de
+   connexion est volontairement uniformément crème. */
+:root[data-theme="dark"] body {
+  background: var(--cream); color: var(--ink-950);
+}
 </style>
 </head>
 <body data-page="login">
 
+<!-- Filets papier verticaux — pattern SVG tous les 80 px -->
+<svg class="mq-paper-grid" aria-hidden="true" preserveAspectRatio="none">
+  <defs>
+    <pattern id="mq-vlines" width="80" height="80" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="80" stroke="oklch(0.918 0.008 80)" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#mq-vlines)"/>
+</svg>
+
+<!-- Grain papier (turbulence sépia) -->
+<svg class="mq-grain" aria-hidden="true" preserveAspectRatio="none">
+  <filter id="mq-grain-filter">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 0.45  0 0 0 0 0.42  0 0 0 0 0.36  0 0 0 0.55 0"/>
+  </filter>
+  <rect width="100%" height="100%" filter="url(#mq-grain-filter)"/>
+</svg>
+
 <div class="mq">
 
-  <!-- ────── Top bar ────── -->
+  <!-- Topbar -->
   <header class="mq-top">
-    <div class="mq-top__l">
-      <a class="mq-brand" href="/login">
-        <span class="mq-brand__mark" aria-hidden="true">𝒫</span>
-        <span class="mq-brand__name">Prosp&rsquo;Up</span>
-      </a>
-      <span class="mq-divider" aria-hidden="true"></span>
-      <span class="mq-live" id="mqLive">EN DIRECT · ——— · ——:——</span>
-    </div>
-    <div class="mq-top__r">
-      <span class="mq-flag">
-        <span class="mq-flag__dot" aria-hidden="true"></span>
-        Flux agrégé · Anonymisé · RGPD
-      </span>
-    </div>
+    <a class="mq-brand" href="/login" aria-label="Prosp'Up — Accueil">
+      <span class="mq-brand__mark" aria-hidden="true">P</span>
+      <span class="mq-brand__name">Prosp&rsquo;Up</span>
+    </a>
+    <span class="mq-divider" aria-hidden="true"></span>
+    <span class="mq-live" id="mqLive">EN DIRECT · ——— · ——:——</span>
+    <span class="mq-top__right">
+      <span class="mq-flag-dot" aria-hidden="true"></span>
+      <span class="mq-flag-label mq-flag-label--long">FLUX AGRÉGÉ · ANONYMISÉ · RGPD</span>
+    </span>
   </header>
 
-  <!-- ────── Hero ────── -->
-  <section class="mq-hero">
-    <p class="mq-eyebrow">La marche du jour</p>
-    <h1 class="mq-title">
-      Le pipeline d&rsquo;une journée d&rsquo;équipe, en <span class="mq-title__hl">mouvement</span>.
-    </h1>
-  </section>
-
-  <!-- ────── Ticker ────── -->
-  <div class="mq-ticker" aria-hidden="true">
-    <div class="mq-ticker__cell">
-      <span class="mq-time">09<span class="sep">·</span>31</span>
-      <span class="mq-evt mq-evt--green"><span class="mq-evt__dot"></span>+1 appel passé</span>
-      <span class="mq-evt__meta">session +1</span>
+  <!-- Marquise / ticker animé -->
+  <div class="mq-marquise" aria-hidden="true">
+    <div class="mq-marquise__track" id="mqTrack">
+      <!-- items injectés en JS — fallback statique ci-dessous si JS off -->
+      <noscript>
+        <div class="mq-tick" data-tone="rdv">
+          <span class="mq-tick__time">09·47</span>
+          <span class="mq-tick__dot"></span>
+          <span class="mq-tick__label">+1 RDV pris</span>
+          <span class="mq-tick__meta">pipeline +1.2 %</span>
+        </div>
+        <div class="mq-tick" data-tone="call">
+          <span class="mq-tick__time">09·44</span>
+          <span class="mq-tick__dot"></span>
+          <span class="mq-tick__label">+3 appels passés</span>
+          <span class="mq-tick__meta">session +14</span>
+        </div>
+        <div class="mq-tick" data-tone="cb">
+          <span class="mq-tick__time">09·41</span>
+          <span class="mq-tick__dot"></span>
+          <span class="mq-tick__label">+1 relance programmée</span>
+          <span class="mq-tick__meta">file 17</span>
+        </div>
+        <div class="mq-tick" data-tone="wait">
+          <span class="mq-tick__time">09·35</span>
+          <span class="mq-tick__dot"></span>
+          <span class="mq-tick__label">+2 boîtes vocales</span>
+          <span class="mq-tick__meta">à reprendre 47</span>
+        </div>
+      </noscript>
     </div>
-    <div class="mq-ticker__cell">
-      <span class="mq-time">09<span class="sep">·</span>28</span>
-      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
-      <span class="mq-evt__meta">pipeline +1.0&nbsp;%</span>
-    </div>
-    <div class="mq-ticker__cell">
-      <span class="mq-time">09<span class="sep">·</span>24</span>
-      <span class="mq-evt mq-evt--orange"><span class="mq-evt__dot"></span>+1 relance programmée</span>
-      <span class="mq-evt__meta">file 18</span>
-    </div>
-    <div class="mq-ticker__cell">
-      <span class="mq-time" id="mqTickTime">09<span class="sep">·</span>47</span>
-      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
-      <span class="mq-evt__meta">pipeline +1.2&nbsp;%</span>
-    </div>
+    <div class="mq-marquise__fade mq-marquise__fade--l"></div>
+    <div class="mq-marquise__fade mq-marquise__fade--r"></div>
   </div>
 
-  <!-- ────── Login card ────── -->
-  <main class="mq-stage">
+  <!-- Corps : éditorial à gauche + formulaire à droite -->
+  <main class="mq-body">
+
+    <section class="mq-editorial">
+      <p class="mq-eyebrow">La marche du jour</p>
+      <h1 class="mq-title">
+        Le pipeline<br>
+        d&rsquo;une journée<br>
+        d&rsquo;équipe, en
+        <span class="mq-title__hl">mouvement<svg class="mq-title__hl-svg" viewBox="0 0 290 14" aria-hidden="true">
+          <path class="mq-title__hl-path" d="M 4 8 Q 80 2, 145 6 T 286 5"></path>
+        </svg></span>.
+      </h1>
+      <p class="mq-sub">
+        Le flux ci-dessus est anonymisé : chaque tick est une action d&rsquo;un
+        de vos coéquipiers, dans la dernière minute. Connectez-vous pour
+        rejoindre la marche.
+      </p>
+    </section>
+
     <section class="mq-card" aria-labelledby="mqLegend">
       <span class="mq-card__legend" id="mqLegend">Prendre la barre</span>
 
-      <div class="mq-error" id="errorMsg" role="alert" aria-live="polite">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
-        </svg>
-        <span id="errorMsgText"></span>
-      </div>
-
       <form id="loginForm" class="mq-form" novalidate>
-        <div class="mq-field">
-          <label class="mq-label" for="username">Identifiant</label>
-          <input class="mq-input" type="text" id="username" name="username"
-                 placeholder="prenom.nom" autocomplete="username"
-                 required autofocus spellcheck="false" autocapitalize="off">
+
+        <div class="mq-error" id="errorMsg" role="alert" aria-live="polite">
+          <span id="errorMsgText"></span>
         </div>
 
         <div class="mq-field">
-          <div class="mq-row">
-            <label class="mq-label" for="password">Mot de passe</label>
-            <a class="mq-forgot" href="#" tabindex="-1">Oublié&nbsp;?</a>
+          <div class="mq-field__head">
+            <label class="mq-field__label" for="username">Identifiant</label>
           </div>
-          <input class="mq-input" type="password" id="password" name="password"
-                 placeholder="••••••••" autocomplete="current-password" required>
+          <div class="mq-input-wrap">
+            <input class="mq-input" type="text" id="username" name="username"
+                   placeholder="prenom.nom" autocomplete="username"
+                   required autofocus spellcheck="false" autocapitalize="off">
+          </div>
+        </div>
+
+        <div class="mq-field">
+          <div class="mq-field__head">
+            <label class="mq-field__label" for="password">Mot de passe</label>
+            <a class="mq-forgot" href="mailto:contact@up-technologies.fr?subject=Mot%20de%20passe%20Prosp%27Up" tabindex="-1">oublié&nbsp;?</a>
+          </div>
+          <div class="mq-input-wrap">
+            <input class="mq-input mq-input--mono" type="password" id="password" name="password"
+                   placeholder="••••••••" autocomplete="current-password" required>
+          </div>
         </div>
 
         <button type="submit" class="mq-submit" id="btnLogin">
-          <span class="spinner" aria-hidden="true"></span>
-          <span class="label">Se connecter</span>
-          <span class="mq-submit__hint" aria-hidden="true">↵</span>
+          <span>Se connecter</span>
+          <span class="mq-spinner" aria-hidden="true"></span>
+          <span class="mq-submit__kbd" aria-hidden="true">&#x21B5;</span>
         </button>
-      </form>
 
-      <div class="mq-card__foot">
-        <span>SSO Up Technologies</span>
-        <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
-      </div>
+        <div class="mq-card__foot">
+          <span>SSO Up Technologies</span>
+          <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
+        </div>
+      </form>
     </section>
   </main>
 
-  <!-- ────── Footer ────── -->
+  <!-- Footer -->
   <footer class="mq-foot">
-    <span class="mq-foot__l">prospup.work · v<span id="mqVersion">30</span></span>
-    <span class="mq-foot__r">© <span id="mqYear">2026</span> Up Technologies · OVHcloud · Roubaix</span>
+    <span>prospup.work · v<span id="mqVersion">30</span></span>
+    <span class="mq-foot__long">© <span id="mqYear">2026</span> Up Technologies · OVHcloud · Roubaix</span>
   </footer>
 
 </div>
@@ -612,82 +597,144 @@ body.is-loading .mq-submit .label { opacity: 0.85; }
 /* ─── Live clock + date FR (top bar) ─── */
 (function () {
   var jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
-  var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  var live = document.getElementById('mqLive');
+  var mois  = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var live  = document.getElementById('mqLive');
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function tick() {
+    if (!live) return;
     var d = new Date();
-    var jour = jours[d.getDay()];
-    var label = 'EN DIRECT · ' + jour.toUpperCase() + ' ' + d.getDate() + ' ' + mois[d.getMonth()].toUpperCase() + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    if (live) live.textContent = label;
+    live.textContent = 'EN DIRECT · '
+      + jours[d.getDay()].toUpperCase() + ' '
+      + d.getDate() + ' '
+      + mois[d.getMonth()].toUpperCase() + ' · '
+      + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
   tick();
-  setInterval(tick, 1000 * 30);
+  setInterval(tick, 30 * 1000);
 
-  // year
   var y = document.getElementById('mqYear');
   if (y) y.textContent = new Date().getFullYear();
 
-  // version live (route publique)
   fetch('/api/app-version').then(function (r) { return r.json(); }).then(function (d) {
     var v = document.getElementById('mqVersion');
     if (v && d && d.version) v.textContent = d.version;
   }).catch(function () {});
 })();
 
-/* ─── Validation légère + soumission ─── */
-document.addEventListener('DOMContentLoaded', function () {
-  var form = document.getElementById('loginForm');
-  if (form && typeof window.initFormValidation === 'function') {
-    window.initFormValidation(form, {
-      validateOnBlur: true,
-      validateOnInput: true,
-      fieldOptions: {
-        username: { requiredMessage: "L'identifiant est requis" },
-        password: { requiredMessage: 'Le mot de passe est requis' }
-      }
+/* ─── Marquise (ticker) ─── */
+(function () {
+  /* Fallback d'exemple, anonymisé — ne JAMAIS afficher de données réelles
+     (cet écran est servi avant authentification). */
+  var FALLBACK = [
+    { t: '09·47', label: '+1 RDV pris',           meta: 'pipeline +1.2 %', tone: 'rdv'  },
+    { t: '09·44', label: '+3 appels passés',      meta: 'session +14',     tone: 'call' },
+    { t: '09·41', label: '+1 relance programmée', meta: 'file 17',         tone: 'cb'   },
+    { t: '09·38', label: '+1 RDV pris',           meta: 'pipeline +0.9 %', tone: 'rdv'  },
+    { t: '09·35', label: '+2 boîtes vocales',     meta: 'à reprendre 47',  tone: 'wait' },
+    { t: '09·31', label: '+1 appel passé',        meta: 'session +1',      tone: 'call' },
+    { t: '09·28', label: '+1 RDV pris',           meta: 'pipeline +1.0 %', tone: 'rdv'  },
+    { t: '09·24', label: '+1 relance programmée', meta: 'file 18',         tone: 'cb'   }
+  ];
+  var track = document.getElementById('mqTrack');
+  if (!track) return;
+
+  function renderTick(x) {
+    var el = document.createElement('div');
+    el.className = 'mq-tick';
+    el.setAttribute('data-tone', x.tone || 'call');
+    el.innerHTML = ''
+      + '<span class="mq-tick__time"></span>'
+      + '<span class="mq-tick__dot"></span>'
+      + '<span class="mq-tick__label"></span>'
+      + '<span class="mq-tick__meta"></span>';
+    el.children[0].textContent = x.t || '';
+    el.children[2].textContent = (x.label || '').toUpperCase();
+    el.children[3].textContent = x.meta || '';
+    return el;
+  }
+  function render(list) {
+    track.textContent = '';
+    /* Duplique la liste 4× pour que translateX(-50%) reste seamless,
+       quelle que soit la largeur du viewport. */
+    var pool = list.concat(list, list, list);
+    var frag = document.createDocumentFragment();
+    pool.forEach(function (x) { frag.appendChild(renderTick(x)); });
+    track.appendChild(frag);
+  }
+  function isClean(arr) {
+    /* Vérification minimale : refuse tout objet contenant un champ qui
+       ressemble à de la donnée nominative (nom, email, téléphone, société). */
+    if (!Array.isArray(arr) || !arr.length) return false;
+    var forbidden = /(name|email|phone|company|user|account|ip|prenom|nom|societe)/i;
+    return arr.every(function (it) {
+      if (!it || typeof it !== 'object') return false;
+      return Object.keys(it).every(function (k) { return !forbidden.test(k); });
     });
   }
-});
 
-async function doLogin(e) {
-  e.preventDefault();
-  var btn      = document.getElementById('btnLogin');
-  var err      = document.getElementById('errorMsg');
-  var errText  = document.getElementById('errorMsgText');
-  err.classList.remove('show');
-  btn.disabled = true;
-  document.body.classList.add('is-loading');
+  render(FALLBACK);
 
-  try {
-    var resp = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('username').value.trim(),
-        password: document.getElementById('password').value
+  /* Tentative de récupération depuis /api/tick (anonymisé). En cas d'erreur,
+     le fallback reste affiché. */
+  function poll() {
+    fetch('/api/tick', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (Array.isArray(data) && data.length && isClean(data)) {
+          render(data);
+        }
       })
-    });
-    var data = await resp.json();
-    if (data.ok) {
-      var optOut = false;
-      try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
-      var target = optOut ? '/dashboard' : '/v30/dashboard';
-      if (data.must_change_password) target = '/parametres?change_password=1';
-      window.location.href = target;
-    } else {
-      errText.textContent = (data.error || 'Erreur de connexion');
-      err.classList.add('show');
-    }
-  } catch (ex) {
-    errText.textContent = 'Erreur réseau';
-    err.classList.add('show');
-  } finally {
-    btn.disabled = false;
-    document.body.classList.remove('is-loading');
+      .catch(function () { /* silencieux — fallback déjà rendu */ });
   }
-}
-document.getElementById('loginForm').addEventListener('submit', doLogin);
+  poll();
+  setInterval(poll, 10 * 1000);
+})();
+
+/* ─── Form submit ─── */
+(function () {
+  var form = document.getElementById('loginForm');
+  var btn  = document.getElementById('btnLogin');
+  var err  = document.getElementById('errorMsg');
+  var errText = document.getElementById('errorMsgText');
+  if (!form) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    err.classList.remove('show');
+    btn.disabled = true;
+    document.body.classList.add('is-loading');
+
+    try {
+      var resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value
+        })
+      });
+      var data = await resp.json();
+      if (data.ok) {
+        var optOut = false;
+        try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
+        var target = optOut ? '/dashboard' : '/v30/dashboard';
+        if (data.must_change_password) target = '/parametres?change_password=1';
+        window.location.href = target;
+      } else {
+        errText.textContent = (data.error || 'Identifiant ou mot de passe incorrect.');
+        err.classList.add('show');
+        var u = document.getElementById('username');
+        if (u) u.focus();
+      }
+    } catch (_) {
+      errText.textContent = 'Erreur réseau';
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      document.body.classList.remove('is-loading');
+    }
+  });
+})();
 </script>
 </body>
 </html>

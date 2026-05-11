@@ -298,7 +298,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
+    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/tick', '/api/system/check-deployment', '/api/system/logs',
                '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
                '/api/deploy/validation-status', '/api/deploy/confirm-validation',
                '/prospects/mode-prosp', '/api/mode-prosp/')
@@ -397,6 +397,32 @@ def page_login():
         # legacy qui redirige vers l'equivalent legacy si necessaire.
         return redirect('/v30/dashboard')
     return send_from_directory(APP_DIR, "login.html")
+
+
+# Marquise du login : ticker public servi avant authentification.
+# Volontairement statique et anonymisé — aucun lien avec la DB.
+_TICK_FALLBACK = [
+    {"t": "09·47", "label": "+1 RDV pris",           "meta": "pipeline +1.2 %", "tone": "rdv"},
+    {"t": "09·44", "label": "+3 appels passés",      "meta": "session +14",     "tone": "call"},
+    {"t": "09·41", "label": "+1 relance programmée", "meta": "file 17",         "tone": "cb"},
+    {"t": "09·38", "label": "+1 RDV pris",           "meta": "pipeline +0.9 %", "tone": "rdv"},
+    {"t": "09·35", "label": "+2 boîtes vocales",     "meta": "à reprendre 47",  "tone": "wait"},
+    {"t": "09·31", "label": "+1 appel passé",        "meta": "session +1",      "tone": "call"},
+    {"t": "09·28", "label": "+1 RDV pris",           "meta": "pipeline +1.0 %", "tone": "rdv"},
+    {"t": "09·24", "label": "+1 relance programmée", "meta": "file 18",         "tone": "cb"},
+]
+
+
+@app.get("/api/tick")
+def api_tick():
+    """Flux marquise du login. Strictement anonymisé : pas de nom, pas d'ID,
+    pas de société, pas d'IP. Retourne un jeu d'exemples statique — l'écran
+    est servi avant auth, donc aucune donnée réelle ne doit fuiter."""
+    resp = jsonify(_TICK_FALLBACK)
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
+
 
 # Auth helpers (rate limit + JWT) — voir utils/auth.py
 # /api/auth/* — déplacé dans routes/auth.py (Blueprint enregistré en bas de ce fichier)

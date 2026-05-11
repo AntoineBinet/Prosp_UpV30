@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.38] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
+## [32.39] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
 
 Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :
 
@@ -29,7 +29,7 @@ Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :
   « PROSP'UP · TRAITEMENT BESOIN », date de génération + numéro de page.
 - Route : `GET /api/besoins/<id>/export.pdf` → `fiche_besoin_<intitule>.pdf`.
 
-## [32.37] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
+## [32.38] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
 
 Sur la fiche besoin (`/v30/besoins/<id>`), la liste des candidats
 positionnés peut maintenant être réordonnée :
@@ -44,6 +44,60 @@ positionnés peut maintenant être réordonnée :
   (HTML5 drag) et mobile (touchstart + elementFromPoint).
 - L'ordre est persisté via le `PUT /api/besoins/<id>` existant
   (auto-save 1,2 s après modification).
+
+## [32.37] — 2026-05-11 · Login · Refonte « Marquise » (ticker animé + éditorial)
+
+Refonte complète de `/login` (et de son preview `/v30/login`) selon le
+handoff design `ProspUp_Design_System` (piste « Marquise ») :
+
+- **Layout 2 colonnes** (cible 1400 × 880) : phrase éditoriale serif
+  italique à gauche, formulaire flottant 560 px à droite. En dessous de
+  900 px, bascule en une seule colonne (texte au-dessus du formulaire).
+- **Marquise / ticker animé** en haut, juste sous la topbar : 60 px de
+  haut, défilement horizontal `translateX(0 → -50%)` en boucle 60 s.
+  Liste dupliquée × 4 pour garantir un loop seamless. Fades latéraux
+  120 px sur les deux bords pour masquer la coupure.
+- **4 tones** (rdv violet, callback ambre, call teal, voicemail mauve)
+  alignés sur les `--status-*` existants. Pastille 5 × 5 px par item,
+  point médian U+00B7 dans l'heure (signature « marquise »).
+- **Endpoint `GET /api/tick`** créé (accessible avant auth,
+  `Cache-Control: no-store`, `X-Robots-Tag: noindex`) : retourne un jeu
+  d'exemples **strictement statique et anonymisé** — pas de nom, pas
+  d'ID, pas de société. Aucune donnée réelle ne fuite pré-login. Le
+  client vérifie en plus que les clés JSON ne contiennent pas
+  `name|email|phone|company|user|...` avant d'afficher.
+- **H1 éditorial** 78 px Instrument Serif italique sur 3 lignes
+  (« Le pipeline / d'une journée / d'équipe, en mouvement. »), avec
+  **soulignement SVG manuscrit** sous *mouvement* dessiné à T+300 ms
+  (stroke-dasharray draw-in 1300 ms, `cubic-bezier(0.2, 0.8, 0.2, 1)`).
+- **Champs InkField** : hairline crème → wipe accent indigo 2 px de
+  gauche à droite (600 ms) au focus. Valeurs en Instrument Serif italique
+  22 px (texte) ou JetBrains Mono 18 px `letter-spacing: 0.18em` (mots
+  de passe). Caret accent visible au focus.
+- **Bouton submit** plein crème inversé (fond ink-950, texte cream),
+  sans border-radius, badge `↵` à droite. Spinner mono au loading.
+- **Fond papier** : `--cream` `oklch(0.985 0.006 80)` avec overlay
+  grain SVG turbulence (`feTurbulence`, sépia, mix-blend-mode multiply,
+  opacité 0.40) + filets verticaux subtils tous les 80 px. Désactivés
+  sur < 600 px pour les perfs.
+- **Topbar 48 px** : logo P serif italique + horloge live (FR, dayOfWeek
+  + date + HH:MM, refresh 30 s) + pulse dot indigo + flag
+  « FLUX AGRÉGÉ · ANONYMISÉ · RGPD ».
+- **Tokens** : ajout de `--cream`, `--cream-2`, `--hair-warm`,
+  `--hair-warm-2` dans `static/css/v30/tokens.css` (utilisables pour
+  d'autres pages éditoriales à venir).
+- **A11y** : labels visibles, focus visibles, contraste ≥ AA, ordre
+  Tab natif (identifiant → mot de passe → bouton). Tous les éléments
+  décoratifs (grain, filets, pulse, marquise) `aria-hidden`.
+  `prefers-reduced-motion` : marquise figée, soulignement statique,
+  wipe immédiat, pas de pulse — formulaire toujours utilisable.
+- **Graceful degradation** : `<noscript>` fallback dans la marquise
+  (4 items statiques), formulaire en POST classique, soumission OK
+  sans JS via la même route `/api/auth/login`.
+
+Aucune migration DB. Le formulaire continue d'appeler `/api/auth/login`
+et redirige vers `/v30/dashboard` (ou `/parametres?change_password=1`
+si `must_change_password`).
 
 ## [32.36] — 2026-05-09 · Toile d'araignée · Refonte split + style minimaliste
 
