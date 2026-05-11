@@ -25,6 +25,9 @@
     'dispo': 'Disponible',
     'nope':  'Non disponible',
   };
+  // Ordre de tri automatique par dispo (du haut au bas) :
+  // dispo (vert) > msg (bleu) > '' (pas contacté) > nope (rouge)
+  const STATUS_SORT_RANK = { 'dispo': 0, 'msg': 1, '': 2, 'nope': 3 };
 
   const state = {
     besoin: null,
@@ -386,6 +389,16 @@
     // ── Header (toujours visible) ─────────────────────────────
     const head = document.createElement('div');
     head.className = 'v30-cand-card__head';
+
+    // Drag handle (poignée pour réordonner manuellement)
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'v30-cand-card__handle';
+    handle.setAttribute('aria-label', 'Glisser pour réordonner');
+    handle.title = 'Glisser pour réordonner';
+    handle.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="3" cy="3" r="0.8" fill="currentColor"/><circle cx="9" cy="3" r="0.8" fill="currentColor"/><circle cx="3" cy="7" r="0.8" fill="currentColor"/><circle cx="9" cy="7" r="0.8" fill="currentColor"/><circle cx="3" cy="11" r="0.8" fill="currentColor"/><circle cx="9" cy="11" r="0.8" fill="currentColor"/></svg>';
+    handle.addEventListener('click', (e) => e.stopPropagation());
+    head.appendChild(handle);
 
     // Toggle
     const toggle = document.createElement('button');
@@ -752,6 +765,217 @@
     state.besoin.candidats.forEach((c, idx) => {
       host.appendChild(buildCandCard(c, idx));
     });
+    bindDragAndDrop(host);
+  }
+
+  // ─── Tri automatique par statut de dispo ────────────────────
+  function sortByStatus() {
+    if (!Array.isArray(state.besoin.candidats) || state.besoin.candidats.length < 2) return;
+    // Tri stable : on conserve l'ordre relatif au sein d'un même statut
+    const indexed = state.besoin.candidats.map((c, i) => ({ c, i }));
+    indexed.sort((a, b) => {
+      const ra = STATUS_SORT_RANK[normalizeStatus(a.c)];
+      const rb = STATUS_SORT_RANK[normalizeStatus(b.c)];
+      if (ra !== rb) return ra - rb;
+      return a.i - b.i;
+    });
+    // Détecte si l'ordre a réellement changé
+    let changed = false;
+    for (let k = 0; k < indexed.length; k++) {
+      if (indexed[k].i !== k) { changed = true; break; }
+    }
+    if (!changed) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Déjà trié par dispo', 'info', 1600);
+      }
+      return;
+    }
+    // Reconstruit le tableau + réindexe les cartes ouvertes
+    const newExpanded = new Set();
+    indexed.forEach(({ i }, newIdx) => {
+      if (state.expanded.has(i)) newExpanded.add(newIdx);
+    });
+    state.besoin.candidats = indexed.map(x => x.c);
+    state.expanded = newExpanded;
+    renderCands();
+    markDirty();
+    if (typeof window.showToast === 'function') {
+      window.showToast('Candidats triés par dispo', 'success', 1800);
+    }
+  }
+
+  // ─── Drag & drop manuel via la poignée ──────────────────────
+  const DND = {
+    draggingIdx: null,
+    overIdx: null,
+    overPos: null, // 'before' | 'after'
+    touchTimer: null,
+    touchActive: false,
+    touchStartY: 0,
+    ghost: null,
+  };
+
+  function moveCandidate(from, to, posBefore) {
+    const arr = state.besoin.candidats;
+    if (from === to || from < 0 || from >= arr.length) return;
+    let target = to + (posBefore ? 0 : 1);
+    if (target > from) target -= 1;
+    if (target === from || target < 0 || target > arr.length - 1) return;
+    const [moved] = arr.splice(from, 1);
+    arr.splice(target, 0, moved);
+    // Réindexer les cartes ouvertes
+    const newExpanded = new Set();
+    state.expanded.forEach(j => {
+      let nj = j;
+      if (j === from) nj = target;
+      else if (from < j && j <= target) nj = j - 1;
+      else if (target <= j && j < from) nj = j + 1;
+      newExpanded.add(nj);
+    });
+    state.expanded = newExpanded;
+    renderCands();
+    markDirty();
+  }
+
+  function clearDropMarks(host) {
+    if (!host) return;
+    host.querySelectorAll('.v30-cand-card.is-drop-before, .v30-cand-card.is-drop-after, .v30-cand-card.is-dragging').forEach(el => {
+      el.classList.remove('is-drop-before', 'is-drop-after', 'is-dragging');
+    });
+  }
+
+  function computeDropPos(card, clientY) {
+    const r = card.getBoundingClientRect();
+    return (clientY - r.top) < (r.height / 2) ? 'before' : 'after';
+  }
+
+  function bindDragAndDrop(host) {
+    if (!host || host._v30DndBound) return;
+    host._v30DndBound = true;
+
+    // ── Desktop : HTML5 drag & drop ────────────────────────
+    host.addEventListener('mousedown', (e) => {
+      const handle = e.target.closest('.v30-cand-card__handle');
+      if (!handle) return;
+      const card = handle.closest('.v30-cand-card');
+      if (card) card.setAttribute('draggable', 'true');
+    });
+
+    host.addEventListener('mouseup', () => {
+      host.querySelectorAll('.v30-cand-card[draggable="true"]').forEach(c => {
+        if (!c.classList.contains('is-dragging')) c.removeAttribute('draggable');
+      });
+    });
+
+    host.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.v30-cand-card');
+      if (!card || card.getAttribute('draggable') !== 'true') {
+        e.preventDefault();
+        return;
+      }
+      DND.draggingIdx = parseInt(card.dataset.candIdx, 10);
+      card.classList.add('is-dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(DND.draggingIdx)); } catch (_) {}
+      }
+    });
+
+    host.addEventListener('dragover', (e) => {
+      if (DND.draggingIdx == null) return;
+      const card = e.target.closest('.v30-cand-card');
+      if (!card) return;
+      const idx = parseInt(card.dataset.candIdx, 10);
+      if (idx === DND.draggingIdx) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      const pos = computeDropPos(card, e.clientY);
+      // Retire les anciennes marques
+      host.querySelectorAll('.v30-cand-card.is-drop-before, .v30-cand-card.is-drop-after').forEach(el => {
+        if (el !== card) el.classList.remove('is-drop-before', 'is-drop-after');
+      });
+      card.classList.toggle('is-drop-before', pos === 'before');
+      card.classList.toggle('is-drop-after', pos === 'after');
+      DND.overIdx = idx;
+      DND.overPos = pos;
+    });
+
+    host.addEventListener('dragleave', (e) => {
+      const card = e.target.closest('.v30-cand-card');
+      if (!card) return;
+      if (card.contains(e.relatedTarget)) return;
+      card.classList.remove('is-drop-before', 'is-drop-after');
+    });
+
+    host.addEventListener('drop', (e) => {
+      if (DND.draggingIdx == null) return;
+      e.preventDefault();
+      const from = DND.draggingIdx;
+      const to = DND.overIdx;
+      const posBefore = DND.overPos === 'before';
+      clearDropMarks(host);
+      DND.draggingIdx = null; DND.overIdx = null; DND.overPos = null;
+      if (to == null || from === to) return;
+      moveCandidate(from, to, posBefore);
+    });
+
+    host.addEventListener('dragend', () => {
+      clearDropMarks(host);
+      host.querySelectorAll('.v30-cand-card[draggable="true"]').forEach(c => c.removeAttribute('draggable'));
+      DND.draggingIdx = null; DND.overIdx = null; DND.overPos = null;
+    });
+
+    // ── Mobile : touchstart / touchmove / touchend ────────
+    host.addEventListener('touchstart', (e) => {
+      const handle = e.target.closest('.v30-cand-card__handle');
+      if (!handle) return;
+      const card = handle.closest('.v30-cand-card');
+      if (!card) return;
+      DND.touchActive = true;
+      DND.draggingIdx = parseInt(card.dataset.candIdx, 10);
+      DND.touchStartY = (e.touches && e.touches[0]) ? e.touches[0].clientY : 0;
+      card.classList.add('is-dragging');
+      if (window.haptic) try { window.haptic(8); } catch (_) {}
+    }, { passive: true });
+
+    host.addEventListener('touchmove', (e) => {
+      if (!DND.touchActive || DND.draggingIdx == null) return;
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      e.preventDefault();
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      const card = el && el.closest ? el.closest('.v30-cand-card') : null;
+      // Retire les anciennes marques
+      host.querySelectorAll('.v30-cand-card.is-drop-before, .v30-cand-card.is-drop-after').forEach(c => {
+        if (c !== card) c.classList.remove('is-drop-before', 'is-drop-after');
+      });
+      if (!card) { DND.overIdx = null; DND.overPos = null; return; }
+      const idx = parseInt(card.dataset.candIdx, 10);
+      if (idx === DND.draggingIdx) {
+        DND.overIdx = null; DND.overPos = null;
+        return;
+      }
+      const pos = computeDropPos(card, t.clientY);
+      card.classList.toggle('is-drop-before', pos === 'before');
+      card.classList.toggle('is-drop-after', pos === 'after');
+      DND.overIdx = idx;
+      DND.overPos = pos;
+    }, { passive: false });
+
+    function endTouch() {
+      if (!DND.touchActive) return;
+      const from = DND.draggingIdx;
+      const to = DND.overIdx;
+      const posBefore = DND.overPos === 'before';
+      clearDropMarks(host);
+      DND.touchActive = false;
+      DND.draggingIdx = null; DND.overIdx = null; DND.overPos = null;
+      if (to != null && from != null && from !== to) {
+        moveCandidate(from, to, posBefore);
+      }
+    }
+    host.addEventListener('touchend', endTouch);
+    host.addEventListener('touchcancel', endTouch);
   }
 
   function addCand() {
@@ -896,6 +1120,16 @@
   // ─── Export Excel ────────────────────────────────────────
   function exportXlsx() {
     const url = '/api/besoins/' + ID + '/export.xlsx';
+    if (state.dirty) {
+      saveAuto().then(() => { window.location.href = url; });
+    } else {
+      window.location.href = url;
+    }
+  }
+
+  // ─── Export PDF ──────────────────────────────────────────
+  function exportPdf() {
+    const url = '/api/besoins/' + ID + '/export.pdf';
     if (state.dirty) {
       saveAuto().then(() => { window.location.href = url; });
     } else {
@@ -1274,6 +1508,9 @@
     document.querySelectorAll('[data-v30-besoin-export]').forEach(b => {
       b.addEventListener('click', () => exportXlsx());
     });
+    document.querySelectorAll('[data-v30-besoin-export-pdf]').forEach(b => {
+      b.addEventListener('click', () => exportPdf());
+    });
     const del = document.querySelector('[data-v30-besoin-delete]');
     if (del) del.addEventListener('click', doDelete);
     const save = document.querySelector('[data-v30-besoin-save]');
@@ -1283,6 +1520,8 @@
     if (addBtn) addBtn.addEventListener('click', addCand);
     const candSearchBtn = document.querySelector('[data-v30-besoin-cand-search]');
     if (candSearchBtn) candSearchBtn.addEventListener('click', openCandModal);
+    const candSortBtn = document.querySelector('[data-v30-besoin-cand-sort]');
+    if (candSortBtn) candSortBtn.addEventListener('click', sortByStatus);
 
     // Import Excel
     const xlsxInput = document.querySelector('[data-v30-besoin-import-xlsx]');

@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.38] — 2026-05-11 · Dashboard · Fix compteurs RDV + accès rapide besoins/EC
+## [32.40] — 2026-05-11 · Dashboard · Fix compteurs RDV + accès rapide besoins/EC
 
 Trois corrections sur `/v30/dashboard` :
 
@@ -57,6 +57,49 @@ Aucune migration DB. Aucun nouvel endpoint dédié (tout passe par
 Toile : 4 nouvelles actions sur le nœud « Dashboard » (`besoins-quick`,
 `ec-quick`, `besoin-open-link`, `candidat-ec-link`) — voir
 `routes/pages.py:_build_sitemap_data()`.
+
+## [32.39] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
+
+Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :
+
+- **Bouton « Export PDF »** dans le header de la fiche besoin, à côté
+  des exports/imports Excel existants.
+- **En-tête** : eyebrow, intitulé en gros (Helvetica-Bold 20pt), méta
+  (client · contact · localisation), chip statut coloré à droite,
+  trait horizontal accent.
+- **Bloc infos générales** : grille 2 colonnes label/valeur (Client,
+  Contact, Localisation, Profil recherché, Date appel, Date besoin,
+  Durée mission, Lié au prospect).
+- **Bloc Mission** : Descriptif, Compétences requises, Connaissances
+  attendues, Expérience, Commentaires (sections affichées seulement si
+  renseignées).
+- **Bloc Candidats positionnés** : pour chaque candidat,
+  numéro `#NN`, nom en gras, méta (rôle / séniorité / lieu / diplôme),
+  contact (Tél., Email, Profil), chip statut coloré (Disponible vert,
+  Messagerie bleu, Pas contacté gris, Non disponible rouge), bande
+  verticale colorée à gauche selon le statut, grille 3×3 des champs
+  de tracking (Dispo, Appel, DT, RDV1, RDV2, RT, Envoi DT, Propal,
+  RT client), bloc Commentaires sur fond bleu clair si rempli.
+- **Bloc Préparation RT** en fin de document si renseigné.
+- **Header / footer** sur chaque page : bandeau accent en haut, eyebrow
+  « PROSP'UP · TRAITEMENT BESOIN », date de génération + numéro de page.
+- Route : `GET /api/besoins/<id>/export.pdf` → `fiche_besoin_<intitule>.pdf`.
+
+## [32.38] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
+
+Sur la fiche besoin (`/v30/besoins/<id>`), la liste des candidats
+positionnés peut maintenant être réordonnée :
+
+- **Tri automatique par dispo** : nouveau bouton « Trier par dispo »
+  dans le header de la section. Ordre obtenu : `Dispo` (vert) en haut →
+  `Messagerie` (bleu) → `Pas contacté` → `Non dispo` (rouge) en bas.
+  Toast de confirmation, tri stable au sein d'un même statut.
+- **Drag & drop manuel** : nouvelle poignée à six points à gauche de
+  chaque carte (`v30-cand-card__handle`). Indicateur d'insertion bleu
+  au survol (`is-drop-before` / `is-drop-after`). Fonctionne en desktop
+  (HTML5 drag) et mobile (touchstart + elementFromPoint).
+- L'ordre est persisté via le `PUT /api/besoins/<id>` existant
+  (auto-save 1,2 s après modification).
 
 ## [32.37] — 2026-05-11 · Login · Refonte « Marquise » (ticker animé + éditorial)
 
