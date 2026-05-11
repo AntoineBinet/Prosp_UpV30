@@ -162,7 +162,12 @@
     if (!card) return;
 
     var todos = (tasks && tasks.tasks) || [];
-    var rdvList = (data.feed && data.feed.rdv) || [];
+    // "RDV aujourd'hui" = prospects dont rdvDate tombe aujourd'hui (rendez-vous
+    // programmés). `data.today_appointments` est calculé côté backend à partir
+    // de prospects.rdvDate. On évite `feed.rdv` qui ne contient que les events
+    // `rdv_taken` (= transitions de statut), donc serait vide même quand un
+    // RDV existe pour aujourd'hui.
+    var rdvList = data.today_appointments || [];
     var overdue = data.overdue_list || [];
 
     function fillCount(tab, n) {
@@ -459,6 +464,9 @@
     overdue:  '#ef4444'
   };
   var PERF_STATE = { weekOffset: 0, chart: null };
+  // Dernier payload `goals` reçu via /api/dashboard — utilisé par la modale
+  // de détail (info button à côté du titre Objectifs).
+  var LAST_GOALS = null;
 
   function weekMonday(offset) {
     var d = new Date(); d.setHours(0, 0, 0, 0);
@@ -818,6 +826,10 @@
   }
 
   function renderObjectifs(goals) {
+    LAST_GOALS = goals || null;
+    // Si la modale détail est ouverte, on rafraîchit son contenu en live.
+    var detailModal = $('[data-v30-dash-goals-modal]');
+    if (detailModal && !detailModal.hidden) renderGoalsDetail(LAST_GOALS);
     var root = $('[data-v30-objs]');
     if (!root) return;
     if (!goals || !goals.daily || !goals.weekly) {
@@ -1164,6 +1176,116 @@
       .then(function () { if (btn) btn.disabled = false; });
   }
 
+  // ─── Goals detail modal (info button next to "Objectifs") ───────
+  function goalsKindLabel(kind) {
+    if (!kind) return 'Source';
+    if (kind === 'rdv_taken') return 'RDV pris (transition statut)';
+    if (kind === 'push_email') return 'Push email';
+    if (kind === 'push_linkedin') return 'Push LinkedIn';
+    if (kind === 'candidate_contacted') return 'Candidat contacté';
+    if (kind === 'candidate_solid') return 'Candidat solide';
+    if (kind === 'linkedin_inmail') return 'InMail LinkedIn';
+    if (kind.indexOf('manual:') === 0) {
+      var t = kind.slice(7);
+      var map = {
+        rdv: 'KPI manuel — RDV',
+        push_email: 'KPI manuel — Push email',
+        push_linkedin: 'KPI manuel — Push LinkedIn',
+        sourcing: 'KPI manuel — Sourcing',
+        contact: 'KPI manuel — Contact'
+      };
+      return map[t] || ('KPI manuel — ' + t);
+    }
+    return kind;
+  }
+
+  function goalsKindClass(kind) {
+    if (!kind) return 'v30-objs-detail__kind--neutral';
+    if (kind === 'rdv_taken') return 'v30-objs-detail__kind--rdv';
+    if (kind === 'push_email' || kind === 'push_linkedin') return 'v30-objs-detail__kind--push';
+    if (kind === 'candidate_contacted' || kind === 'candidate_solid' || kind === 'linkedin_inmail') return 'v30-objs-detail__kind--src';
+    if (kind.indexOf('manual:') === 0) return 'v30-objs-detail__kind--manual';
+    return 'v30-objs-detail__kind--neutral';
+  }
+
+  function renderGoalsDetail(goals) {
+    var modal = $('[data-v30-dash-goals-modal]');
+    if (!modal) return;
+    var host = modal.querySelector('[data-field="content"]');
+    if (!host) return;
+    var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
+    if (!goals || !goals.breakdown) {
+      host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">' +
+        'Données indisponibles. Recharge le dashboard.' +
+        '</div>';
+      return;
+    }
+    var bd = goals.breakdown || {};
+
+    function renderScope(scopeKey, scopeLabel) {
+      var scopeBd = bd[scopeKey] || {};
+      var scopeItems = (goals[scopeKey] && goals[scopeKey].items) || {};
+      var keys = Object.keys(scopeItems).filter(function (k) { return Number(scopeItems[k].target || 0) > 0; });
+      if (!keys.length) return '';
+      var rows = keys.map(function (k) {
+        var it = scopeItems[k] || {};
+        var sources = scopeBd[k] || [];
+        var sourceRows;
+        if (!sources.length) {
+          sourceRows = '<div class="v30-objs-detail__empty">Aucune source pour cet objectif sur la période.</div>';
+        } else {
+          sourceRows = sources.map(function (s) {
+            var who = s.prospect_name || s.candidate_name || s.description || '—';
+            var sub = [];
+            if (s.kind === 'rdv_taken' && s.rdvDate) sub.push('RDV ' + s.rdvDate);
+            if (s.subject) sub.push(s.subject);
+            if (s.url) sub.push(s.url.replace(/^https?:\/\//, '').slice(0, 40));
+            if (typeof s.count === 'number' && s.count !== 0) sub.push((s.count > 0 ? '+' : '') + s.count);
+            if (s.description && s.kind && s.kind.indexOf('manual:') === 0) sub.push(s.description);
+            var when = s.date || (s.createdAt || '').slice(0, 10) || '—';
+            return '<div class="v30-objs-detail__src">' +
+              '<span class="v30-objs-detail__kind ' + goalsKindClass(s.kind) + '">' + esc(goalsKindLabel(s.kind)) + '</span>' +
+              '<div class="v30-objs-detail__src-body">' +
+                '<div class="v30-objs-detail__who">' + esc(who) + '</div>' +
+                (sub.length ? '<div class="v30-objs-detail__sub">' + esc(sub.join(' · ')) + '</div>' : '') +
+              '</div>' +
+              '<span class="v30-objs-detail__date">' + esc(when) + '</span>' +
+            '</div>';
+          }).join('');
+        }
+        var count = it.count || 0;
+        var target = it.target || 0;
+        var doneCls = (target > 0 && count >= target) ? ' v30-objs-detail__goal--done' : '';
+        return '<div class="v30-objs-detail__goal' + doneCls + '">' +
+          '<div class="v30-objs-detail__goal-head">' +
+            '<span class="v30-objs-detail__goal-label">' + esc(it.label || k) + '</span>' +
+            '<span class="v30-objs-detail__goal-count"><b>' + count + '</b> / ' + target + '</span>' +
+          '</div>' +
+          '<div class="v30-objs-detail__sources">' + sourceRows + '</div>' +
+        '</div>';
+      }).join('');
+      return '<section class="v30-objs-detail__scope">' +
+        '<h3 class="v30-objs-detail__scope-title">' + esc(scopeLabel) + '</h3>' +
+        rows +
+      '</section>';
+    }
+
+    var html = renderScope('daily', 'Aujourd’hui') + renderScope('weekly', 'Cette semaine');
+    if (!html) {
+      html = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">' +
+        'Aucun objectif configuré. <a href="/v30/parametres#goals" style="color:var(--accent);">Configurer →</a>' +
+        '</div>';
+    }
+    host.innerHTML = html;
+  }
+
+  function openGoalsDetailModal() {
+    var modal = $('[data-v30-dash-goals-modal]');
+    if (!modal) return;
+    renderGoalsDetail(LAST_GOALS);
+    openModal(modal);
+  }
+
   function exportDay() {
     var btn = $('[data-v30-dash-export]');
     if (btn) btn.disabled = true;
@@ -1192,7 +1314,10 @@
     if (btnExport) btnExport.addEventListener('click', exportDay);
     var btnSave = $('[data-v30-dash-kpi-save]');
     if (btnSave) btnSave.addEventListener('click', saveKpi);
+    var btnGoalsDetail = $('[data-v30-objs-detail]');
+    if (btnGoalsDetail) btnGoalsDetail.addEventListener('click', openGoalsDetailModal);
     bindModalDismiss($('[data-v30-dash-kpi-modal]'));
+    bindModalDismiss($('[data-v30-dash-goals-modal]'));
   }
 
   function initAll() {

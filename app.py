@@ -6306,6 +6306,85 @@ def api_dashboard():
             manual_kpi_today = {}
             manual_calls_by_date = {}
 
+        # Goals breakdown — source rows pour chaque objectif (debug/transparence)
+        # Permet à l'UI d'expliquer pourquoi un compteur de gamification vaut X
+        # (event rdv_taken sur tel prospect, manual_kpi ajusté, push envoyé, …).
+        try:
+            rdv_breakdown_rows = conn.execute(
+                """SELECT e.id, e.date, e.prospect_id, e.createdAt, e.meta,
+                          p.name AS prospect_name, p.rdvDate AS prospect_rdvDate
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                   ORDER BY e.date DESC, e.createdAt DESC""",
+                (uid, monday, today),
+            ).fetchall()
+            rdv_breakdown_all = [dict(r) for r in rdv_breakdown_rows]
+        except Exception:
+            rdv_breakdown_all = []
+
+        try:
+            push_breakdown_rows = conn.execute(
+                """SELECT l.id, l.sentAt, l.channel, l.subject, l.to_email,
+                          l.createdAt, l.prospect_id, p.name AS prospect_name
+                   FROM push_logs l
+                   JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?
+                   WHERE substr(COALESCE(l.sentAt, ''), 1, 10) BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                   ORDER BY l.sentAt DESC, l.createdAt DESC""",
+                (uid, monday, today),
+            ).fetchall()
+            push_breakdown_all = [dict(r) for r in push_breakdown_rows]
+        except Exception:
+            push_breakdown_all = []
+
+        try:
+            cand_contacted_rows_bd = conn.execute(
+                """SELECT e.id, e.date, e.candidate_id, e.createdAt,
+                          c.name AS candidate_name
+                   FROM candidate_events e
+                   JOIN candidates c ON c.id=e.candidate_id AND c.owner_id=?
+                   WHERE e.type='candidate_contacted' AND e.date BETWEEN ? AND ?
+                   ORDER BY e.date DESC, e.createdAt DESC""",
+                (uid, monday, today),
+            ).fetchall()
+            cand_contacted_all = [dict(r) for r in cand_contacted_rows_bd]
+        except Exception:
+            cand_contacted_all = []
+
+        try:
+            cand_solid_rows_bd = conn.execute(
+                """SELECT e.id, e.date, e.candidate_id, e.createdAt,
+                          c.name AS candidate_name
+                   FROM candidate_events e
+                   JOIN candidates c ON c.id=e.candidate_id AND c.owner_id=?
+                   WHERE e.type='candidate_solid' AND e.date BETWEEN ? AND ?
+                   ORDER BY e.date DESC, e.createdAt DESC""",
+                (uid, monday, today),
+            ).fetchall()
+            cand_solid_all = [dict(r) for r in cand_solid_rows_bd]
+        except Exception:
+            cand_solid_all = []
+
+        try:
+            inmail_rows_bd = conn.execute(
+                "SELECT id, name, url, sent_at, note, created_at FROM linkedin_inmails WHERE owner_id=? AND sent_at BETWEEN ? AND ? ORDER BY sent_at DESC, created_at DESC",
+                (uid, monday, today),
+            ).fetchall()
+            inmails_all = [dict(r) for r in inmail_rows_bd]
+        except Exception:
+            inmails_all = []
+
+        try:
+            mkpi_all_rows = conn.execute(
+                "SELECT id, type, date, count, description, createdAt FROM manual_kpi WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date DESC, createdAt DESC",
+                (uid, monday, today),
+            ).fetchall()
+            mkpi_all = [dict(r) for r in mkpi_all_rows]
+        except Exception:
+            mkpi_all = []
+
         # Notes stockées dans prospect_events (types note / note_libre / call_note)
         try:
             note_event_rows = conn.execute(
@@ -6517,6 +6596,89 @@ def api_dashboard():
         daily_counts=goals_daily_counts,
         weekly_counts=goals_weekly_counts,
     )
+
+    # Goals breakdown — détail des sources d'événements par objectif.
+    # Utilisé par la modale "Détail" du dashboard pour expliquer chaque
+    # compteur (event rdv_taken, push log, manual_kpi, etc.).
+    def _bd_rdv(rows):
+        out = []
+        for ev in rows:
+            meta = {}
+            raw = ev.get("meta")
+            if raw:
+                try:
+                    meta = json.loads(raw) if isinstance(raw, str) else (raw or {})
+                except Exception:
+                    meta = {}
+            out.append({
+                "kind": "rdv_taken",
+                "date": ev.get("date") or "",
+                "prospect_id": ev.get("prospect_id"),
+                "prospect_name": ev.get("prospect_name") or "",
+                "rdvDate": meta.get("rdvDate") or ev.get("prospect_rdvDate") or "",
+                "createdAt": ev.get("createdAt") or "",
+            })
+        return out
+
+    def _bd_push(rows):
+        return [{
+            "kind": "push_" + (r.get("channel") or "email"),
+            "date": (r.get("sentAt") or "")[:10],
+            "prospect_id": r.get("prospect_id"),
+            "prospect_name": r.get("prospect_name") or "",
+            "subject": r.get("subject") or "",
+            "to_email": r.get("to_email") or "",
+            "createdAt": r.get("createdAt") or "",
+        } for r in rows]
+
+    def _bd_cand(rows, kind):
+        return [{
+            "kind": kind,
+            "date": r.get("date") or "",
+            "candidate_id": r.get("candidate_id"),
+            "candidate_name": r.get("candidate_name") or "",
+            "createdAt": r.get("createdAt") or "",
+        } for r in rows]
+
+    def _bd_inmails(rows):
+        return [{
+            "kind": "linkedin_inmail",
+            "date": r.get("sent_at") or "",
+            "candidate_name": r.get("name") or "",
+            "url": r.get("url") or "",
+            "createdAt": r.get("created_at") or "",
+        } for r in rows]
+
+    def _bd_manual(rows, types):
+        return [{
+            "kind": "manual:" + (r.get("type") or ""),
+            "type": r.get("type") or "",
+            "date": r.get("date") or "",
+            "count": int(r.get("count") or 0),
+            "description": r.get("description") or "",
+            "createdAt": r.get("createdAt") or "",
+        } for r in rows if r.get("type") in types]
+
+    rdv_today_bd_rows = [r for r in rdv_breakdown_all if (r.get("date") or "")[:10] == today]
+    push_today_bd_rows = [r for r in push_breakdown_all if (r.get("sentAt") or "")[:10] == today]
+    cand_today_bd_rows = [r for r in cand_contacted_all if (r.get("date") or "")[:10] == today]
+    inmails_today_bd_rows = [r for r in inmails_all if (r.get("sent_at") or "") == today]
+    mkpi_today_bd_rows = [r for r in mkpi_all if (r.get("date") or "") == today]
+
+    goals_breakdown = {
+        "daily": {
+            "rdv": _bd_rdv(rdv_today_bd_rows) + _bd_manual(mkpi_today_bd_rows, {"rdv"}),
+            "push": _bd_push(push_today_bd_rows) + _bd_manual(mkpi_today_bd_rows, {"push_email", "push_linkedin"}),
+            "sourcing_contacted": _bd_cand(cand_today_bd_rows, "candidate_contacted") + _bd_inmails(inmails_today_bd_rows) + _bd_manual(mkpi_today_bd_rows, {"sourcing"}),
+        },
+        "weekly": {
+            "rdv": _bd_rdv(rdv_breakdown_all) + _bd_manual(mkpi_all, {"rdv"}),
+            "push": _bd_push(push_breakdown_all) + _bd_manual(mkpi_all, {"push_email", "push_linkedin"}),
+            "sourcing_contacted": _bd_cand(cand_contacted_all, "candidate_contacted") + _bd_inmails(inmails_all) + _bd_manual(mkpi_all, {"sourcing"}),
+            "sourcing_solid": _bd_cand(cand_solid_all, "candidate_solid"),
+        },
+    }
+    goals_payload["breakdown"] = goals_breakdown
 
     today_is_wd = _is_working_day(today)
     week_wd_total = _count_working_days(monday, (datetime.date.fromisoformat(monday) + datetime.timedelta(days=6)).isoformat())
