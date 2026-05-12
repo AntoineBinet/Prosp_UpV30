@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.55] — 2026-05-12 · Besoins · Nouveau statut « RT » pour les candidats positionnés
+## [32.56] — 2026-05-12 · Besoins · Nouveau statut « RT » pour les candidats positionnés
 
 - **Statut « RT » (ambre)** : ajouté entre « Dispo » et « Non dispo » dans le
   cycle de la pastille de statut des candidats positionnés sur la fiche besoin.
@@ -15,6 +15,37 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   fiches besoin pour rester cohérent visuellement.
 - **Export PDF** : la nouvelle valeur est reconnue par `_CAND_STATUS_PILL`
   ([routes/besoins.py](routes/besoins.py)) — pastille ambre `#FEF3DC`/`#B45309`.
+
+## [32.55] — 2026-05-12 · Gamification · Report des objectifs quotidiens non atteints
+
+- **Carryover des objectifs du jour** : si un objectif quotidien (RDV, push,
+  sourcing) n'est pas atteint à la fin de la journée, le reste est reporté à
+  la cible du prochain jour ouvré. Le mécanisme se chaîne — un nouveau
+  déficit s'ajoute au précédent — et reset dès qu'un jour atteint sa cible
+  effective. Week-ends et jours fériés (`services/working_days.py`) sont
+  ignorés.
+- **Service** : nouveau helper `services/dashboard_goals.py:compute_daily_carryover`
+  qui propage le déficit jour par jour à partir des `prospect_events`
+  (`rdv_taken`), `push_logs`, `candidate_events` (`candidate_contacted`),
+  `linkedin_inmails` et `manual_kpi` (rdv / push_email / push_linkedin /
+  sourcing). Cap configurable (défaut : 7 jours ouvrés en arrière).
+- **API** : `GET /api/dashboard` calcule le carryover quand `today` est un
+  jour ouvré et qu'on n'est pas en navigation semaine passée. Chaque
+  objectif quotidien expose désormais `base_target`, `carryover` et
+  `target` (cible effective = base + report).
+- **Dashboard UI** (`renderObjectifs`) : pastille « +N reporté » à côté du
+  libellé de l'objectif et mention « cible 3 + 2 reporté » dans la ligne
+  meta XP, en couleur accent quand un report est actif.
+- **Paramètres** : nouveau toggle « Reporter les objectifs non atteints au
+  jour ouvré suivant » dans la carte Objectifs & Gamification — sauvegardé
+  dans `goals_config.meta.carryover_enabled` (défaut : activé). Toggle
+  désactivé ⇒ carryover ignoré côté backend.
+- **Sitemap** : `_build_sitemap_data()` ajoute l'action « Report d'objectifs
+  (jour ouvré suivant) » sur le Dashboard et « Report d'objectifs au jour
+  ouvré suivant (toggle) » sur Paramètres.
+- **Tests** : `tests/test_dashboard_goals_service.py` couvre la propagation
+  (1 jour, chaîne sur plusieurs jours, reset après dépassement, cap
+  `max_days`, objectif désactivé, scope weekly épargné).
 
 ## [32.54] — 2026-05-12 · Dashboard · Aperçu rapide en remplacement des panneaux vides
 
