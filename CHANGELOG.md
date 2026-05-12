@@ -2,6 +2,20 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.55] — 2026-05-12 · Besoins · Nouveau statut « RT » pour les candidats positionnés
+
+- **Statut « RT » (ambre)** : ajouté entre « Dispo » et « Non dispo » dans le
+  cycle de la pastille de statut des candidats positionnés sur la fiche besoin.
+  Permet de marquer un candidat ayant fait / planifié sa Réunion Technique
+  avec le client.
+- **Cycle complet** : Pas contacté → Messagerie → Dispo → RT → Non dispo.
+- **Tri automatique « par dispo »** : RT remonte en tête (avant Dispo), suivi
+  par Messagerie, Pas contacté, puis Non dispo en bas.
+- **Couleur** : ambre (#f59e0b), aligné avec la pastille « En cours » des
+  fiches besoin pour rester cohérent visuellement.
+- **Export PDF** : la nouvelle valeur est reconnue par `_CAND_STATUS_PILL`
+  ([routes/besoins.py](routes/besoins.py)) — pastille ambre `#FEF3DC`/`#B45309`.
+
 ## [32.54] — 2026-05-12 · Dashboard · Aperçu rapide en remplacement des panneaux vides
 
 - **Dashboard** : les panneaux « Besoins ouverts » et « Derniers candidats vus

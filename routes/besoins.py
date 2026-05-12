@@ -631,6 +631,7 @@ _CAND_STATUS_PILL = {
     "dispo": {"label": "Disponible",    "bg": "#E6F7EE", "fg": "#15803D"},
     "msg":   {"label": "Messagerie",    "bg": "#E5F0FE", "fg": "#1E40AF"},
     "":      {"label": "Pas contacté",  "bg": "#F2F3F5", "fg": "#52596B"},
+    "rt":    {"label": "RT",            "bg": "#FEF3DC", "fg": "#B45309"},
     "nope":  {"label": "Non disponible", "bg": "#FCE8E8", "fg": "#B91C1C"},
 }
 
