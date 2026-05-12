@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.54] — 2026-05-12 · Dashboard · Aperçu rapide en remplacement des panneaux vides
+
+- **Dashboard** : les panneaux « Besoins ouverts » et « Derniers candidats vus
+  en EC » sont désormais **masqués** quand ils n'ont pas de contenu. Plus
+  d'état vide qui prend la moitié de la rangée pour rien.
+- **Aperçu rapide** (nouveau widget) : affiché en remplacement des panneaux
+  cachés. Montre 4 mini-stats — Prospects actifs (pipeline), RDV pris
+  (semaine), Push (semaine, avec delta vs sem-1), Conversion RDV (% du
+  pipeline). Lien vers `/v30/stats`.
+- **Layout** : si un seul panneau est vide → l'Aperçu rapide prend sa
+  colonne. Si les deux sont vides → l'Aperçu rapide prend toute la largeur
+  (grille 4 colonnes).
+- **Toile d'araignée** : nouvelle action « Aperçu rapide — fallback stats si
+  panneaux vides » ajoutée à la page Dashboard
+  ([routes/pages.py](routes/pages.py)).
+
 ## [32.48] — 2026-05-11 · Sidebar · Réorganisation Admin → Paramètres
 
 - **Sidebar simplifiée** : la section « Admin » disparaît entièrement de la
