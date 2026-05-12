@@ -12,6 +12,8 @@
     filters: { piped: false, hasProspects: false, emptyOnly: false, tags: [] }
   };
 
+  var SPLIT_STATE = { selectedId: null, loadingId: null, cache: {} };
+
   function $(s) { return document.querySelector(s); }
   function esc(s) {
     var t = document.createElement('span');
@@ -172,6 +174,280 @@
     if (host) host.textContent = rows.length === 0 ? '0 entreprise' : rows.length + ' entreprise' + (rows.length > 1 ? 's' : '');
   }
 
+  // ─── Helpers Split (téléphone + statut + icônes) ────────
+  function splitPhones(tel) {
+    if (!tel) return [];
+    var m = String(tel).match(/\+?\d[\d\s().-]{6,}\d/g);
+    if (!m) return [];
+    var seen = {};
+    return m.map(function (s) { return s.trim().replace(/\s+/g, ' '); })
+      .filter(function (s) { if (seen[s]) return false; seen[s] = true; return true; });
+  }
+  function normTel(p) {
+    var plus = String(p).charAt(0) === '+';
+    var r = String(p).replace(/[^\d]/g, '');
+    return plus ? '+' + r : r;
+  }
+  var STATUS_CLASS = {
+    "Pas d'actions": 'status-idle',
+    'Prospecté':     'status-prosp',
+    'Appelé':        'status-called',
+    'Contacté':      'status-called',
+    'Messagerie':    'status-voicemail',
+    'À rappeler':    'status-callback',
+    'Rendez-vous':   'status-rdv',
+    'Pas intéressé': 'status-cold',
+    'Proposition':   'status-rdv',
+    'Gagné':         'status-prosp'
+  };
+  function statusBadge(s) {
+    if (!s) return '';
+    var cls = STATUS_CLASS[s] || '';
+    return '<span class="status ' + cls + '" style="font-size:10px;padding:1px 6px;">' + esc(s) + '</span>';
+  }
+  var TEL_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
+  var EMAIL_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>';
+  var LI_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>';
+  var OPEN_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+  var BUILDING_ICON_LG = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>';
+  function pInitials(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '??';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  // ─── Vue Split — liste entreprises ──────────────────────
+  function renderSplitList() {
+    var list = $('[data-v30-ent-split-list]');
+    if (!list) return;
+    var rows = STATE.filtered;
+    if (!rows.length) {
+      list.innerHTML = '<div class="v30-pp-empty" style="padding:20px;">Aucune entreprise pour ce filtre.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(function (r) {
+      var sel = SPLIT_STATE.selectedId === r.id ? ' is-selected' : '';
+      var pipedBadge = r.piped > 0
+        ? '<span class="v30-ent-split__badge v30-ent-split__badge--piped" title="' + r.piped + ' en pipeline">' + r.piped + '</span>'
+        : '';
+      var totalBadge = '<span class="v30-ent-split__badge" title="' + r.total + ' prospect(s)">' + r.total + '</span>';
+      return '<a class="v30-ent-split__row' + sel + '" href="#" data-v30-ent-split-open="' + r.id + '">' +
+        '<span class="avatar avatar--md avatar--square avatar--logo">' + esc(initials(r.groupe)) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(r.groupe || '—') + '</div>' +
+          '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + esc(r.site || '—') + '</div>' +
+        '</div>' +
+        '<div class="v30-ent-split__row-badges">' + pipedBadge + totalBadge + '</div>' +
+      '</a>';
+    }).join('');
+  }
+
+  // ─── Vue Split — détail entreprise ──────────────────────
+  function renderSplitEmpty() {
+    var host = $('[data-v30-ent-split-detail]');
+    if (!host) return;
+    host.innerHTML = '<div class="v30-ent-split__empty">' + BUILDING_ICON_LG +
+      '<div>Sélectionne une entreprise pour voir ses informations et ses prospects.</div>' +
+      '</div>';
+  }
+
+  function renderSplitLoading(row) {
+    var host = $('[data-v30-ent-split-detail]');
+    if (!host) return;
+    host.innerHTML =
+      '<div class="v30-ent-split-head">' +
+        '<span class="avatar avatar--lg avatar--square avatar--logo">' + esc(initials(row.groupe)) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="v30-ent-split-head__title truncate">' + esc(row.groupe || '—') + '</div>' +
+          '<div class="v30-ent-split-head__sub truncate">' + esc(row.site || '—') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="v30-ent-split-loading">Chargement…</div>';
+  }
+
+  function renderSplitDetail(companyId) {
+    var host = $('[data-v30-ent-split-detail]');
+    if (!host) return;
+    var row = findRow(companyId);
+    if (!row) { renderSplitEmpty(); return; }
+
+    SPLIT_STATE.loadingId = companyId;
+    renderSplitLoading(row);
+
+    var doRender = function (data) {
+      if (SPLIT_STATE.selectedId !== companyId) return; // Selection changed during fetch
+      paintSplitDetail(row, data);
+    };
+
+    if (SPLIT_STATE.cache[companyId]) {
+      doRender(SPLIT_STATE.cache[companyId]);
+      return;
+    }
+    fetchJSON('/api/company/full?id=' + encodeURIComponent(companyId))
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'chargement impossible');
+        SPLIT_STATE.cache[companyId] = res;
+        doRender(res);
+      })
+      .catch(function (err) {
+        console.error('[v30 entreprises] split detail failed:', err);
+        if (SPLIT_STATE.selectedId !== companyId) return;
+        host.innerHTML = '<div class="v30-ent-split__empty"><div>Erreur de chargement : ' + esc(err.message) + '</div></div>';
+      });
+  }
+
+  function paintSplitDetail(row, data) {
+    var host = $('[data-v30-ent-split-detail]');
+    if (!host) return;
+    var c = (data && data.company) || {};
+    var prospects = (data && data.prospects) || [];
+
+    // ── Quick action chips for the company (phone / website / linkedin) ──
+    var qaItems = [];
+    if (c.phone) {
+      var firstPhone = splitPhones(c.phone)[0] || c.phone;
+      qaItems.push('<a class="v30-ent-qa-chip" href="tel:' + esc(normTel(firstPhone)) + '" title="Appeler">' + TEL_ICON_SM + '<span class="mono">' + esc(firstPhone) + '</span></a>');
+    }
+    if (c.website) {
+      var ws = String(c.website);
+      var wsHref = /^https?:\/\//i.test(ws) ? ws : 'https://' + ws;
+      qaItems.push('<a class="v30-ent-qa-chip" href="' + esc(wsHref) + '" target="_blank" rel="noopener" title="Site web">' + OPEN_ICON_SM + '<span class="truncate">Site web</span></a>');
+    }
+    if (c.linkedin) {
+      qaItems.push('<a class="v30-ent-qa-chip" href="' + esc(c.linkedin) + '" target="_blank" rel="noopener" title="LinkedIn">' + LI_ICON_SM + '<span>LinkedIn</span></a>');
+    }
+    var qaHtml = qaItems.length
+      ? '<div class="v30-ent-split-qa">' + qaItems.join('') + '</div>'
+      : '';
+
+    // ── Meta line (industry / city / size) ──
+    var metaParts = [];
+    if (c.industry) metaParts.push(esc(c.industry));
+    if (c.city) metaParts.push(esc(c.city));
+    if (c.size) metaParts.push(esc(c.size));
+    var metaHtml = metaParts.length
+      ? '<div class="v30-ent-split-head__meta">' + metaParts.join(' · ') + '</div>'
+      : '';
+
+    // ── KPIs (total / pipeline / gagnés / dernier contact) ──
+    var kpisHtml =
+      '<div class="v30-ent-split-kpis">' +
+        '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + (row.total || 0) + '</div><div class="kpi__label">prospects</div></div>' +
+        '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + (row.piped || 0) + '</div><div class="kpi__label">RDV/propale</div></div>' +
+        '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + (row.won || 0) + '</div><div class="kpi__label">gagnés</div></div>' +
+        '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value" style="font-size:13px;">' + esc(relativeDate(row.lastContact)) + '</div><div class="kpi__label">dernier contact</div></div>' +
+      '</div>';
+
+    // ── Header (logo + name + actions to open detailed sheet) ──
+    var openBtn = '<button type="button" class="btn btn-ghost btn-sm" data-v30-ent-split-edit="' + row.id + '" title="Ouvrir la fiche complète">' + OPEN_ICON_SM + ' Fiche</button>';
+    var allProspectsBtn = '<a class="btn btn-ghost btn-sm" href="/v30/prospects?company=' + row.id + '" title="Voir les prospects dans la liste">Tous les prospects</a>';
+    var headerHtml =
+      '<div class="v30-ent-split-head">' +
+        '<span class="avatar avatar--lg avatar--square avatar--logo">' + esc(initials(row.groupe)) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="v30-ent-split-head__title truncate">' + esc(c.groupe || row.groupe || '—') + '</div>' +
+          '<div class="v30-ent-split-head__sub truncate">' + esc(c.site || row.site || '') + '</div>' +
+          metaHtml +
+        '</div>' +
+        '<div class="v30-ent-split-head__actions">' + openBtn + allProspectsBtn + '</div>' +
+      '</div>';
+
+    // ── Prospects list ──
+    var listHtml;
+    if (!prospects.length) {
+      listHtml = '<div class="v30-ent-split-prospects__empty">Aucun prospect rattaché à cette entreprise.</div>';
+    } else {
+      listHtml = prospects.map(function (p) {
+        var phones = splitPhones(p.telephone);
+        var hasPhone = phones.length > 0 || !!p.telephone;
+        var firstPhone = phones[0] || (p.telephone ? String(p.telephone).replace(/\s+/g, '') : '');
+        var actTel = hasPhone
+          ? '<a class="v30-ent-prosp-act" href="tel:' + esc(normTel(firstPhone)) + '" title="Appeler ' + esc(firstPhone) + '">' + TEL_ICON_SM + '</a>'
+          : '<span class="v30-ent-prosp-act is-disabled" title="Aucun numéro">' + TEL_ICON_SM + '</span>';
+        var actEmail = p.email
+          ? '<a class="v30-ent-prosp-act" href="mailto:' + esc(String(p.email).trim()) + '" title="' + esc(String(p.email).trim()) + '">' + EMAIL_ICON_SM + '</a>'
+          : '<span class="v30-ent-prosp-act is-disabled" title="Aucun email">' + EMAIL_ICON_SM + '</span>';
+        var actLi = p.linkedin
+          ? '<a class="v30-ent-prosp-act" href="' + esc(p.linkedin) + '" target="_blank" rel="noopener" title="Ouvrir LinkedIn">' + LI_ICON_SM + '</a>'
+          : '';
+        var actOpen = '<a class="v30-ent-prosp-act" href="/v30/prospect/' + p.id + '" title="Ouvrir la fiche prospect">' + OPEN_ICON_SM + '</a>';
+        var subline = [esc(p.fonction || ''), p.email ? '<span class="truncate">' + esc(String(p.email).trim()) + '</span>' : '']
+          .filter(Boolean).join(' · ');
+        // Pas d'<a> englobant la ligne (les <a> imbriqués sont invalides) ; un
+        // click handler sur la ligne ouvre la fiche, sauf si on a cliqué sur
+        // un bouton action (.v30-ent-prosp-act).
+        return '<div class="v30-ent-prosp-row" data-v30-ent-prosp-open="' + p.id + '" role="link" tabindex="0">' +
+          '<span class="avatar avatar--sm">' + esc(pInitials(p.name)) + '</span>' +
+          '<div class="v30-ent-prosp-row__main">' +
+            '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
+            (subline ? '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + subline + '</div>' : '') +
+          '</div>' +
+          '<div class="v30-ent-prosp-row__status">' + statusBadge(p.statut) + '</div>' +
+          '<div class="v30-ent-prosp-row__actions">' + actTel + actEmail + actLi + actOpen + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    host.innerHTML =
+      '<div class="v30-ent-split-detail" data-id="' + row.id + '">' +
+        headerHtml +
+        qaHtml +
+        kpisHtml +
+        '<div class="v30-ent-split-section">' +
+          '<div class="v30-ent-split-section__head">' +
+            '<div class="v30-ent-split-section__title">Prospects (' + prospects.length + ')</div>' +
+          '</div>' +
+          '<div class="v30-ent-split-prospects" data-v30-ent-prospects>' + listHtml + '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function bindSplit() {
+    // Click on company row (left column)
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-v30-ent-split-open]');
+      if (!a) return;
+      e.preventDefault();
+      var id = Number(a.dataset.v30EntSplitOpen);
+      if (!id || SPLIT_STATE.selectedId === id) return;
+      SPLIT_STATE.selectedId = id;
+      document.querySelectorAll('[data-v30-ent-split-open]').forEach(function (row) {
+        row.classList.toggle('is-selected', Number(row.dataset.v30EntSplitOpen) === id);
+      });
+      renderSplitDetail(id);
+    });
+
+    // Open detailed company sheet from the split header
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-v30-ent-split-edit]');
+      if (!b) return;
+      e.preventDefault();
+      var id = Number(b.dataset.v30EntSplitEdit);
+      if (id) openEditFor(id);
+    });
+
+    // Click on a prospect row inside split → open prospect detail.
+    // Skip if the click landed on an action button (tel:/mailto:/linkedin/open),
+    // those have their own anchors and should navigate normally.
+    document.addEventListener('click', function (e) {
+      var row = e.target.closest('[data-v30-ent-prosp-open]');
+      if (!row) return;
+      if (e.target.closest('.v30-ent-prosp-act')) return;
+      var pid = row.dataset.v30EntProspOpen;
+      if (pid) window.location.href = '/v30/prospect/' + encodeURIComponent(pid);
+    });
+
+    // Keyboard activation (Enter / Space) on a prospect row
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var row = e.target.closest && e.target.closest('[data-v30-ent-prosp-open]');
+      if (!row || row !== e.target) return;
+      e.preventDefault();
+      var pid = row.dataset.v30EntProspOpen;
+      if (pid) window.location.href = '/v30/prospect/' + encodeURIComponent(pid);
+    });
+  }
+
   // ─── Vue Cartes ─────────────────────────────────────────
   function renderCards(rows) {
     var host = $('[data-v30-ent-panel="cards"]');
@@ -218,6 +494,20 @@
       });
       document.querySelectorAll('[data-v30-ent-panel]').forEach(function (p) { p.hidden = (p.dataset.v30EntPanel !== v); });
       if (v === 'cards') renderCards(STATE.filtered);
+      if (v === 'split') {
+        renderSplitList();
+        if (SPLIT_STATE.selectedId) {
+          renderSplitDetail(SPLIT_STATE.selectedId);
+        } else if (STATE.filtered.length) {
+          // Auto-select the first company so the right pane is never empty on first open.
+          var first = STATE.filtered[0];
+          SPLIT_STATE.selectedId = first.id;
+          renderSplitList();
+          renderSplitDetail(first.id);
+        } else {
+          renderSplitEmpty();
+        }
+      }
     });
   }
 
@@ -247,6 +537,15 @@
     renderRows(STATE.filtered);
     var cardsPanel = $('[data-v30-ent-panel="cards"]');
     if (cardsPanel && !cardsPanel.hidden) renderCards(STATE.filtered);
+    var splitPanel = $('[data-v30-ent-panel="split"]');
+    if (splitPanel && !splitPanel.hidden) {
+      renderSplitList();
+      // If selection got filtered out, drop it.
+      if (SPLIT_STATE.selectedId && !STATE.filtered.some(function (r) { return r.id === SPLIT_STATE.selectedId; })) {
+        SPLIT_STATE.selectedId = null;
+        renderSplitEmpty();
+      }
+    }
     renderPagination(STATE.filtered);
   }
   function bindSearch() {
@@ -664,9 +963,16 @@
       STATE.prospects = (res && res.prospects) || [];
       STATE.rows = buildRows();
       STATE.selected.clear();
+      // Invalider le cache split : l'API /api/data peut avoir évolué (statuts, prospects ajoutés…)
+      SPLIT_STATE.cache = {};
       renderKPIs(STATE.rows);
       applyFilter();
       renderBulk();
+      // Rafraîchir le détail si la vue split est visible et qu'une entreprise est sélectionnée
+      var splitPanel = $('[data-v30-ent-panel="split"]');
+      if (splitPanel && !splitPanel.hidden && SPLIT_STATE.selectedId) {
+        renderSplitDetail(SPLIT_STATE.selectedId);
+      }
     }).catch(function (err) {
       console.error('[v30 entreprises] /api/data failed:', err);
       var tbody = $('[data-v30-rows]');
@@ -686,6 +992,7 @@
     bindExport();
     bindBulk();
     bindOpen();
+    bindSplit();
     reload();
   }
 

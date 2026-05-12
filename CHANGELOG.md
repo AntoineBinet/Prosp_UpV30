@@ -2,6 +2,29 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.60] — 2026-05-12 · Entreprises · Vue Split (entreprise + prospects)
+
+- **Nouvelle vue Split** sur `/v30/entreprises`, alignée sur le pattern
+  Prospects : segmented à 3 boutons (Liste / Cartes / Split). À gauche, la
+  liste filtrable des entreprises avec badges total / pipeline ; à droite, le
+  détail de l'entreprise sélectionnée.
+- **Pane détail** :
+  - En haut : header (logo, nom, site, industrie · ville · taille), chips
+    quick-action (téléphone, site web, LinkedIn) et 4 KPI (prospects, RDV /
+    propale, gagnés, dernier contact). Boutons « Fiche » (ouvre la modale Edit
+    existante) et « Tous les prospects » (vers `/v30/prospects?company=…`).
+  - En dessous : liste scrollable des prospects rattachés. Chaque ligne
+    affiche avatar, nom · fonction · email, badge statut, et 4 actions
+    rapides : appel (`tel:`), email (`mailto:`), LinkedIn (nouvel onglet),
+    ouvrir la fiche prospect.
+- **Données** : un seul appel `GET /api/company/full?id=…` par entreprise,
+  mémoïsé côté front (cache invalidé à chaque `reload()`). Les filtres de la
+  page (recherche, pipeline, tags…) s'appliquent aussi à la colonne gauche.
+- Sélection automatique de la première entreprise au premier passage en vue
+  Split pour ne jamais laisser le pane droit vide.
+- Toile mise à jour : nouvelle action `Vue Split (entreprise + prospects)`
+  dans `routes/pages.py → _build_sitemap_data()`.
+
 ## [32.59] — 2026-05-12 · Gamification · Carryover limité à la semaine en cours
 
 - **Fix** : le report d'objectifs quotidiens (32.55) accumulait les déficits
