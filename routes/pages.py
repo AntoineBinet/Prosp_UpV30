@@ -1015,6 +1015,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["exportXlsx"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
                 {"label": "Vue liste / cartes / carte géo", "href": "/v30/entreprises",
                  "tools": {"handlers": ["switchView"], "endpoints": ["GET /api/map/markers"], "backend": ["routes/map.py:api_map_markers"]}},
+                {"label": "Vue Split (entreprise + prospects)", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["renderSplitList", "renderSplitDetail", "bindSplit"], "endpoints": ["GET /api/company/full"], "backend": ["routes/misc.py:api_company_full"]}},
                 {"label": "Opportunités (créer/éditer)", "href": "/v30/entreprises",
                  "tools": {"handlers": ["saveOpportunity"], "endpoints": ["POST /api/opportunities/save", "POST /api/opportunities/delete"], "backend": ["routes/misc.py:api_opportunities_save"]}},
                 {"label": "Événements entreprise", "href": "/v30/entreprises",
