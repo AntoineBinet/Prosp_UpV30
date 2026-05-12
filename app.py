@@ -6611,10 +6611,11 @@ def api_dashboard():
         and not is_past_week
         and _is_working_day(today)
     ):
-        # Fenêtre calendrier : on remonte large pour s'assurer d'avoir
-        # `carryover_max_days` jours ouvrés effectifs (week-ends + JF + marge).
-        lookback_calendar_days = carryover_max_days * 2 + 7
-        lookback_start = (d_today - datetime.timedelta(days=lookback_calendar_days)).isoformat()
+        # Fenêtre = semaine en cours uniquement (lundi → hier). Les
+        # compteurs hebdo se réinitialisent le lundi (`reset_weekday=0`),
+        # le carryover quotidien doit donc s'arrêter à la même borne pour
+        # éviter de reporter des déficits de la semaine précédente.
+        lookback_start = monday
         lookback_end = (d_today - datetime.timedelta(days=1)).isoformat()
 
         # Liste des jours ouvrés sur la fenêtre, hors today

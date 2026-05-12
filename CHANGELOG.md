@@ -2,6 +2,20 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.59] — 2026-05-12 · Gamification · Carryover limité à la semaine en cours
+
+- **Fix** : le report d'objectifs quotidiens (32.55) accumulait les déficits
+  des semaines précédentes — sur un lundi missé après deux semaines off, la
+  cible push pouvait grimper à 30+. Désormais la fenêtre de carryover
+  démarre au **lundi de la semaine en cours** (même borne que le reset des
+  compteurs hebdos), et plus jamais en arrière.
+- Conséquence : un lundi, aucun jour ouvré antérieur dans la semaine → pas
+  de report (fresh start). Un mardi, seul le lundi est considéré. Un
+  vendredi, lundi → jeudi.
+- Le cap `carryover_max_days` (défaut 7) reste actif comme garde-fou mais
+  ne devrait plus se déclencher en pratique (5 jours ouvrés max par
+  semaine).
+
 ## [32.58] — 2026-05-12 · Rapports email quotidien & hebdomadaire
 
 - **Rapports email programmés** : deux nouveaux mails envoyés
