@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.56] — 2026-05-12 · Gamification · Carryover limité à la semaine en cours
+## [32.59] — 2026-05-12 · Gamification · Carryover limité à la semaine en cours
 
 - **Fix** : le report d'objectifs quotidiens (32.55) accumulait les déficits
   des semaines précédentes — sur un lundi missé après deux semaines off, la
@@ -15,6 +15,79 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - Le cap `carryover_max_days` (défaut 7) reste actif comme garde-fou mais
   ne devrait plus se déclencher en pratique (5 jours ouvrés max par
   semaine).
+
+## [32.58] — 2026-05-12 · Rapports email quotidien & hebdomadaire
+
+- **Rapports email programmés** : deux nouveaux mails envoyés
+  automatiquement par le scheduler interne. Templates calqués sur le
+  modèle HTML fourni (en-tête orange, KPI 2×2, alerte relances,
+  priorités du jour pour le quotidien — funnel, top comptes, heatmap
+  pour l'hebdomadaire). Email-safe : tables HTML, styles inline,
+  largeur 600 px, fallback Georgia pour l'italique Instrument Serif.
+- **Quotidien** : par défaut lundi → vendredi à 17:00. Résume la veille
+  (appels, RDV, taux de transfo, push) avec deltas vs J-1 et moyenne 7 j,
+  alerte relances en retard nominatives, top 3 priorités du jour
+  (prospects avec `nextFollowUp = today`).
+- **Hebdomadaire** : par défaut lundi 07:00. Funnel Prospects → Contactés
+  → Qualifiés → RDV, deltas S-1 et N-1 sur 4 KPI, top 5 comptes (push +
+  RDV), heatmap 5 jours × matin/après-midi, note auto.
+- **Réglages** (Paramètres → onglet « Notifications » → carte « Rapports
+  email », ancre `#email-reports`) : destinataires multiples, jour(s) et
+  heure réglables (par 5 minutes), SMTP host/port/user/password/from,
+  STARTTLS ou SSL direct. Boutons « Aperçu HTML », « Envoyer maintenant »
+  et « Tester l'envoi SMTP ».
+- **Sécurité** : le mot de passe SMTP n'est jamais renvoyé en clair
+  ([routes/settings.py](routes/settings.py)) — l'API expose le marqueur
+  `__set__` et préserve la valeur stockée si l'UI ne la modifie pas.
+- **Scheduler** : APScheduler exécute `_dispatch_email_reports` chaque
+  minute ; un verrou évite les chevauchements, un anti-doublon par date
+  (`email_last_daily_sent`, `email_last_weekly_sent`) protège contre les
+  envois multiples si l'app redémarre pendant la fenêtre.
+- **Endpoints** : `GET /api/email-reports/preview?kind=daily|weekly`,
+  `POST /api/email-reports/send`, `POST /api/email-reports/test`.
+- **Toile d'araignée** : nouvelle action « Rapports email » sur la page
+  Paramètres.
+
+## [32.57] — 2026-05-12 · Besoins · PDF « Résumé après RT » par candidat positionné
+
+- **Nouveau champ « Résumé après RT »** sur chaque carte candidat de la fiche
+  besoin (section dépliée). Permet de joindre **un PDF par candidat** —
+  typiquement le compte-rendu d'entretien technique livré au client.
+- **UI** : dropzone (glisser-déposer ou clic) tant qu'aucun PDF n'est attaché ;
+  une fois le fichier chargé, une chip ambre affiche son nom + taille avec les
+  boutons Télécharger / Ouvrir / Remplacer / Supprimer.
+- **Backend** :
+  - `POST /api/besoins/<id>/candidats/<idx>/resume-rt` — upload (PDF, 20 Mo max,
+    validation MIME via `_validate_upload(file, "document")` + extension).
+  - `GET /api/besoins/<id>/candidats/<idx>/resume-rt` — download (paramètre
+    `?download=1` pour forcer le téléchargement, sinon affichage inline).
+  - `DELETE /api/besoins/<id>/candidats/<idx>/resume-rt` — suppression
+    (fichier disque + métadonnée JSON).
+- **Stockage** : `data/user_<uid>/besoins/<besoin_id>/<uuid>.pdf`. Isolation
+  par owner, nom UUID pour éviter toute collision / injection.
+- **Métadonnée** : nouvelle clé `resume_rt_pdf` dans `candidats_json[idx]`
+  (`{filename, original_name, size, mime_type, uploaded_at}`). Préservée par
+  `_payload_clean()` puisqu'elle ne commence pas par `_`.
+- **Anti-race avec auto-save** : la frontend `flushPendingSave()` attend que
+  tout PUT en cours soit terminé avant d'envoyer l'upload, et met à jour
+  l'état mémoire avec la métadonnée retournée pour que les sauvegardes
+  suivantes la conservent.
+- **Toile d'araignée** : nouvelle action « Résumé après RT (PDF par candidat) »
+  sur la page Besoins ([routes/pages.py](routes/pages.py)).
+
+## [32.56] — 2026-05-12 · Besoins · Nouveau statut « RT » pour les candidats positionnés
+
+- **Statut « RT » (ambre)** : ajouté entre « Dispo » et « Non dispo » dans le
+  cycle de la pastille de statut des candidats positionnés sur la fiche besoin.
+  Permet de marquer un candidat ayant fait / planifié sa Réunion Technique
+  avec le client.
+- **Cycle complet** : Pas contacté → Messagerie → Dispo → RT → Non dispo.
+- **Tri automatique « par dispo »** : RT remonte en tête (avant Dispo), suivi
+  par Messagerie, Pas contacté, puis Non dispo en bas.
+- **Couleur** : ambre (#f59e0b), aligné avec la pastille « En cours » des
+  fiches besoin pour rester cohérent visuellement.
+- **Export PDF** : la nouvelle valeur est reconnue par `_CAND_STATUS_PILL`
+  ([routes/besoins.py](routes/besoins.py)) — pastille ambre `#FEF3DC`/`#B45309`.
 
 ## [32.55] — 2026-05-12 · Gamification · Report des objectifs quotidiens non atteints
 

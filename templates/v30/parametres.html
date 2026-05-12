@@ -520,6 +520,187 @@
       </div>
     </details>
 
+    {# ─── Rapports email (quotidien + hebdomadaire) ─────────────────────────── #}
+    <details class="v30-params__card v30-params__collapse" id="email-reports" data-v30-email-reports data-tab="notif">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('mail', 16) }}
+          <h3>Rapports email</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Rapport <b>quotidien</b> (KPI de la veille, relances en retard, priorités) et
+          rapport <b>hebdomadaire</b> (funnel, top comptes, heatmap). Destinataire, heure et jours réglables.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+
+        {# ─── Rapport quotidien ─── #}
+        <div class="v30-params__section">
+          <h4 style="font-size:13px; margin:4px 0 8px; color:var(--text);">Rapport quotidien</h4>
+          <label class="v30-params__check">
+            <input type="checkbox" data-v30-email-daily-enabled>
+            <span>Activer le rapport quotidien</span>
+          </label>
+          <div class="v30-params__grid-2" style="margin-top:8px;">
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailDailyTo">Destinataire(s)</label>
+              <input id="v30EmailDailyTo" type="email" multiple class="input" placeholder="vous@exemple.fr"
+                     data-v30-email-daily-to autocomplete="email">
+              <p class="muted" style="font-size:11px; margin:4px 0 0;">Plusieurs adresses : séparer par une virgule.</p>
+            </div>
+            <div class="v30-params__field">
+              <label class="v30-params__label">Heure d'envoi</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <select class="input" data-v30-email-daily-hour style="flex:1;">
+                  {% for h in range(0, 24) %}
+                  <option value="{{ h }}"{% if h == 17 %} selected{% endif %}>{{ '%02d' % h }}h</option>
+                  {% endfor %}
+                </select>
+                <select class="input" data-v30-email-daily-minute style="flex:1;">
+                  {% for m in [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55] %}
+                  <option value="{{ m }}"{% if m == 0 %} selected{% endif %}>{{ '%02d' % m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="v30-params__field" style="margin-top:8px;">
+            <label class="v30-params__label">Jours d'envoi</label>
+            <div class="v30-params__days" style="display:flex; gap:6px; flex-wrap:wrap;">
+              {% for d, lbl in [('mon','Lun'),('tue','Mar'),('wed','Mer'),('thu','Jeu'),('fri','Ven'),('sat','Sam'),('sun','Dim')] %}
+              <label class="v30-params__day-chip" style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border:1px solid var(--border); border-radius:99px; cursor:pointer; font-size:12px;">
+                <input type="checkbox" value="{{ d }}" data-v30-email-daily-day{% if d in ('mon','tue','wed','thu','fri') %} checked{% endif %} style="margin:0;">
+                <span>{{ lbl }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="v30-params__actions" style="margin-top:10px;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-email-preview-daily>
+              {{ ui.icon('chart', 13) }} Aperçu HTML
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-email-send-daily>
+              {{ ui.icon('send', 13) }} Envoyer maintenant
+            </button>
+            <span class="muted v30-params__status" data-v30-email-daily-status></span>
+          </div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--border); margin:18px 0;">
+
+        {# ─── Rapport hebdomadaire ─── #}
+        <div class="v30-params__section">
+          <h4 style="font-size:13px; margin:4px 0 8px; color:var(--text);">Rapport hebdomadaire</h4>
+          <label class="v30-params__check">
+            <input type="checkbox" data-v30-email-weekly-enabled>
+            <span>Activer le rapport hebdomadaire</span>
+          </label>
+          <div class="v30-params__grid-2" style="margin-top:8px;">
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailWeeklyTo">Destinataire(s)</label>
+              <input id="v30EmailWeeklyTo" type="email" multiple class="input" placeholder="vous@exemple.fr"
+                     data-v30-email-weekly-to autocomplete="email">
+            </div>
+            <div class="v30-params__field">
+              <label class="v30-params__label">Jour & heure d'envoi</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <select class="input" data-v30-email-weekly-day style="flex:1.2;">
+                  {% for d, lbl in [('mon','Lundi'),('tue','Mardi'),('wed','Mercredi'),('thu','Jeudi'),('fri','Vendredi'),('sat','Samedi'),('sun','Dimanche')] %}
+                  <option value="{{ d }}"{% if d == 'mon' %} selected{% endif %}>{{ lbl }}</option>
+                  {% endfor %}
+                </select>
+                <select class="input" data-v30-email-weekly-hour style="flex:1;">
+                  {% for h in range(0, 24) %}
+                  <option value="{{ h }}"{% if h == 7 %} selected{% endif %}>{{ '%02d' % h }}h</option>
+                  {% endfor %}
+                </select>
+                <select class="input" data-v30-email-weekly-minute style="flex:1;">
+                  {% for m in [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55] %}
+                  <option value="{{ m }}"{% if m == 0 %} selected{% endif %}>{{ '%02d' % m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="v30-params__actions" style="margin-top:10px;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-email-preview-weekly>
+              {{ ui.icon('chart', 13) }} Aperçu HTML
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-email-send-weekly>
+              {{ ui.icon('send', 13) }} Envoyer maintenant
+            </button>
+            <span class="muted v30-params__status" data-v30-email-weekly-status></span>
+          </div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--border); margin:18px 0;">
+
+        {# ─── Config SMTP ─── #}
+        <div class="v30-params__section">
+          <h4 style="font-size:13px; margin:4px 0 4px; color:var(--text);">Serveur d'envoi (SMTP)</h4>
+          <p class="muted" style="font-size:11.5px; margin:0 0 10px;">
+            Compatible Gmail (mot de passe d'application), Outlook 365, OVH, etc. Le mot de passe n'est jamais renvoyé en clair.
+          </p>
+
+          <div class="v30-params__grid-2">
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpHost">Hôte SMTP</label>
+              <input id="v30EmailSmtpHost" type="text" class="input" placeholder="smtp.gmail.com"
+                     data-v30-email-smtp-host autocomplete="off">
+            </div>
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpPort">Port</label>
+              <input id="v30EmailSmtpPort" type="number" min="1" max="65535" class="input" placeholder="587"
+                     data-v30-email-smtp-port>
+            </div>
+          </div>
+
+          <div class="v30-params__grid-2">
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpUser">Utilisateur</label>
+              <input id="v30EmailSmtpUser" type="text" class="input" placeholder="vous@exemple.fr"
+                     data-v30-email-smtp-user autocomplete="username">
+            </div>
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpPassword">Mot de passe</label>
+              <input id="v30EmailSmtpPassword" type="password" class="input" placeholder="••••••••"
+                     data-v30-email-smtp-password autocomplete="new-password">
+            </div>
+          </div>
+
+          <div class="v30-params__grid-2">
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpFrom">Adresse expéditeur</label>
+              <input id="v30EmailSmtpFrom" type="email" class="input" placeholder="vous@exemple.fr"
+                     data-v30-email-smtp-from autocomplete="email">
+              <p class="muted" style="font-size:11px; margin:4px 0 0;">Vide = même que l'utilisateur SMTP.</p>
+            </div>
+            <div class="v30-params__field">
+              <label class="v30-params__label" for="v30EmailSmtpFromName">Nom expéditeur</label>
+              <input id="v30EmailSmtpFromName" type="text" class="input" placeholder="Prosp'Up"
+                     data-v30-email-smtp-from-name>
+            </div>
+          </div>
+
+          <label class="v30-params__check" style="margin-top:6px;">
+            <input type="checkbox" checked data-v30-email-smtp-tls>
+            <span>Utiliser STARTTLS (port 587 recommandé). Décocher pour SSL direct (port 465).</span>
+          </label>
+        </div>
+
+        <div class="v30-params__actions" style="margin-top:14px;">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-email-save>Enregistrer</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-email-test>
+            {{ ui.icon('check', 13) }} Tester l'envoi SMTP
+          </button>
+          <span class="muted v30-params__status" data-v30-email-status></span>
+        </div>
+
+      </div>
+    </details>
+
     {# ─── ADMIN — Utilisateurs ──────────────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
     <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--users" data-v30-users data-tab="admin">
