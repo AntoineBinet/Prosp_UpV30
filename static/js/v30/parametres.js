@@ -842,6 +842,9 @@
           if (xpEl) xpEl.value = safeInt(o.xp);
         });
       });
+      var meta = (cfg.meta && typeof cfg.meta === 'object') ? cfg.meta : {};
+      var carryEl = $('[data-v30-goal-meta="carryover_enabled"]');
+      if (carryEl) carryEl.checked = (meta.carryover_enabled !== false);
     } catch (e) {
       console.warn('Goals load:', e);
     }
@@ -859,6 +862,8 @@
         };
       });
     });
+    var carryEl = $('[data-v30-goal-meta="carryover_enabled"]');
+    cfg.meta.carryover_enabled = !!(carryEl && carryEl.checked);
     return cfg;
   }
   async function goalsSave() {

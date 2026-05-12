@@ -32,7 +32,11 @@ from functools import wraps
 import secrets
 import hmac
 import base64
-from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
+from services.dashboard_goals import (
+    build_goals_payload as _build_goals_payload,
+    compute_daily_carryover as _compute_daily_carryover,
+    get_goals_config as _get_goals_config,
+)
 from services.working_days import (
     count_working_days as _count_working_days,
     holiday_name as _holiday_name,
@@ -6591,10 +6595,131 @@ def api_dashboard():
         "sourcing_contacted": max(0, cand_contacted_week + inmails_week + int(manual_kpi_week.get("sourcing", 0))),
         "sourcing_solid": max(0, cand_solid_week),
     }
+    # Report (carryover) des objectifs quotidiens non atteints sur les jours
+    # ouvrés précédents. Activé par défaut, configurable via
+    # goals_config.meta.carryover_enabled / carryover_max_days.
+    # On ne reporte rien quand on consulte une semaine passée (le snapshot
+    # historique doit rester intact) ni lorsque today n'est pas un jour
+    # ouvré (week-end/JF : on profite de la trêve).
+    goals_daily_carryover: dict[str, int] = {}
+    meta_cfg = goals_cfg.get("meta") or {}
+    carryover_enabled = bool(meta_cfg.get("carryover_enabled", True))
+    carryover_max_days = max(0, int(meta_cfg.get("carryover_max_days", 7) or 0))
+    if (
+        carryover_enabled
+        and carryover_max_days > 0
+        and not is_past_week
+        and _is_working_day(today)
+    ):
+        # Fenêtre calendrier : on remonte large pour s'assurer d'avoir
+        # `carryover_max_days` jours ouvrés effectifs (week-ends + JF + marge).
+        lookback_calendar_days = carryover_max_days * 2 + 7
+        lookback_start = (d_today - datetime.timedelta(days=lookback_calendar_days)).isoformat()
+        lookback_end = (d_today - datetime.timedelta(days=1)).isoformat()
+
+        # Liste des jours ouvrés sur la fenêtre, hors today
+        carry_working_days: list[str] = []
+        if lookback_start <= lookback_end:
+            _d = datetime.date.fromisoformat(lookback_start)
+            _end_d = datetime.date.fromisoformat(lookback_end)
+            while _d <= _end_d:
+                _iso = _d.isoformat()
+                if _is_working_day(_iso):
+                    carry_working_days.append(_iso)
+                _d += datetime.timedelta(days=1)
+
+        if carry_working_days:
+            try:
+                with _conn() as _carry_conn:
+                    # rdv_taken / jour
+                    _rdv_rows = _carry_conn.execute(
+                        """SELECT e.date, COUNT(DISTINCT e.prospect_id) AS n
+                           FROM prospect_events e
+                           JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                           WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                             AND (p.deleted_at IS NULL OR p.deleted_at='')
+                           GROUP BY e.date""",
+                        (uid, lookback_start, lookback_end),
+                    ).fetchall()
+                    _rdv_by_date = {r["date"]: int(r["n"] or 0) for r in _rdv_rows}
+
+                    # push_logs / jour (tous canaux)
+                    _push_rows = _carry_conn.execute(
+                        """SELECT substr(l.sentAt, 1, 10) AS d, COUNT(*) AS n
+                           FROM push_logs l
+                           JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?
+                           WHERE substr(l.sentAt, 1, 10) BETWEEN ? AND ?
+                             AND (p.deleted_at IS NULL OR p.deleted_at='')
+                           GROUP BY substr(l.sentAt, 1, 10)""",
+                        (uid, lookback_start, lookback_end),
+                    ).fetchall()
+                    _push_by_date = {r["d"]: int(r["n"] or 0) for r in _push_rows if r["d"]}
+
+                    # candidate_contacted / jour
+                    _cand_rows = _carry_conn.execute(
+                        """SELECT e.date, COUNT(*) AS n
+                           FROM candidate_events e
+                           JOIN candidates c ON c.id=e.candidate_id AND c.owner_id=?
+                           WHERE e.type='candidate_contacted' AND e.date BETWEEN ? AND ?
+                           GROUP BY e.date""",
+                        (uid, lookback_start, lookback_end),
+                    ).fetchall()
+                    _cand_by_date = {r["date"]: int(r["n"] or 0) for r in _cand_rows}
+
+                    # linkedin_inmails / jour
+                    _inmail_rows = _carry_conn.execute(
+                        "SELECT sent_at, COUNT(*) AS n FROM linkedin_inmails WHERE owner_id=? AND sent_at BETWEEN ? AND ? GROUP BY sent_at",
+                        (uid, lookback_start, lookback_end),
+                    ).fetchall()
+                    _inmail_by_date = {r["sent_at"]: int(r["n"] or 0) for r in _inmail_rows}
+
+                    # manual_kpi / (date, type) — ajustements manuels (peuvent être négatifs)
+                    _mkpi_rows = _carry_conn.execute(
+                        "SELECT date, type, SUM(count) AS total FROM manual_kpi WHERE user_id=? AND date BETWEEN ? AND ? GROUP BY date, type",
+                        (uid, lookback_start, lookback_end),
+                    ).fetchall()
+                    _mkpi_by_dt: dict[tuple[str, str], int] = {}
+                    for r in _mkpi_rows:
+                        _mkpi_by_dt[(r["date"], r["type"])] = int(r["total"] or 0)
+            except Exception:
+                _rdv_by_date = {}
+                _push_by_date = {}
+                _cand_by_date = {}
+                _inmail_by_date = {}
+                _mkpi_by_dt = {}
+
+            counts_by_date: dict[str, dict[str, int]] = {}
+            for _d_iso in carry_working_days:
+                _rdv_d = _rdv_by_date.get(_d_iso, 0) + _mkpi_by_dt.get((_d_iso, "rdv"), 0)
+                _push_d = (
+                    _push_by_date.get(_d_iso, 0)
+                    + _mkpi_by_dt.get((_d_iso, "push_email"), 0)
+                    + _mkpi_by_dt.get((_d_iso, "push_linkedin"), 0)
+                )
+                _src_d = (
+                    _cand_by_date.get(_d_iso, 0)
+                    + _inmail_by_date.get(_d_iso, 0)
+                    + _mkpi_by_dt.get((_d_iso, "sourcing"), 0)
+                )
+                counts_by_date[_d_iso] = {
+                    "rdv": max(0, _rdv_d),
+                    "push": max(0, _push_d),
+                    "sourcing_contacted": max(0, _src_d),
+                }
+
+            goals_daily_carryover = _compute_daily_carryover(
+                daily_cfg=goals_cfg.get("daily", {}),
+                counts_by_date=counts_by_date,
+                working_days=carry_working_days,
+                today=today,
+                max_days=carryover_max_days,
+            )
+
     goals_payload = _build_goals_payload(
         goals_cfg=goals_cfg,
         daily_counts=goals_daily_counts,
         weekly_counts=goals_weekly_counts,
+        daily_carryover=goals_daily_carryover,
     )
 
     # Goals breakdown — détail des sources d'événements par objectif.
