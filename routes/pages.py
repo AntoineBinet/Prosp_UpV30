@@ -1164,6 +1164,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["exportBesoinXlsx"], "endpoints": ["GET /api/besoins/<id>/export.xlsx"], "backend": ["routes/besoins.py:api_besoins_export"]}},
                 {"label": "Export besoin PDF", "href": "/v30/besoins",
                  "tools": {"handlers": ["exportPdf"], "endpoints": ["GET /api/besoins/<id>/export.pdf"], "backend": ["routes/besoins.py:api_export_besoin_pdf", "routes/besoins.py:_build_besoin_pdf"]}},
+                {"label": "Résumé après RT (PDF par candidat)", "href": "/v30/besoins",
+                 "tools": {"handlers": ["uploadResumeRt", "deleteResumeRt", "renderResumeRt"], "endpoints": ["POST /api/besoins/<id>/candidats/<idx>/resume-rt", "GET /api/besoins/<id>/candidats/<idx>/resume-rt", "DELETE /api/besoins/<id>/candidats/<idx>/resume-rt"], "backend": ["routes/besoins.py:api_besoin_resume_rt_upload", "routes/besoins.py:api_besoin_resume_rt_download", "routes/besoins.py:api_besoin_resume_rt_delete"]}},
             ],
         },
         {

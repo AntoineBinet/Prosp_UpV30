@@ -373,6 +373,176 @@
     ).join('');
   }
 
+  // ─── Résumé après RT (PDF par candidat) ────────────────────────
+  function fmtBytes(n) {
+    n = Number(n || 0);
+    if (n < 1024) return n + ' o';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' Ko';
+    return (n / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  async function flushPendingSave() {
+    if (state.saveTimer) { clearTimeout(state.saveTimer); state.saveTimer = null; }
+    if (state.dirty) await saveAuto();
+    while (state.saving) await new Promise(r => setTimeout(r, 80));
+  }
+
+  function renderResumeRt(rtBox, c, card) {
+    rtBox.innerHTML = '';
+    const meta = (c && c.resume_rt_pdf) || null;
+    const idx = parseInt(card.dataset.candIdx, 10);
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'v30-cand-card__resume-rt-title';
+    titleRow.innerHTML = '<span>Résumé après RT</span>';
+    rtBox.appendChild(titleRow);
+
+    if (meta && meta.filename) {
+      const chip = document.createElement('div');
+      chip.className = 'v30-cand-card__resume-rt-chip';
+      const orig = meta.original_name || 'resume_rt.pdf';
+      const size = meta.size ? ' · ' + fmtBytes(meta.size) : '';
+      chip.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+        '<span class="v30-cand-card__resume-rt-name" title="' + escapeHtml(orig) + '">' +
+        escapeHtml(orig) + '</span>' +
+        '<span class="v30-cand-card__resume-rt-size">' + escapeHtml(size) + '</span>';
+      rtBox.appendChild(chip);
+
+      const dl = document.createElement('a');
+      dl.href = '/api/besoins/' + ID + '/candidats/' + idx + '/resume-rt?download=1';
+      dl.className = 'btn btn-ghost btn-sm';
+      dl.title = 'Télécharger';
+      dl.textContent = 'Télécharger';
+      rtBox.appendChild(dl);
+
+      const open = document.createElement('a');
+      open.href = '/api/besoins/' + ID + '/candidats/' + idx + '/resume-rt';
+      open.target = '_blank';
+      open.rel = 'noopener noreferrer';
+      open.className = 'btn btn-ghost btn-sm';
+      open.title = 'Ouvrir dans un onglet';
+      open.textContent = 'Ouvrir';
+      rtBox.appendChild(open);
+
+      const replace = document.createElement('button');
+      replace.type = 'button';
+      replace.className = 'btn btn-ghost btn-sm';
+      replace.textContent = 'Remplacer';
+      replace.addEventListener('click', () => triggerResumeRtPicker(rtBox, c, card));
+      rtBox.appendChild(replace);
+
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'btn btn-ghost btn-sm';
+      rm.textContent = 'Supprimer';
+      rm.addEventListener('click', () => deleteResumeRt(rtBox, c, card));
+      rtBox.appendChild(rm);
+    } else {
+      const dropzone = document.createElement('label');
+      dropzone.className = 'v30-cand-card__resume-rt-dropzone';
+      dropzone.tabIndex = 0;
+      dropzone.innerHTML =
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+        '<span>Glisser un PDF ici ou <strong>cliquer</strong> pour charger</span>';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,application/pdf';
+      input.hidden = true;
+      input.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) uploadResumeRt(rtBox, c, card, file);
+        input.value = '';
+      });
+      dropzone.appendChild(input);
+      dropzone.addEventListener('click', (e) => {
+        if (e.target === input) return;
+        e.preventDefault();
+        input.click();
+      });
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('is-over');
+      });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-over'));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('is-over');
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) uploadResumeRt(rtBox, c, card, file);
+      });
+      rtBox.appendChild(dropzone);
+    }
+  }
+
+  function triggerResumeRtPicker(rtBox, c, card) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,application/pdf';
+    input.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) uploadResumeRt(rtBox, c, card, file);
+    });
+    input.click();
+  }
+
+  async function uploadResumeRt(rtBox, c, card, file) {
+    if (!file) return;
+    if (file.type && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+      if (window.showToast) window.showToast('PDF uniquement', 'error');
+      return;
+    }
+    rtBox.classList.add('is-loading');
+    try {
+      await flushPendingSave();
+      const idx = parseInt(card.dataset.candIdx, 10);
+      const fd = new FormData();
+      fd.append('file', file);
+      const resp = await fetch('/api/besoins/' + ID + '/candidats/' + idx + '/resume-rt', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || ('HTTP ' + resp.status));
+      }
+      c.resume_rt_pdf = data.resume_rt_pdf;
+      renderResumeRt(rtBox, c, card);
+      if (window.showToast) window.showToast('Résumé après RT enregistré', 'success');
+    } catch (err) {
+      if (window.showToast) window.showToast('Échec upload : ' + err.message, 'error');
+    } finally {
+      rtBox.classList.remove('is-loading');
+    }
+  }
+
+  async function deleteResumeRt(rtBox, c, card) {
+    if (!confirm('Supprimer le résumé après RT ?')) return;
+    rtBox.classList.add('is-loading');
+    try {
+      await flushPendingSave();
+      const idx = parseInt(card.dataset.candIdx, 10);
+      const resp = await fetch('/api/besoins/' + ID + '/candidats/' + idx + '/resume-rt', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || ('HTTP ' + resp.status));
+      }
+      delete c.resume_rt_pdf;
+      renderResumeRt(rtBox, c, card);
+      if (window.showToast) window.showToast('Résumé supprimé', 'success');
+    } catch (err) {
+      if (window.showToast) window.showToast('Échec suppression : ' + err.message, 'error');
+    } finally {
+      rtBox.classList.remove('is-loading');
+    }
+  }
+
   function buildCandCard(c, idx) {
     const card = document.createElement('article');
     card.className = 'v30-cand-card';
@@ -687,6 +857,13 @@
       refBox.innerHTML = getRefBadges(ref);
       grid.appendChild(refBox);
     }
+
+    // Résumé après RT (PDF par candidat)
+    const rtBox = document.createElement('div');
+    rtBox.className = 'v30-cand-card__resume-rt';
+    rtBox.dataset.resumeRt = '';
+    renderResumeRt(rtBox, c, card);
+    grid.appendChild(rtBox);
 
     // Actions du body : VSA, fiche, lier, délier
     const bodyActions = document.createElement('div');

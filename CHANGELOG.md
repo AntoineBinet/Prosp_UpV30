@@ -2,6 +2,33 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.57] — 2026-05-12 · Besoins · PDF « Résumé après RT » par candidat positionné
+
+- **Nouveau champ « Résumé après RT »** sur chaque carte candidat de la fiche
+  besoin (section dépliée). Permet de joindre **un PDF par candidat** —
+  typiquement le compte-rendu d'entretien technique livré au client.
+- **UI** : dropzone (glisser-déposer ou clic) tant qu'aucun PDF n'est attaché ;
+  une fois le fichier chargé, une chip ambre affiche son nom + taille avec les
+  boutons Télécharger / Ouvrir / Remplacer / Supprimer.
+- **Backend** :
+  - `POST /api/besoins/<id>/candidats/<idx>/resume-rt` — upload (PDF, 20 Mo max,
+    validation MIME via `_validate_upload(file, "document")` + extension).
+  - `GET /api/besoins/<id>/candidats/<idx>/resume-rt` — download (paramètre
+    `?download=1` pour forcer le téléchargement, sinon affichage inline).
+  - `DELETE /api/besoins/<id>/candidats/<idx>/resume-rt` — suppression
+    (fichier disque + métadonnée JSON).
+- **Stockage** : `data/user_<uid>/besoins/<besoin_id>/<uuid>.pdf`. Isolation
+  par owner, nom UUID pour éviter toute collision / injection.
+- **Métadonnée** : nouvelle clé `resume_rt_pdf` dans `candidats_json[idx]`
+  (`{filename, original_name, size, mime_type, uploaded_at}`). Préservée par
+  `_payload_clean()` puisqu'elle ne commence pas par `_`.
+- **Anti-race avec auto-save** : la frontend `flushPendingSave()` attend que
+  tout PUT en cours soit terminé avant d'envoyer l'upload, et met à jour
+  l'état mémoire avec la métadonnée retournée pour que les sauvegardes
+  suivantes la conservent.
+- **Toile d'araignée** : nouvelle action « Résumé après RT (PDF par candidat) »
+  sur la page Besoins ([routes/pages.py](routes/pages.py)).
+
 ## [32.56] — 2026-05-12 · Besoins · Nouveau statut « RT » pour les candidats positionnés
 
 - **Statut « RT » (ambre)** : ajouté entre « Dispo » et « Non dispo » dans le

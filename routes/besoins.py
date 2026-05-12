@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
+import uuid
 from io import BytesIO
+from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, render_template, request, send_file
 
@@ -30,6 +33,7 @@ from app import (
     logger,
 )
 from utils.db import _sidebar_counts
+from utils.files import _validate_upload
 
 besoins_bp = Blueprint("besoins", __name__)
 
@@ -460,6 +464,173 @@ def api_delete_besoin(bid: int):
         )
         if cur.rowcount == 0:
             return jsonify(ok=False, error="Introuvable"), 404
+    return jsonify(ok=True)
+
+
+# ─── Résumé après RT (PDF par candidat) ───────────────────────────────
+
+
+def _resume_rt_dir(uid: int, bid: int) -> Path:
+    p = Path("data") / f"user_{uid}" / "besoins" / str(bid)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _load_besoin_for_owner(bid: int, uid: int):
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, candidats_json FROM besoins "
+            "WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (bid, uid),
+        ).fetchone()
+    return row
+
+
+def _candidats_from_row(row) -> list:
+    raw = row["candidats_json"] if row else None
+    if not raw:
+        return []
+    try:
+        cands = json.loads(raw)
+        return cands if isinstance(cands, list) else []
+    except Exception:
+        return []
+
+
+def _persist_candidats(bid: int, uid: int, candidats: list) -> None:
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE besoins SET candidats_json=?, updated_at=? WHERE id=? AND owner_id=?;",
+            (json.dumps(candidats, ensure_ascii=False), now, bid, uid),
+        )
+
+
+def _resume_rt_safe_unlink(uid: int, bid: int, stored_filename: str) -> None:
+    if not stored_filename:
+        return
+    # Bloque tout chemin avec séparateur ou parent — l'identifiant stocké est
+    # toujours un UUID hex + extension, donc pas de séparateurs.
+    if os.sep in stored_filename or "/" in stored_filename or ".." in stored_filename:
+        return
+    target = _resume_rt_dir(uid, bid) / stored_filename
+    try:
+        if target.is_file():
+            target.unlink()
+    except Exception as exc:
+        logger.warning("[besoin %s] resume-rt unlink failed for %s: %s", bid, stored_filename, exc)
+
+
+@besoins_bp.post("/api/besoins/<int:bid>/candidats/<int:idx>/resume-rt")
+def api_besoin_resume_rt_upload(bid: int, idx: int):
+    """Upload du PDF « Résumé après RT » pour un candidat positionné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    row = _load_besoin_for_owner(bid, uid)
+    if not row:
+        return jsonify(ok=False, error="Besoin introuvable"), 404
+
+    candidats = _candidats_from_row(row)
+    if idx < 0 or idx >= len(candidats) or not isinstance(candidats[idx], dict):
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify(ok=False, error="Fichier manquant"), 400
+
+    ok_upload, err_upload = _validate_upload(file, "document")
+    if not ok_upload:
+        msg, code = err_upload
+        return jsonify(ok=False, error=msg), code
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext != ".pdf":
+        return jsonify(ok=False, error="PDF uniquement"), 400
+
+    safe_orig = os.path.basename(file.filename or "").strip() or "resume_rt.pdf"
+    stored_name = f"{uuid.uuid4().hex}.pdf"
+    target = _resume_rt_dir(uid, bid) / stored_name
+    data = file.read()
+    target.write_bytes(data)
+
+    # Remplace l'ancien fichier s'il existe.
+    prev = candidats[idx].get("resume_rt_pdf") or {}
+    if isinstance(prev, dict) and prev.get("filename"):
+        _resume_rt_safe_unlink(uid, bid, prev["filename"])
+
+    meta = {
+        "filename": stored_name,
+        "original_name": safe_orig,
+        "size": len(data),
+        "mime_type": "application/pdf",
+        "uploaded_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+    candidats[idx]["resume_rt_pdf"] = meta
+    _persist_candidats(bid, uid, candidats)
+
+    return jsonify(ok=True, resume_rt_pdf=meta)
+
+
+@besoins_bp.get("/api/besoins/<int:bid>/candidats/<int:idx>/resume-rt")
+def api_besoin_resume_rt_download(bid: int, idx: int):
+    """Téléchargement du PDF « Résumé après RT » pour un candidat positionné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    row = _load_besoin_for_owner(bid, uid)
+    if not row:
+        return jsonify(ok=False, error="Besoin introuvable"), 404
+
+    candidats = _candidats_from_row(row)
+    if idx < 0 or idx >= len(candidats) or not isinstance(candidats[idx], dict):
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    meta = candidats[idx].get("resume_rt_pdf") or {}
+    if not isinstance(meta, dict) or not meta.get("filename"):
+        return jsonify(ok=False, error="Aucun résumé attaché"), 404
+
+    stored = str(meta["filename"])
+    if os.sep in stored or "/" in stored or ".." in stored:
+        return jsonify(ok=False, error="Nom de fichier invalide"), 400
+
+    target = _resume_rt_dir(uid, bid) / stored
+    if not target.is_file():
+        return jsonify(ok=False, error="Fichier manquant sur disque"), 404
+
+    return send_file(
+        str(target),
+        as_attachment=request.args.get("download", "0") == "1",
+        download_name=str(meta.get("original_name") or "resume_rt.pdf"),
+        mimetype="application/pdf",
+    )
+
+
+@besoins_bp.delete("/api/besoins/<int:bid>/candidats/<int:idx>/resume-rt")
+def api_besoin_resume_rt_delete(bid: int, idx: int):
+    """Suppression du PDF « Résumé après RT » pour un candidat positionné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    row = _load_besoin_for_owner(bid, uid)
+    if not row:
+        return jsonify(ok=False, error="Besoin introuvable"), 404
+
+    candidats = _candidats_from_row(row)
+    if idx < 0 or idx >= len(candidats) or not isinstance(candidats[idx], dict):
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    meta = candidats[idx].get("resume_rt_pdf") or {}
+    if isinstance(meta, dict) and meta.get("filename"):
+        _resume_rt_safe_unlink(uid, bid, str(meta["filename"]))
+
+    if "resume_rt_pdf" in candidats[idx]:
+        candidats[idx].pop("resume_rt_pdf", None)
+        _persist_candidats(bid, uid, candidats)
+
     return jsonify(ok=True)
 
 
