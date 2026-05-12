@@ -891,15 +891,25 @@
         var done = !!it.done;
         var action = OBJ_ACTIONS[k] || '';
         var actionAttr = action ? ' data-obj-action="' + action + '" tabindex="0" role="button" title="Cliquer pour agir"' : '';
+        // Report d'objectif non atteint la veille (jour ouvré précédent) :
+        // pastille + tooltip pour expliquer la cible inflatée.
+        var carry = Math.max(0, Number(it.carryover) || 0);
+        var carryBadge = carry > 0
+          ? ' <span class="v30-objs__item-carryover" title="Reporté du dernier jour ouvré non atteint">+' + carry + ' reporté</span>'
+          : '';
+        var metaTxt = '+' + Math.round(it.xp_earned || 0) + ' / ' + Math.round(it.xp || 0) + ' XP';
+        if (carry > 0) {
+          metaTxt += ' · cible ' + (it.base_target || 0) + ' + ' + carry + ' reporté';
+        }
         html += '<div class="v30-objs__item' + (done ? ' v30-objs__item--done' : '') + (action ? ' v30-objs__item--clickable' : '') + '"' + actionAttr + '>' +
           '<span class="v30-objs__item-icon">' + iconForRatio(ratio, done) + '</span>' +
           '<div class="v30-objs__item-body">' +
             '<div class="v30-objs__item-top">' +
-              '<span class="v30-objs__item-label">' + esc(it.label || k) + '</span>' +
+              '<span class="v30-objs__item-label">' + esc(it.label || k) + carryBadge + '</span>' +
               '<span class="v30-objs__item-count"><b>' + (it.count || 0) + '</b>/' + (it.target || 0) + '</span>' +
             '</div>' +
             '<div class="v30-objs__item-bar"><div class="v30-objs__item-fill" style="width:' + Math.round(ratio * 100) + '%;background:' + barColorForRatio(ratio) + ';"></div></div>' +
-            '<div class="v30-objs__item-meta">+' + Math.round(it.xp_earned || 0) + ' / ' + Math.round(it.xp || 0) + ' XP</div>' +
+            '<div class="v30-objs__item-meta' + (carry > 0 ? ' v30-objs__item-meta--carry' : '') + '">' + metaTxt + '</div>' +
           '</div>' +
         '</div>';
       });
