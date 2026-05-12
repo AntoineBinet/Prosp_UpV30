@@ -2,6 +2,38 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.55] — 2026-05-12 · Rapports email quotidien & hebdomadaire
+
+- **Rapports email programmés** : deux nouveaux mails envoyés
+  automatiquement par le scheduler interne. Templates calqués sur le
+  modèle HTML fourni (en-tête orange, KPI 2×2, alerte relances,
+  priorités du jour pour le quotidien — funnel, top comptes, heatmap
+  pour l'hebdomadaire). Email-safe : tables HTML, styles inline,
+  largeur 600 px, fallback Georgia pour l'italique Instrument Serif.
+- **Quotidien** : par défaut lundi → vendredi à 17:00. Résume la veille
+  (appels, RDV, taux de transfo, push) avec deltas vs J-1 et moyenne 7 j,
+  alerte relances en retard nominatives, top 3 priorités du jour
+  (prospects avec `nextFollowUp = today`).
+- **Hebdomadaire** : par défaut lundi 07:00. Funnel Prospects → Contactés
+  → Qualifiés → RDV, deltas S-1 et N-1 sur 4 KPI, top 5 comptes (push +
+  RDV), heatmap 5 jours × matin/après-midi, note auto.
+- **Réglages** (Paramètres → onglet « Notifications » → carte « Rapports
+  email », ancre `#email-reports`) : destinataires multiples, jour(s) et
+  heure réglables (par 5 minutes), SMTP host/port/user/password/from,
+  STARTTLS ou SSL direct. Boutons « Aperçu HTML », « Envoyer maintenant »
+  et « Tester l'envoi SMTP ».
+- **Sécurité** : le mot de passe SMTP n'est jamais renvoyé en clair
+  ([routes/settings.py](routes/settings.py)) — l'API expose le marqueur
+  `__set__` et préserve la valeur stockée si l'UI ne la modifie pas.
+- **Scheduler** : APScheduler exécute `_dispatch_email_reports` chaque
+  minute ; un verrou évite les chevauchements, un anti-doublon par date
+  (`email_last_daily_sent`, `email_last_weekly_sent`) protège contre les
+  envois multiples si l'app redémarre pendant la fenêtre.
+- **Endpoints** : `GET /api/email-reports/preview?kind=daily|weekly`,
+  `POST /api/email-reports/send`, `POST /api/email-reports/test`.
+- **Toile d'araignée** : nouvelle action « Rapports email » sur la page
+  Paramètres.
+
 ## [32.54] — 2026-05-12 · Dashboard · Aperçu rapide en remplacement des panneaux vides
 
 - **Dashboard** : les panneaux « Besoins ouverts » et « Derniers candidats vus

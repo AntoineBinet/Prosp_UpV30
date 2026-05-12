@@ -8470,6 +8470,85 @@ def api_candidate_folder_open_file():
 
 
 
+# ── Email reports dispatcher (appelé par APScheduler chaque minute) ───
+# Itère sur tous les utilisateurs actifs, ouvre leur DB, lit leurs
+# préférences `email_*` et envoie les rapports dont l'heure/jour
+# correspondent à `now`. Le verrou empêche que deux ticks chevauchent.
+_email_reports_lock = threading.Lock()
+
+
+def _dispatch_email_reports() -> None:
+    """Scan minute-by-minute des préférences email de chaque utilisateur."""
+    if not _email_reports_lock.acquire(blocking=False):
+        return
+    try:
+        try:
+            from services.email_reports import (
+                load_settings as _load_email_settings,
+                should_send_daily,
+                should_send_weekly,
+                build_and_send_daily,
+                build_and_send_weekly,
+                save_settings as _save_email_settings,
+            )
+        except Exception as exc:
+            logger.warning("Dispatch email impossible (import) : %s", exc)
+            return
+
+        from utils.db import _auth_conn, _conn_for_user  # noqa: WPS433
+
+        now = datetime.datetime.now().replace(second=0, microsecond=0)
+        try:
+            with _auth_conn() as auth_conn:
+                users = auth_conn.execute(
+                    "SELECT id, COALESCE(display_name, username) AS name "
+                    "FROM users WHERE is_active=1;"
+                ).fetchall()
+        except Exception as exc:
+            logger.warning("Dispatch email — lecture users : %s", exc)
+            return
+
+        for u in users:
+            uid = u["id"]
+            user_name = u["name"] or ""
+            try:
+                conn = _conn_for_user(uid)
+            except Exception as exc:
+                logger.warning("Dispatch email — DB user %s indisponible : %s", uid, exc)
+                continue
+            try:
+                settings = _load_email_settings(conn)
+
+                if should_send_daily(settings, now):
+                    try:
+                        build_and_send_daily(conn, uid, user_name=user_name)
+                        logger.info("Email daily envoyé à user_id=%s", uid)
+                    except Exception as exc:
+                        logger.error("Email daily user_id=%s : %s", uid, exc)
+                        try:
+                            _save_email_settings(conn, {"email_last_error": str(exc)[:500]})
+                        except Exception:
+                            pass
+
+                if should_send_weekly(settings, now):
+                    try:
+                        build_and_send_weekly(conn, uid, user_name=user_name)
+                        logger.info("Email weekly envoyé à user_id=%s", uid)
+                    except Exception as exc:
+                        logger.error("Email weekly user_id=%s : %s", uid, exc)
+                        try:
+                            _save_email_settings(conn, {"email_last_error": str(exc)[:500]})
+                        except Exception:
+                            pass
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    finally:
+        _email_reports_lock.release()
+
+
 # ── Update-check state (rempli par APScheduler toutes les 10 min) ─
 _update_check_state: dict = {
     'update_available': False,
@@ -8660,9 +8739,18 @@ if __name__ == "__main__":
                 id='git_update_check',
                 replace_existing=True,
             )
+            _scheduler.add_job(
+                func=_dispatch_email_reports,
+                trigger='cron',
+                minute='*',
+                id='email_reports_dispatch',
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
             _scheduler.start()
             atexit.register(lambda: _scheduler.shutdown())
-            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min")
+            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min, email reports chaque minute")
             # Premier check immédiat au démarrage (en thread pour ne pas bloquer)
             threading.Thread(target=_do_git_update_check, daemon=True, name='update_check_startup').start()
         except ImportError:

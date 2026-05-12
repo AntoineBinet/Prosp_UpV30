@@ -1147,6 +1147,185 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  4b. Rapports email (quotidien + hebdomadaire)
+  // ══════════════════════════════════════════════════════════════
+  function emailGetUI() {
+    var dailyDays = [];
+    document.querySelectorAll('[data-v30-email-daily-day]:checked').forEach(function (el) {
+      dailyDays.push(el.value);
+    });
+    function v(sel) { var e = $(sel); return e ? (e.value || '') : ''; }
+    function chk(sel) { var e = $(sel); return e ? !!e.checked : false; }
+    return {
+      email_daily_enabled: chk('[data-v30-email-daily-enabled]') ? '1' : '0',
+      email_daily_to: v('[data-v30-email-daily-to]'),
+      email_daily_hour: v('[data-v30-email-daily-hour]'),
+      email_daily_minute: v('[data-v30-email-daily-minute]'),
+      email_daily_days: dailyDays.join(','),
+      email_weekly_enabled: chk('[data-v30-email-weekly-enabled]') ? '1' : '0',
+      email_weekly_to: v('[data-v30-email-weekly-to]'),
+      email_weekly_hour: v('[data-v30-email-weekly-hour]'),
+      email_weekly_minute: v('[data-v30-email-weekly-minute]'),
+      email_weekly_day: v('[data-v30-email-weekly-day]'),
+      email_smtp_host: v('[data-v30-email-smtp-host]'),
+      email_smtp_port: v('[data-v30-email-smtp-port]'),
+      email_smtp_user: v('[data-v30-email-smtp-user]'),
+      email_smtp_password: v('[data-v30-email-smtp-password]'),
+      email_smtp_from: v('[data-v30-email-smtp-from]'),
+      email_smtp_from_name: v('[data-v30-email-smtp-from-name]'),
+      email_smtp_use_tls: chk('[data-v30-email-smtp-tls]') ? '1' : '0'
+    };
+  }
+  function emailApplyToUI(s) {
+    function setV(sel, val) { var e = $(sel); if (e) e.value = val == null ? '' : String(val); }
+    function setC(sel, on) { var e = $(sel); if (e) e.checked = !!on; }
+    setC('[data-v30-email-daily-enabled]', s.email_daily_enabled === '1');
+    setV('[data-v30-email-daily-to]', s.email_daily_to);
+    if (s.email_daily_hour !== undefined && s.email_daily_hour !== '') {
+      setV('[data-v30-email-daily-hour]', String(parseInt(s.email_daily_hour, 10)));
+    }
+    if (s.email_daily_minute !== undefined && s.email_daily_minute !== '') {
+      setV('[data-v30-email-daily-minute]', String(parseInt(s.email_daily_minute, 10)));
+    }
+    var days = (s.email_daily_days || 'mon,tue,wed,thu,fri').split(',').map(function (x) { return x.trim().toLowerCase(); });
+    document.querySelectorAll('[data-v30-email-daily-day]').forEach(function (cb) {
+      cb.checked = days.indexOf(cb.value) >= 0;
+    });
+    setC('[data-v30-email-weekly-enabled]', s.email_weekly_enabled === '1');
+    setV('[data-v30-email-weekly-to]', s.email_weekly_to);
+    setV('[data-v30-email-weekly-day]', s.email_weekly_day || 'mon');
+    if (s.email_weekly_hour !== undefined && s.email_weekly_hour !== '') {
+      setV('[data-v30-email-weekly-hour]', String(parseInt(s.email_weekly_hour, 10)));
+    }
+    if (s.email_weekly_minute !== undefined && s.email_weekly_minute !== '') {
+      setV('[data-v30-email-weekly-minute]', String(parseInt(s.email_weekly_minute, 10)));
+    }
+    setV('[data-v30-email-smtp-host]', s.email_smtp_host);
+    setV('[data-v30-email-smtp-port]', s.email_smtp_port || '587');
+    setV('[data-v30-email-smtp-user]', s.email_smtp_user);
+    // Marqueur : on indique qu'un mot de passe est stocké en plaçant la
+    // chaîne sentinelle dans le champ (le backend ne l'écrasera pas si
+    // l'utilisateur ne le modifie pas).
+    var pwd = $('[data-v30-email-smtp-password]');
+    if (pwd) pwd.value = (s.email_smtp_password === '__set__') ? '__set__' : '';
+    setV('[data-v30-email-smtp-from]', s.email_smtp_from);
+    setV('[data-v30-email-smtp-from-name]', s.email_smtp_from_name || "Prosp'Up");
+    setC('[data-v30-email-smtp-tls]', s.email_smtp_use_tls !== '0');
+  }
+  async function emailLoad() {
+    if (!$('[data-v30-email-reports]')) return;
+    try {
+      var res = await fetch('/api/settings', { credentials: 'same-origin' });
+      var j = await res.json();
+      if (j && j.ok) emailApplyToUI(j.settings || {});
+    } catch (e) { /* silencieux : page reste utilisable */ }
+  }
+  async function emailSave() {
+    var st = '[data-v30-email-status]';
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    try {
+      var ui = emailGetUI();
+      // Si l'utilisateur n'a pas touché au mot de passe (toujours le
+      // marqueur), on l'envoie tel quel — le backend ignorera la valeur.
+      var res = await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: ui })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Enregistré', 'var(--success)');
+      toast('Préférences email enregistrées', 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  async function emailTest() {
+    var st = '[data-v30-email-status]';
+    // Toujours enregistrer avant — sinon l'utilisateur tape un nouvel SMTP
+    // et le test repart sur l'ancienne config persistée.
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: emailGetUI() })
+      });
+    } catch (e) { /* on poursuit le test malgré tout */ }
+    inlineStatus(st, 'Envoi du test…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/email-reports/test', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Email envoyé à ' + j.to, 'var(--success)');
+      toast('Email de test envoyé à ' + j.to, 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur SMTP : ' + e.message, 'error');
+    }
+    clearInlineStatus(st, 6000);
+  }
+  function emailPreview(kind) {
+    // Ouvrir dans un nouvel onglet — c'est juste du HTML
+    var url = '/api/email-reports/preview?kind=' + encodeURIComponent(kind || 'daily');
+    window.open(url, '_blank', 'noopener');
+  }
+  async function emailSendNow(kind) {
+    var stSel = kind === 'weekly' ? '[data-v30-email-weekly-status]' : '[data-v30-email-daily-status]';
+    inlineStatus(stSel, 'Enregistrement…', 'var(--text-2)');
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: emailGetUI() })
+      });
+    } catch (e) { /* poursuit l'envoi */ }
+    inlineStatus(stSel, 'Envoi…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/email-reports/send', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: kind || 'daily' })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(stSel, 'Envoyé à ' + j.to, 'var(--success)');
+      toast('Rapport ' + (kind === 'weekly' ? 'hebdo' : 'quotidien') + ' envoyé à ' + j.to, 'success');
+    } catch (e) {
+      inlineStatus(stSel, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(stSel, 6000);
+  }
+  function bindEmailReports() {
+    if (!$('[data-v30-email-reports]')) return;
+    var save = $('[data-v30-email-save]');
+    if (save) save.addEventListener('click', emailSave);
+    var test = $('[data-v30-email-test]');
+    if (test) test.addEventListener('click', emailTest);
+    var pvD = $('[data-v30-email-preview-daily]');
+    if (pvD) pvD.addEventListener('click', function () { emailPreview('daily'); });
+    var pvW = $('[data-v30-email-preview-weekly]');
+    if (pvW) pvW.addEventListener('click', function () { emailPreview('weekly'); });
+    var sndD = $('[data-v30-email-send-daily]');
+    if (sndD) sndD.addEventListener('click', function () { emailSendNow('daily'); });
+    var sndW = $('[data-v30-email-send-weekly]');
+    if (sndW) sndW.addEventListener('click', function () { emailSendNow('weekly'); });
+    emailLoad();
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  5. Mon compte (changement de mot de passe)
   // ══════════════════════════════════════════════════════════════
   async function pwChange() {
@@ -1703,6 +1882,7 @@
     bindCalSync();
     bindBackup();
     bindNotif();
+    bindEmailReports();
     bindAccount();
     bindAbout();
     openCardFromQuery();
