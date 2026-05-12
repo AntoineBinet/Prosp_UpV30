@@ -987,7 +987,7 @@
 
   function renderBesoinsOuverts(payload) {
     var host = $('[data-v30-besoins]');
-    if (!host) return;
+    if (!host) return false;
     var rows = host.querySelector('[data-field="rows"]');
     var count = host.querySelector('[data-field="count"]');
     var items = (payload && payload.items) || [];
@@ -995,17 +995,16 @@
     var inprogTotal = (payload && payload.inprogress_total) || 0;
     var total = openTotal + inprogTotal;
 
+    if (!items.length) {
+      // Panneau vide → on le masque (le widget Aperçu rapide prend le relais).
+      host.hidden = true;
+      return false;
+    }
+    host.hidden = false;
     if (count) {
       count.textContent = total + (total > 1 ? ' besoins' : ' besoin');
     }
-    if (!rows) return;
-    if (!items.length) {
-      rows.innerHTML = '<div class="empty" style="padding:18px 16px;text-align:center;font-size:12.5px;color:var(--text-3);">' +
-        'Aucun besoin ouvert pour l\'instant. ' +
-        '<a href="/v30/besoins" style="color:var(--accent);">Créer un besoin →</a>' +
-        '</div>';
-      return;
-    }
+    if (!rows) return true;
     var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
     rows.innerHTML = items.map(function (b) {
       var st = BESOIN_STATUT[b.statut] || { cls: 'badge-info', label: b.statut || '' };
@@ -1032,22 +1031,22 @@
         '</div>' +
       '</a>';
     }).join('');
+    return true;
   }
 
   // ─── Quick access — Derniers candidats EC ────────────────────────
   function renderRecentEC(items) {
     var host = $('[data-v30-recent-ec]');
-    if (!host) return;
+    if (!host) return false;
     var rows = host.querySelector('[data-field="rows"]');
-    if (!rows) return;
     items = items || [];
     if (!items.length) {
-      rows.innerHTML = '<div class="empty" style="padding:18px 16px;text-align:center;font-size:12.5px;color:var(--text-3);">' +
-        'Aucun candidat vu en EC. ' +
-        '<a href="/v30/sourcing" style="color:var(--accent);">Voir le sourcing →</a>' +
-        '</div>';
-      return;
+      // Panneau vide → on le masque (le widget Aperçu rapide prend le relais).
+      host.hidden = true;
+      return false;
     }
+    host.hidden = false;
+    if (!rows) return true;
     var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
     rows.innerHTML = items.map(function (c) {
       var roleParts = [];
@@ -1068,6 +1067,61 @@
         '</div>' +
       '</a>';
     }).join('');
+    return true;
+  }
+
+  // ─── Aperçu rapide — fallback affiché quand besoins/recent_ec sont vides ──
+  function renderQuickStats(data, hasBesoins, hasRecentEC) {
+    var host = $('[data-v30-quick-stats]');
+    if (!host) return;
+    // Si les deux panneaux ont du contenu → on cache le widget Aperçu rapide.
+    if (hasBesoins && hasRecentEC) {
+      host.hidden = true;
+      host.classList.remove('v30-quick-stats--full');
+      return;
+    }
+    host.hidden = false;
+    // Quand les deux panneaux sont vides → la carte prend toute la largeur.
+    host.classList.toggle('v30-quick-stats--full', !hasBesoins && !hasRecentEC);
+
+    var week = data.week || {};
+    var prev = data.prev_week || {};
+    var pipeline = data.pipeline || {};
+
+    var setVal = function (field, value) {
+      var el = host.querySelector('[data-field="' + field + '"]');
+      if (el) el.textContent = (value == null || value === '') ? '—' : value;
+    };
+    var setSub = function (field, current, previous, suffix) {
+      var el = host.querySelector('[data-field="' + field + '"]');
+      if (!el) return;
+      if (typeof current !== 'number' || typeof previous !== 'number') {
+        el.textContent = suffix || '';
+        el.classList.remove('is-pos', 'is-neg');
+        return;
+      }
+      var d = current - previous;
+      var sign = d > 0 ? '+' : (d < 0 ? '−' : '±');
+      el.textContent = sign + Math.abs(d) + ' vs sem-1';
+      el.classList.toggle('is-pos', d > 0);
+      el.classList.toggle('is-neg', d < 0);
+    };
+
+    setVal('prospects', pipeline.total != null ? pipeline.total : '—');
+    setVal('rdv', week.rdv_total != null ? week.rdv_total : '—');
+    setSub('rdv-sub', null, null, 'cette semaine');
+    setVal('push', week.push_total != null ? week.push_total : '—');
+    setSub('push-sub', week.push_total, prev.push_total, 'cette semaine');
+
+    // Conversion = part de prospects au statut Rendez-vous sur le pipeline actif
+    var total = pipeline.total || 0;
+    var rdv = pipeline.rdv || 0;
+    if (total > 0) {
+      var pct = Math.round((rdv / total) * 100 * 10) / 10;
+      setVal('conv', pct + '%');
+    } else {
+      setVal('conv', '—');
+    }
   }
 
   function hydrate() {
@@ -1076,8 +1130,9 @@
       .then(function (res) {
         var data = (res && res.data) || {};
         renderHero(data);
-        renderBesoinsOuverts(data.besoins);
-        renderRecentEC(data.recent_ec);
+        var hasBesoins = renderBesoinsOuverts(data.besoins);
+        var hasRecentEC = renderRecentEC(data.recent_ec);
+        renderQuickStats(data, hasBesoins, hasRecentEC);
         renderPerformance(data);
         renderObjectifs(data.goals);
         renderGoals(data.goals);

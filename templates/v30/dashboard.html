@@ -106,6 +106,38 @@
       </div>
     </div>
 
+    {# Aperçu rapide — affiché en remplacement quand Besoins et/ou Recent EC sont vides #}
+    <div class="card card-flush v30-quick v30-quick-stats" data-v30-quick-stats hidden>
+      <div class="card-header">
+        <div class="card-title">
+          {{ ui.icon('chart') }} Aperçu rapide
+        </div>
+        <a href="/v30/stats" class="btn btn-ghost btn-sm">Détails</a>
+      </div>
+      <div class="v30-quick-stats__grid" data-field="grid">
+        <div class="v30-quick-stats__item">
+          <div class="v30-quick-stats__label">Prospects actifs</div>
+          <div class="v30-quick-stats__value num" data-field="prospects">—</div>
+          <div class="v30-quick-stats__sub" data-field="prospects-sub">en pipeline</div>
+        </div>
+        <div class="v30-quick-stats__item">
+          <div class="v30-quick-stats__label">RDV pris</div>
+          <div class="v30-quick-stats__value num" data-field="rdv">—</div>
+          <div class="v30-quick-stats__sub" data-field="rdv-sub">cette semaine</div>
+        </div>
+        <div class="v30-quick-stats__item">
+          <div class="v30-quick-stats__label">Push</div>
+          <div class="v30-quick-stats__value num" data-field="push">—</div>
+          <div class="v30-quick-stats__sub" data-field="push-sub">cette semaine</div>
+        </div>
+        <div class="v30-quick-stats__item">
+          <div class="v30-quick-stats__label">Conversion RDV</div>
+          <div class="v30-quick-stats__value num" data-field="conv">—</div>
+          <div class="v30-quick-stats__sub" data-field="conv-sub">du pipeline</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   {# ─── Bento row 0 : [Performance + Action center stack] · Objectifs (v30.7) ─── #}

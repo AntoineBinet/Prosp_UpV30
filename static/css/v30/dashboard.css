@@ -136,6 +136,7 @@
   display: flex;
   flex-direction: column;
 }
+.v30-quick[hidden] { display: none !important; }
 .v30-quick__count {
   display: inline-flex;
   align-items: center;
@@ -215,6 +216,58 @@
   font-size: 11px;
   width: 32px;
   height: 32px;
+}
+
+/* ─── Aperçu rapide — fallback affiché quand besoins/recent_ec sont vides ─── */
+.v30-quick-stats__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  flex: 1 1 auto;
+}
+.v30-quick-stats__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--surface);
+  min-width: 0;
+}
+.v30-quick-stats__label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.2;
+}
+.v30-quick-stats__value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.v30-quick-stats__sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  line-height: 1.2;
+}
+.v30-quick-stats__sub.is-pos { color: var(--success, oklch(0.62 0.15 145)); }
+.v30-quick-stats__sub.is-neg { color: var(--danger, oklch(0.60 0.18 25)); }
+
+/* Quand les deux panneaux quick sont vides, le widget Aperçu rapide
+   prend toute la largeur de la rangée (2 colonnes). */
+.v30-bento-quick > .v30-quick-stats--full {
+  grid-column: 1 / -1;
+}
+.v30-quick-stats--full .v30-quick-stats__grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1100px) {
+  .v30-quick-stats--full .v30-quick-stats__grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 540px) {
+  .v30-quick-stats__grid,
+  .v30-quick-stats--full .v30-quick-stats__grid { grid-template-columns: 1fr; }
 }
 
 /* ─────────── Action center ─────────── */
