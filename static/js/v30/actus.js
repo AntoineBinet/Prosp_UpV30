@@ -63,7 +63,9 @@
     articles: [],
     jobs: [],
     crmJobs: [],
-    crmMeta: {}
+    crmMeta: {},
+    hasRealSource: false,
+    activeSources: []
   };
   var ARTICLES_LIMIT = 9;
   var CRM_LIMIT = 20;
@@ -194,9 +196,21 @@
     if (!STATE.jobs.length) {
       $jobs.innerHTML = '';
       $jobsEmpty.hidden = false;
-      $jobsEmpty.textContent = STATE.view === 'favoris'
-        ? 'Aucun favori. Marquez des offres avec ★ pour les retrouver ici.'
-        : 'Aucune offre pour ces filtres. Élargissez la région ou retirez un filtre contrat.';
+      if (STATE.view === 'favoris') {
+        $jobsEmpty.innerHTML = 'Aucun favori. Marquez des offres avec ★ pour les retrouver ici.';
+      } else if (!STATE.hasRealSource) {
+        // Aucune source utilisateur configurée → CTA explicite vers Paramètres.
+        $jobsEmpty.innerHTML = ''
+          + '<div style="display:flex;flex-direction:column;gap:10px;align-items:center;">'
+          +   '<div><strong>Aucune source d\'annonces configurée.</strong></div>'
+          +   '<div class="muted">Pour afficher des offres réelles, configurez Adzuna (gratuit, 1 000 appels/mois) ou Jobfly.</div>'
+          +   '<a class="btn btn-accent" href="/v30/parametres?card=actus-sources">'
+          +     '⚙ Configurer dans Paramètres'
+          +   '</a>'
+          + '</div>';
+      } else {
+        $jobsEmpty.innerHTML = 'Aucune offre pour ces filtres. Élargissez la région ou retirez un filtre contrat.';
+      }
       return;
     }
     $jobsEmpty.hidden = true;
@@ -228,11 +242,24 @@
       $crmJobs.innerHTML = '';
       if ($crmEmpty) {
         $crmEmpty.hidden = false;
-        $crmEmpty.textContent = meta.total_companies
-          ? 'Aucune annonce trouvée pour les ' + meta.total_companies
+        if (!meta.total_companies) {
+          $crmEmpty.innerHTML = 'Aucune entreprise dans votre CRM. '
+            + '<a href="/v30/entreprises">Ajoutez-en</a> pour activer le matching.';
+        } else if (!STATE.hasRealSource) {
+          $crmEmpty.innerHTML = ''
+            + '<div style="display:flex;flex-direction:column;gap:8px;align-items:center;">'
+            +   '<div>Aucune annonce dans le cache pour vos <strong>' + meta.total_companies
+            +   ' entreprise' + (meta.total_companies > 1 ? 's' : '') + '</strong>.</div>'
+            +   '<div class="muted">Configurez Adzuna ou Jobfly pour alimenter le cache avec des offres réelles.</div>'
+            +   '<a class="btn btn-accent btn-sm" href="/v30/parametres?card=actus-sources">'
+            +     '⚙ Configurer dans Paramètres'
+            +   '</a>'
+            + '</div>';
+        } else {
+          $crmEmpty.innerHTML = 'Aucune annonce trouvée pour les ' + meta.total_companies
             + ' entreprise' + (meta.total_companies > 1 ? 's' : '')
-            + ' de votre CRM dans le cache actuel. Configurez Adzuna/Jobfly pour plus de volume, ou élargissez la région.'
-          : 'Aucune entreprise dans votre CRM. Ajoutez-en depuis /v30/entreprises pour activer le matching.';
+            + ' de votre CRM dans le cache actuel. Élargissez la région ou attendez le prochain refresh.';
+        }
       }
       return;
     }
@@ -324,6 +351,8 @@
       var userPick = localStorage.getItem('v30.actus.region');
       STATE.defaultRegion = r.default_region || 'ara';
       if (!userPick) STATE.region = STATE.defaultRegion;
+      STATE.hasRealSource = !!r.has_real_source;
+      STATE.activeSources = r.active_sources || [];
 
       // Peupler le select région à partir des données serveur
       if (Array.isArray(r.regions) && $region) {
