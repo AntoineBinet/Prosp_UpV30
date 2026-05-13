@@ -33,7 +33,7 @@
           {# Peuplé par le JS via /api/actus/status — fallback statique ci-dessous #}
           <option value="national">France entière</option>
           <option value="idf">Île-de-France</option>
-          <option value="ara">Auvergne-Rhône-Alpes</option>
+          <option value="ara" selected>Auvergne-Rhône-Alpes</option>
           <option value="occitanie">Occitanie</option>
           <option value="paca">PACA</option>
           <option value="bretagne">Bretagne</option>
@@ -42,6 +42,13 @@
           <option value="naq">Nouvelle-Aquitaine</option>
         </select>
       </label>
+      {% if is_admin %}
+      <button type="button" class="btn btn-ghost" data-v30-actus-pin-default
+              aria-label="Définir la région courante comme défaut"
+              title="Admin : définir la région sélectionnée comme défaut pour tous les utilisateurs">
+        {{ ui.icon('bookmark', 13) }} Par défaut
+      </button>
+      {% endif %}
       <button type="button" class="btn btn-ghost" data-v30-actus-refresh aria-label="Actualiser actus et annonces">
         {{ ui.icon('sync', 13) }} Actualiser
       </button>

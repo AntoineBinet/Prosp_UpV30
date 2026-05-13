@@ -51,8 +51,11 @@
   }
 
   // ─── STATE ────────────────────────────────────────────────
+  // Région : choix utilisateur (localStorage) > config serveur > fallback 'ara'
+  // La config serveur est résolue au boot via /api/actus/config.
   var STATE = {
-    region: localStorage.getItem('v30.actus.region') || 'national',
+    region: localStorage.getItem('v30.actus.region') || 'ara',
+    defaultRegion: 'ara',
     q: '',
     contracts: new Set(),
     sort: 'date',
@@ -60,10 +63,12 @@
     articles: [],
     jobs: []
   };
+  var ARTICLES_LIMIT = 9;
 
   // ─── DOM ──────────────────────────────────────────────────
   var $region = document.querySelector('[data-v30-region]');
   var $refresh = document.querySelector('[data-v30-actus-refresh]');
+  var $pinDefault = document.querySelector('[data-v30-actus-pin-default]');
   var $status = document.querySelector('[data-v30-actus-status]');
   var $articles = document.querySelector('[data-v30-articles]');
   var $articlesEmpty = document.querySelector('[data-v30-articles-empty]');
@@ -89,15 +94,30 @@
       var regionLabel = a.region_hint && a.region_hint !== 'national'
         ? '<span class="actus-tag actus-tag--region">' + esc(a.region_hint.toUpperCase()) + '</span>'
         : '';
+      // Image : src distant si présent, sinon placeholder typographique
+      // (loading=lazy + error handler qui swap vers le placeholder pour
+      // gérer les liens hotlink-protégés / 404).
+      var img;
+      if (a.image_url) {
+        img = '<img class="actus-card__image" src="' + esc(a.image_url) + '"'
+            + ' alt="" loading="lazy" referrerpolicy="no-referrer"'
+            + ' onerror="this.outerHTML=&quot;<div class=\\&quot;actus-card__image-placeholder\\&quot;>'
+            + esc(a.source).replace(/"/g, '\\&quot;') + '</div>&quot;">';
+      } else {
+        img = '<div class="actus-card__image-placeholder">' + esc(a.source) + '</div>';
+      }
       return ''
         + '<a class="actus-card" href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">'
-        +   '<div class="actus-card__meta">'
-        +     '<span class="actus-card__source">' + esc(a.source) + '</span>'
-        +     '<span class="actus-card__date">' + esc(fmtRelativeDate(a.published_at || a.fetched_at)) + '</span>'
+        +   img
+        +   '<div class="actus-card__body">'
+        +     '<div class="actus-card__meta">'
+        +       '<span class="actus-card__source">' + esc(a.source) + '</span>'
+        +       '<span class="actus-card__date">' + esc(fmtRelativeDate(a.published_at || a.fetched_at)) + '</span>'
+        +     '</div>'
+        +     '<h3 class="actus-card__title">' + esc(a.title) + '</h3>'
+        +     (a.summary ? '<p class="actus-card__summary">' + esc(a.summary) + '</p>' : '')
+        +     '<div class="actus-card__tags">' + regionLabel + tags + '</div>'
         +   '</div>'
-        +   '<h3 class="actus-card__title">' + esc(a.title) + '</h3>'
-        +   (a.summary ? '<p class="actus-card__summary">' + esc(a.summary) + '</p>' : '')
-        +   '<div class="actus-card__tags">' + regionLabel + tags + '</div>'
         + '</a>';
     }).join('');
     $articles.innerHTML = html;
@@ -167,7 +187,8 @@
 
   // ─── API calls ────────────────────────────────────────────
   function loadArticles() {
-    var url = '/api/actus/articles?region=' + encodeURIComponent(STATE.region) + '&limit=24';
+    var url = '/api/actus/articles?region=' + encodeURIComponent(STATE.region)
+            + '&limit=' + ARTICLES_LIMIT;
     return fetchJSON(url).then(function (r) {
       STATE.articles = r.items || [];
       renderArticles();
@@ -215,7 +236,13 @@
 
   function loadStatus() {
     return fetchJSON('/api/actus/status').then(function (r) {
-      // Peupler le select région à partir des données serveur (au cas où elles évoluent)
+      // La région effective : si pas de choix utilisateur en localStorage,
+      // on adopte la région par défaut servie par le backend.
+      var userPick = localStorage.getItem('v30.actus.region');
+      STATE.defaultRegion = r.default_region || 'ara';
+      if (!userPick) STATE.region = STATE.defaultRegion;
+
+      // Peupler le select région à partir des données serveur
       if (Array.isArray(r.regions) && $region) {
         var current = STATE.region;
         $region.innerHTML = r.regions.map(function (reg) {
@@ -227,9 +254,28 @@
       bits.push(r.articles_count + ' article' + (r.articles_count > 1 ? 's' : ''));
       bits.push(r.jobs_count + ' offre' + (r.jobs_count > 1 ? 's' : ''));
       if (r.articles_last_refresh) bits.push('dernière mise à jour : ' + fmtRelativeDate(r.articles_last_refresh));
+      if (r.default_region) {
+        var lbl = (r.regions || []).find(function (x) { return x.id === r.default_region; });
+        bits.push('défaut : ' + (lbl ? lbl.label : r.default_region));
+      }
       updateStatus(bits.join(' · '), false);
     }).catch(function () {
       updateStatus('Cache indisponible', false);
+    });
+  }
+
+  function pinRegionAsDefault() {
+    if (!$pinDefault) return;
+    var region = STATE.region;
+    $pinDefault.disabled = true;
+    postJSON('/api/actus/config', { default_region: region }).then(function (r) {
+      STATE.defaultRegion = r.default_region;
+      toast('Région par défaut : ' + region, 'success');
+      loadStatus();
+    }).catch(function (e) {
+      toast('Impossible de définir la région par défaut : ' + e.message, 'error');
+    }).finally(function () {
+      $pinDefault.disabled = false;
     });
   }
 
@@ -280,6 +326,9 @@
     }
     if ($refresh) {
       $refresh.addEventListener('click', refresh);
+    }
+    if ($pinDefault) {
+      $pinDefault.addEventListener('click', pinRegionAsDefault);
     }
     if ($search) {
       $search.addEventListener('input', debounce(function () {
@@ -333,7 +382,11 @@
   // ─── Boot ─────────────────────────────────────────────────
   function init() {
     bind();
-    Promise.all([loadStatus(), loadArticles(), loadJobs()]);
+    // loadStatus en premier : il peut modifier STATE.region en fonction de
+    // la config serveur (si aucun choix utilisateur n'est en localStorage).
+    loadStatus().then(function () {
+      return Promise.all([loadArticles(), loadJobs()]);
+    });
   }
 
   if (document.readyState === 'loading') {

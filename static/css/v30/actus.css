@@ -92,23 +92,53 @@
 /* ─── Articles (haut) — grille cartes ─────────────────────────── */
 .actus-articles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
 }
 .actus-card {
   display: flex;
   flex-direction: column;
-  padding: 14px;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   text-decoration: none;
   color: inherit;
+  overflow: hidden;
 }
 .actus-card:hover {
   border-color: var(--accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--accent) 8%, transparent);
+}
+.actus-card__image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--surface-2);
+  display: block;
+  border-bottom: 1px solid var(--border);
+}
+.actus-card__image-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--accent) 18%, var(--surface-2)),
+    var(--surface-2) 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in oklch, var(--accent) 60%, var(--text-2));
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.actus-card__body {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  flex: 1;
 }
 .actus-card__meta {
   display: flex;
@@ -312,8 +342,8 @@
 }
 .actus-skeleton {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
 }
 .sk-card, .sk-row {
   background: linear-gradient(90deg, var(--surface-2), var(--surface-1), var(--surface-2));
@@ -321,7 +351,7 @@
   animation: sk-shimmer 1.4s linear infinite;
   border-radius: var(--r-lg);
 }
-.sk-card { height: 120px; }
+.sk-card { height: 280px; }
 .sk-row  { height: 64px; }
 @keyframes sk-shimmer {
   0% { background-position: 200% 0; }

@@ -1122,6 +1122,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["refresh"], "endpoints": ["POST /api/actus/refresh"], "backend": ["routes/actus.py:api_actus_refresh", "services/actus.py:refresh_all"]}},
                 {"label": "Statut cache (compteurs)", "href": "/v30/actus",
                  "tools": {"handlers": ["loadStatus"], "endpoints": ["GET /api/actus/status"], "backend": ["routes/actus.py:api_actus_status", "services/actus.py:status"]}},
+                {"label": "Définir région par défaut (admin)", "href": "/v30/actus",
+                 "tools": {"handlers": ["pinRegionAsDefault"], "endpoints": ["GET /api/actus/config", "POST /api/actus/config"], "backend": ["routes/actus.py:api_actus_config_get", "routes/actus.py:api_actus_config_set", "services/actus.py:set_default_region"]}},
             ],
         },
         {
