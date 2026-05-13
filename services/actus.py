@@ -184,6 +184,18 @@ def init_schema() -> None:
                 conn.execute("ALTER TABLE actus_articles ADD COLUMN image_url TEXT;")
             except sqlite3.OperationalError as exc:
                 logger.warning("Actus migration image_url a échoué : %s", exc)
+        # Migration : retrait des annonces de démonstration de l'ancien
+        # DemoSource. Idempotent — exécute la suppression à chaque boot,
+        # mais ne touche plus rien une fois nettoyé.
+        try:
+            cur = conn.execute(
+                "DELETE FROM actus_jobs WHERE source = 'Démo' OR external_id LIKE 'demo:%';"
+            )
+            if cur.rowcount:
+                logger.info("Actus migration : suppression de %s annonces de démonstration",
+                            cur.rowcount)
+        except sqlite3.OperationalError as exc:
+            logger.warning("Actus migration demo cleanup a échoué : %s", exc)
         conn.commit()
 
 
@@ -834,12 +846,26 @@ class JobflyAdapter(JobSource):
 
 # Sources actives par ordre de préférence. La 1ère qui renvoie des
 # résultats non vides gagne ; on agrège ensuite avec les suivantes.
+#
+# DemoSource est volontairement EXCLUE — les annonces de démonstration
+# induisent l'utilisateur en erreur (faux postes, vraies entreprises).
+# Mieux vaut un cache vide avec un message clair pointant vers
+# Paramètres > Sources d'annonces que des fausses infos affichées.
 DEFAULT_SOURCES: list[JobSource] = [
     JobflyAdapter(),
     AdzunaSource(),
     FranceTravailRSSSource(),
-    DemoSource(),
 ]
+
+
+def has_real_source_configured() -> bool:
+    """True si Adzuna ou Jobfly est configurée et activée — donc une vraie
+    source utilisateur, par opposition à France Travail RSS (best-effort
+    public, peut renvoyer 0 sans configuration de la part de l'utilisateur).
+    Sert à piloter l'empty state de la page Actus :
+    - True  → empty state classique « Aucune offre pour ces filtres »
+    - False → CTA « Configurez Adzuna/Jobfly dans Paramètres »"""
+    return AdzunaSource().available or JobflyAdapter().available
 
 # Requêtes par défaut. La page peut en ajouter d'autres via le paramètre
 # `q` de l'API de refresh.
@@ -1263,6 +1289,8 @@ def status() -> dict:
         "articles_last_refresh": _get_meta("articles_last_refresh"),
         "jobs_last_refresh": _get_meta("jobs_last_refresh"),
         "default_region": get_default_region(),
+        "has_real_source": has_real_source_configured(),
+        "active_sources": [s.name for s in DEFAULT_SOURCES if getattr(s, "available", True)],
         "regions": [{"id": rid, "label": r["label"]} for rid, r in REGIONS.items()],
     }
 
