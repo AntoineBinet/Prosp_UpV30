@@ -1155,6 +1155,11 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("companies", "urgency", "TEXT")
         if "owner_id" not in ccols:
             _add_col("companies", "owner_id", "INTEGER")
+        # Enrichissement IA entreprise — colonnes ajoutées avec /api/companies/<id>/enrich
+        if "careers_url" not in ccols:
+            _add_col("companies", "careers_url", "TEXT")
+        if "locations" not in ccols:
+            _add_col("companies", "locations", "TEXT")
 
         # Prospects (v4→v6)
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospects);").fetchall()]
@@ -2561,6 +2566,7 @@ def _v30_apply_migrations(conn) -> list[str]:
         print(f"[v30_migrate] WARN linkedin_inmails ({e})")
 
     # 5. v32.29 — Carte géographique : lat/long sur companies + prospects
+    # v32.x — Enrichissement IA entreprise : careers_url (lien annonces) + locations (sites multiples)
     try:
         co_cols = {r[1] for r in cur.execute("PRAGMA table_info(companies);").fetchall()}
         if co_cols:
@@ -2568,6 +2574,8 @@ def _v30_apply_migrations(conn) -> list[str]:
                 ("latitude", "REAL"),
                 ("longitude", "REAL"),
                 ("geocoded_at", "TEXT"),
+                ("careers_url", "TEXT"),
+                ("locations", "TEXT"),
             ):
                 if col not in co_cols:
                     cur.execute(f"ALTER TABLE companies ADD COLUMN {col} {ddl};")

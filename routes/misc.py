@@ -147,7 +147,7 @@ def api_company_update():
     if not cid:
         return jsonify({"ok": False, "error": "id is required"}), 400
     cid_i = int(cid)
-    allowed = ["groupe","site","phone","notes","tags","website","linkedin","industry","size","address","city","country","stack","pain_points","budget","urgency"]
+    allowed = ["groupe","site","phone","notes","tags","website","linkedin","industry","size","address","city","country","stack","pain_points","budget","urgency","careers_url","locations"]
     fields = {k: payload.get(k) for k in allowed if k in payload}
     # tags can be list
     if "tags" in fields:

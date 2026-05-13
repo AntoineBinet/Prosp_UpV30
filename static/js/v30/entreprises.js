@@ -642,11 +642,11 @@
   }
 
   // ─── Champs étendus : mapping id HTML -> champ backend ────
-  // Couvre les 16 champs acceptés par /api/company/update
+  // Couvre les 18 champs acceptés par /api/company/update
   var ENT_FIELDS_BASIC = ['groupe', 'site', 'phone', 'website', 'linkedin', 'industry', 'notes'];
-  var ENT_FIELDS_EXTRA = ['size', 'city', 'country', 'address', 'stack', 'pain_points', 'budget', 'urgency'];
+  var ENT_FIELDS_EXTRA = ['size', 'city', 'country', 'address', 'stack', 'pain_points', 'budget', 'urgency', 'careers_url', 'locations'];
   function htmlIdFor(prefix, field) {
-    // pain_points -> v30-ent-<prefix>-pain-points
+    // pain_points -> v30-ent-<prefix>-pain-points ; careers_url -> v30-ent-<prefix>-careers-url
     return 'v30-ent-' + prefix + '-' + field.replace(/_/g, '-');
   }
 
@@ -791,6 +791,7 @@
     setQA('phone', company.phone ? ('tel:' + String(company.phone).replace(/\s+/g, '')) : '');
     setQA('website', company.website || '');
     setQA('linkedin', company.linkedin || '');
+    setQA('careers', company.careers_url || '');
     var prospectsA = m.querySelector('[data-v30-ent-qa="prospects"]');
     if (prospectsA) {
       prospectsA.hidden = false;
@@ -853,6 +854,226 @@
         })
         .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
         .then(function () { save.disabled = false; });
+    });
+  }
+
+  // ─── Enrichissement IA (Tavily + Ollama) ─────────────────
+  // État partagé : la dernière réponse IA + sélection des champs à appliquer
+  var ENRICH_CTX = { companyId: null, fields: null, snapshot: null };
+
+  var ENRICH_FIELD_LABELS = {
+    website: 'Site web',
+    linkedin: 'LinkedIn',
+    industry: 'Industrie',
+    size: 'Taille (employés)',
+    phone: 'Téléphone (standard)',
+    city: 'Ville',
+    address: 'Adresse',
+    country: 'Pays',
+    locations: 'Autres sites',
+    careers_url: 'Page offres d\'emploi'
+  };
+  // Ordre d'affichage dans la modale
+  var ENRICH_FIELD_ORDER = [
+    'website', 'phone', 'size', 'industry', 'linkedin',
+    'city', 'address', 'country', 'locations', 'careers_url'
+  ];
+
+  function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.textContent = s == null ? '' : String(s);
+    return div.innerHTML;
+  }
+
+  function renderEnrichDiff(host, current, suggested) {
+    if (!host) return;
+    host.innerHTML = '';
+    ENRICH_FIELD_ORDER.forEach(function (key) {
+      if (!(key in suggested)) return;
+      var newVal = suggested[key];
+      var oldVal = current[key];
+      // Normaliser pour comparaison
+      var newStr = newVal == null ? '' : String(newVal).trim();
+      var oldStr = oldVal == null ? '' : String(oldVal).trim();
+      if (!newStr && !oldStr) return; // rien à proposer ni à conserver
+      var unchanged = (newStr === oldStr);
+      var checked = !unchanged && newStr ? 'checked' : '';
+      var row = document.createElement('div');
+      row.className = 'v30-ent-enrich-row';
+      row.style.cssText = 'display:grid;grid-template-columns:18px 130px 1fr;gap:10px;align-items:start;padding:6px 0;border-bottom:1px dashed var(--border, #eee);';
+      row.innerHTML =
+        '<input type="checkbox" data-v30-ent-enrich-field="' + key + '" ' + checked +
+          (unchanged ? ' disabled title="Identique à la valeur actuelle"' : '') + '>' +
+        '<label style="font-size:12px;font-weight:500;cursor:pointer;">' + escapeHtml(ENRICH_FIELD_LABELS[key] || key) + '</label>' +
+        '<div style="font-size:12px;display:flex;flex-direction:column;gap:2px;">' +
+          (oldStr
+            ? '<div class="muted" style="text-decoration:line-through;opacity:.65;white-space:pre-wrap;">' + escapeHtml(oldStr) + '</div>'
+            : '<div class="muted" style="font-style:italic;opacity:.55;">(vide)</div>') +
+          '<div style="white-space:pre-wrap;color:var(--accent, #0e8a4f);">' +
+            (newStr ? escapeHtml(newStr) : '<span class="muted" style="font-style:italic;">(non trouvé)</span>') +
+          '</div>' +
+        '</div>';
+      host.appendChild(row);
+    });
+    if (!host.children.length) {
+      host.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Aucune information nouvelle trouvée par l\'IA.</div>';
+    }
+  }
+
+  function getEnrichModalEls() {
+    var m = getModal('ent-enrich');
+    if (!m) return null;
+    return {
+      modal: m,
+      name: m.querySelector('[data-v30-ent-enrich-name]'),
+      loading: m.querySelector('[data-v30-ent-enrich-loading]'),
+      status: m.querySelector('[data-v30-ent-enrich-status]'),
+      error: m.querySelector('[data-v30-ent-enrich-error]'),
+      diffWrap: m.querySelector('[data-v30-ent-enrich-diff-wrap]'),
+      diff: m.querySelector('[data-v30-ent-enrich-diff]'),
+      sourcesWrap: m.querySelector('[data-v30-ent-enrich-sources-wrap]'),
+      sources: m.querySelector('[data-v30-ent-enrich-sources]'),
+      toggleAll: m.querySelector('[data-v30-ent-enrich-toggle-all]'),
+      apply: m.querySelector('[data-v30-ent-enrich-apply]'),
+      retry: m.querySelector('[data-v30-ent-enrich-retry]')
+    };
+  }
+
+  function getCurrentEditSnapshot() {
+    // Lit les valeurs actuelles depuis le DOM de la modale edit
+    var snap = {};
+    ENT_FIELDS_BASIC.concat(ENT_FIELDS_EXTRA).forEach(function (f) {
+      var el = document.getElementById(htmlIdFor('edit', f));
+      snap[f] = el ? el.value : '';
+    });
+    return snap;
+  }
+
+  function runEnrich(companyId) {
+    var els = getEnrichModalEls();
+    if (!els) return;
+    ENRICH_CTX.companyId = companyId;
+    ENRICH_CTX.snapshot = getCurrentEditSnapshot();
+    ENRICH_CTX.fields = null;
+    if (els.name) {
+      var groupe = ENRICH_CTX.snapshot.groupe || '';
+      var site = ENRICH_CTX.snapshot.site || '';
+      els.name.textContent = groupe + (site ? ' · ' + site : '') || '—';
+    }
+    if (els.loading) els.loading.hidden = false;
+    if (els.error) { els.error.hidden = true; els.error.textContent = ''; }
+    if (els.diffWrap) els.diffWrap.hidden = true;
+    if (els.diff) els.diff.innerHTML = '';
+    if (els.sourcesWrap) els.sourcesWrap.hidden = true;
+    if (els.sources) els.sources.textContent = '';
+    if (els.apply) els.apply.hidden = true;
+    if (els.retry) els.retry.hidden = true;
+
+    fetchPost('/api/companies/' + encodeURIComponent(companyId) + '/enrich', {})
+      .then(function (res) {
+        if (els.loading) els.loading.hidden = true;
+        if (!res || !res.ok) {
+          throw new Error((res && res.error) || 'IA indisponible');
+        }
+        ENRICH_CTX.fields = res.fields || {};
+        renderEnrichDiff(els.diff, ENRICH_CTX.snapshot, ENRICH_CTX.fields);
+        if (els.diffWrap) els.diffWrap.hidden = false;
+        if (els.apply) els.apply.hidden = false;
+        if (els.retry) els.retry.hidden = false;
+        if (res.sources && els.sources && els.sourcesWrap) {
+          els.sources.textContent = res.sources;
+          els.sourcesWrap.hidden = false;
+        }
+        toast('Enrichissement terminé — relis et applique', 'success');
+      })
+      .catch(function (err) {
+        if (els.loading) els.loading.hidden = true;
+        if (els.error) {
+          els.error.hidden = false;
+          els.error.textContent = 'Erreur : ' + (err && err.message ? err.message : err);
+        }
+        if (els.retry) els.retry.hidden = false;
+      });
+  }
+
+  function applyEnrich() {
+    var els = getEnrichModalEls();
+    if (!els || !ENRICH_CTX.fields || !ENRICH_CTX.companyId) return;
+    var checks = els.diff ? els.diff.querySelectorAll('input[data-v30-ent-enrich-field]:checked:not([disabled])') : [];
+    if (!checks.length) { toast('Aucun champ sélectionné', 'warning'); return; }
+    var payload = { id: ENRICH_CTX.companyId };
+    var pushedKeys = [];
+    checks.forEach(function (cb) {
+      var k = cb.getAttribute('data-v30-ent-enrich-field');
+      if (!k) return;
+      var v = ENRICH_CTX.fields[k];
+      payload[k] = v == null ? '' : String(v);
+      pushedKeys.push(k);
+    });
+    if (els.apply) els.apply.disabled = true;
+    fetchPost('/api/company/update', payload)
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'mise à jour impossible');
+        // Mettre à jour les champs visibles de la modale edit
+        pushedKeys.forEach(function (k) {
+          var el = document.getElementById(htmlIdFor('edit', k));
+          if (el) el.value = payload[k];
+        });
+        // Refresh quick-actions liens
+        var m = getModal('ent-edit');
+        if (m && res.company) {
+          ['phone', 'website', 'linkedin'].forEach(function (kind) {
+            var a = m.querySelector('[data-v30-ent-qa="' + kind + '"]');
+            if (!a) return;
+            var v = res.company[kind] || '';
+            if (!v) { a.hidden = true; return; }
+            a.hidden = false;
+            a.href = (kind === 'phone') ? ('tel:' + String(v).replace(/\s+/g, '')) : v;
+            var span = a.querySelector('span');
+            if (span && kind === 'phone') span.textContent = v;
+          });
+          var careersA = m.querySelector('[data-v30-ent-qa="careers"]');
+          if (careersA) {
+            var cv = res.company.careers_url || '';
+            careersA.hidden = !cv;
+            if (cv) careersA.href = cv;
+          }
+        }
+        toast(pushedKeys.length + ' champ(s) mis à jour', 'success');
+        closeModal(getModal('ent-enrich'));
+        reload();
+      })
+      .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
+      .then(function () { if (els.apply) els.apply.disabled = false; });
+  }
+
+  function bindEnrich() {
+    // Bouton "Scrapping IA" dans la modale edit
+    var btn = $('[data-v30-ent-edit-enrich]');
+    if (btn) btn.addEventListener('click', function () {
+      var editModal = getModal('ent-edit');
+      var idEl = editModal && editModal.querySelector('[data-v30-ent-edit-id]');
+      var id = idEl && idEl.value ? Number(idEl.value) : 0;
+      if (!id) { toast('Aucune entreprise sélectionnée', 'warning'); return; }
+      var groupe = (document.getElementById(htmlIdFor('edit', 'groupe')) || {}).value;
+      if (!groupe || !groupe.trim()) { toast('Le groupe doit être renseigné', 'warning'); return; }
+      openModal(getModal('ent-enrich'));
+      runEnrich(id);
+    });
+    // Apply
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-ent-enrich-apply]')) applyEnrich();
+      if (e.target.closest('[data-v30-ent-enrich-retry]')) {
+        if (ENRICH_CTX.companyId) runEnrich(ENRICH_CTX.companyId);
+      }
+      var toggle = e.target.closest('[data-v30-ent-enrich-toggle-all]');
+      if (toggle) {
+        var diff = document.querySelector('[data-v30-ent-enrich-diff]');
+        if (!diff) return;
+        var boxes = diff.querySelectorAll('input[type=checkbox]:not([disabled])');
+        var anyUnchecked = Array.prototype.some.call(boxes, function (b) { return !b.checked; });
+        boxes.forEach(function (b) { b.checked = anyUnchecked; });
+      }
     });
   }
 
@@ -988,6 +1209,7 @@
     bindTabs();
     bindAdd();
     bindEdit();
+    bindEnrich();
     bindFilters();
     bindExport();
     bindBulk();
