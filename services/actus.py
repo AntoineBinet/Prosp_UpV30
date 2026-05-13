@@ -76,11 +76,14 @@ REGIONS = {
 # (Usine Digitale, JDN solutions/emploi) on peut le désactiver pour
 # conserver plus de contenu.
 NEWS_FEEDS = [
-    {"name": "L'Usine Digitale", "url": "https://www.usine-digitale.fr/rss/", "topic_filter": False},
-    {"name": "L'Usine Nouvelle", "url": "https://www.usinenouvelle.com/rss/", "topic_filter": True},
-    {"name": "JDN Emploi", "url": "https://www.journaldunet.com/solutions/emploi-rh/rss/", "topic_filter": False},
+    # Sources retenues car robustes (pas de 403 anti-bot) et avec image
+    # MRSS/enclosure dans la majorité des items — meilleur rendu visuel.
+    {"name": "Silicon", "url": "https://www.silicon.fr/feed", "topic_filter": True},
+    {"name": "Clubic", "url": "https://www.clubic.com/feed/news.rss", "topic_filter": True},
+    {"name": "Korben", "url": "https://korben.info/feed", "topic_filter": True},
     {"name": "JDN Tech", "url": "https://www.journaldunet.com/solutions/dsi/rss/", "topic_filter": True},
-    {"name": "ZDNet France", "url": "https://www.zdnet.fr/feeds/rss/actualites/", "topic_filter": True},
+    {"name": "JDN Emploi", "url": "https://www.journaldunet.com/solutions/emploi-rh/rss/", "topic_filter": False},
+    {"name": "Numerama", "url": "https://www.numerama.com/feed/", "topic_filter": True},
     {"name": "Frenchweb", "url": "https://www.frenchweb.fr/feed", "topic_filter": True},
 ]
 
@@ -88,8 +91,14 @@ NEWS_FEEDS = [
 CACHE_TTL_HOURS = 6
 # Timeout HTTP par requête sortante (secondes).
 HTTP_TIMEOUT = 12
-# User-Agent : se présenter explicitement pour éviter d'être bloqué.
-USER_AGENT = "ProspUp-Actus/1.0 (+https://prospup.work)"
+# User-Agent : certaines CDN françaises (CloudFront, etc.) bloquent les UA
+# génériques de type "bot". On se présente comme un navigateur récent et on
+# ajoute notre signature en commentaire pour rester honnête vis-à-vis des
+# robots.txt côté serveurs cibles.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36 ProspUp-Actus/1.0 (+https://prospup.work)"
+)
 
 # Lock pour sérialiser les refresh concurrents (scheduler + clic manuel
 # simultané).
@@ -107,6 +116,7 @@ CREATE TABLE IF NOT EXISTS actus_articles (
     title         TEXT NOT NULL,
     source        TEXT NOT NULL,
     summary       TEXT,
+    image_url     TEXT,
     published_at  TEXT,
     region_hint   TEXT,
     tags          TEXT,
@@ -163,9 +173,47 @@ def _conn() -> sqlite3.Connection:
 
 
 def init_schema() -> None:
-    """Crée les tables si absentes. Appelé une fois au boot."""
+    """Crée les tables si absentes + migrations légères. Appelé au boot."""
     with _conn() as conn:
         conn.executescript(SCHEMA_SQL)
+        # Migration : la colonne image_url a été ajoutée après la première
+        # release. SQLite ne supporte pas IF NOT EXISTS sur ADD COLUMN.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(actus_articles);").fetchall()}
+        if "image_url" not in cols:
+            try:
+                conn.execute("ALTER TABLE actus_articles ADD COLUMN image_url TEXT;")
+            except sqlite3.OperationalError as exc:
+                logger.warning("Actus migration image_url a échoué : %s", exc)
+        conn.commit()
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Config (région par défaut, modifiable depuis l'UI)
+# ────────────────────────────────────────────────────────────────────
+
+DEFAULT_REGION_FALLBACK = "ara"  # Auvergne-Rhône-Alpes / Lyon
+
+
+def get_default_region() -> str:
+    """Retourne la région par défaut configurée. Fallback `ara` si absent."""
+    val = _get_meta("default_region")
+    if val and val in REGIONS:
+        return val
+    return DEFAULT_REGION_FALLBACK
+
+
+def set_default_region(region: str) -> str:
+    """Persiste la région par défaut. Lève ValueError si la région est
+    inconnue."""
+    if region not in REGIONS:
+        raise ValueError(f"Région inconnue : {region}")
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO actus_meta(key, value) VALUES('default_region', ?);",
+            (region,),
+        )
+        conn.commit()
+    return region
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -250,8 +298,16 @@ def _parse_rss_date(raw: str | None) -> str | None:
 
 
 def _http_get(url: str) -> bytes:
-    """GET HTTP simple avec UA + timeout. Lève en cas d'erreur."""
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
+    """GET HTTP avec un set de headers façon navigateur — certaines CDN
+    (CloudFront, Akamai) renvoient 403 si Accept / Accept-Language sont
+    absents. Lève en cas d'erreur."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "application/rss+xml, application/xml, text/xml, application/atom+xml, */*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
+        "Accept-Encoding": "identity",
+        "Connection": "close",
+    })
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
         return r.read()
 
@@ -265,7 +321,53 @@ _NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "content": "http://purl.org/rss/1.0/modules/content/",
     "dc": "http://purl.org/dc/elements/1.1/",
+    "media": "http://search.yahoo.com/mrss/",
 }
+
+# Détecte la première URL d'image dans un fragment HTML.
+_IMG_TAG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def _extract_image(item, raw_html: str) -> str:
+    """Extrait l'URL d'image principale d'un <item> RSS.
+    Cherche dans :
+      1. <media:content url="..." medium="image">
+      2. <media:thumbnail url="...">
+      3. <enclosure url="..." type="image/...">
+      4. Premier <img src="..."> dans description / content:encoded
+    Retourne "" si aucune image trouvée.
+    """
+    # MRSS media:content
+    for mc in item.findall(f"{{{_NS['media']}}}content"):
+        url = mc.get("url", "")
+        medium = (mc.get("medium") or "").lower()
+        mtype = (mc.get("type") or "").lower()
+        if url and (medium == "image" or mtype.startswith("image/") or _looks_like_image(url)):
+            return url
+    # MRSS media:thumbnail
+    mt = item.find(f"{{{_NS['media']}}}thumbnail")
+    if mt is not None and mt.get("url"):
+        return mt.get("url")
+    # RSS enclosure
+    for enc in item.findall("enclosure"):
+        url = enc.get("url", "")
+        mtype = (enc.get("type") or "").lower()
+        if url and (mtype.startswith("image/") or _looks_like_image(url)):
+            return url
+    # <img> dans le HTML de description / content:encoded
+    if raw_html:
+        m = _IMG_TAG_RE.search(raw_html)
+        if m:
+            src = m.group(1)
+            # Skip trackers / 1x1 pixels (heuristique : URLs trop petites)
+            if src and not src.startswith("data:") and "pixel" not in src.lower():
+                return src
+    return ""
+
+
+def _looks_like_image(url: str) -> bool:
+    u = (url or "").lower().split("?", 1)[0]
+    return u.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"))
 
 
 def _rss_items(xml_bytes: bytes) -> list[dict]:
@@ -288,6 +390,7 @@ def _rss_items(xml_bytes: bytes) -> list[dict]:
             "title": title,
             "url": url,
             "summary": _strip_html(desc)[:600],
+            "image_url": _extract_image(it, desc),
             "published": _parse_rss_date(pub),
         })
 
@@ -304,6 +407,7 @@ def _rss_items(xml_bytes: bytes) -> list[dict]:
             "title": title,
             "url": url,
             "summary": _strip_html(desc)[:600],
+            "image_url": _extract_image(it, desc),
             "published": _parse_rss_date(pub),
         })
 
@@ -332,6 +436,7 @@ def _fetch_one_feed(feed: dict) -> list[dict]:
             "title": it["title"][:400],
             "source": feed["name"],
             "summary": it["summary"],
+            "image_url": it.get("image_url", ""),
             "published_at": it["published"],
             "region_hint": _detect_region(it["title"], it["summary"]),
             "tags": json.dumps(_extract_tags(it["title"], it["summary"]), ensure_ascii=False),
@@ -385,11 +490,19 @@ def refresh_articles() -> dict:
             try:
                 cur = conn.execute(
                     """INSERT OR IGNORE INTO actus_articles
-                       (url, title, source, summary, published_at, region_hint, tags, fetched_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+                       (url, title, source, summary, image_url, published_at, region_hint, tags, fetched_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""",
                     (art["url"], art["title"], art["source"], art["summary"],
-                     art["published_at"], art["region_hint"], art["tags"], now),
+                     art.get("image_url", ""), art["published_at"], art["region_hint"],
+                     art["tags"], now),
                 )
+                # Met à jour l'image pour les articles déjà connus mais qui
+                # avaient été insérés avant l'ajout de la colonne image_url.
+                if not cur.rowcount and art.get("image_url"):
+                    conn.execute(
+                        "UPDATE actus_articles SET image_url=? WHERE url=? AND (image_url IS NULL OR image_url='');",
+                        (art["image_url"], art["url"]),
+                    )
                 if cur.rowcount:
                     inserted += 1
                 else:
@@ -777,23 +890,33 @@ def _get_meta(key: str) -> str | None:
     return row["value"] if row else None
 
 
-def list_articles(region: str = "national", limit: int = 30) -> list[dict]:
+def list_articles(region: str = "national", limit: int = 30,
+                  with_image_only: bool = False) -> list[dict]:
     """Retourne les articles cachés filtrés par région. La région
-    'national' renvoie tous les articles (avec ceux régionalisés inclus)."""
+    'national' renvoie tous les articles (avec ceux régionalisés inclus).
+
+    Les articles avec image sont priorisés (ORDER BY image_url IS NOT NULL DESC)
+    pour mettre en avant le contenu illustré sans pour autant masquer le reste.
+    `with_image_only=True` filtre strictement les articles sans illustration.
+    """
+    img_where = "AND image_url IS NOT NULL AND image_url <> ''" if with_image_only else ""
     with _conn() as conn:
         if region == "national":
             rows = conn.execute(
-                """SELECT * FROM actus_articles
-                   ORDER BY COALESCE(published_at, fetched_at) DESC
-                   LIMIT ?;""",
+                f"""SELECT * FROM actus_articles
+                    WHERE 1=1 {img_where}
+                    ORDER BY (CASE WHEN image_url IS NOT NULL AND image_url <> '' THEN 0 ELSE 1 END),
+                             COALESCE(published_at, fetched_at) DESC
+                    LIMIT ?;""",
                 (limit,),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT * FROM actus_articles
-                   WHERE region_hint IN (?, 'national')
-                   ORDER BY COALESCE(published_at, fetched_at) DESC
-                   LIMIT ?;""",
+                f"""SELECT * FROM actus_articles
+                    WHERE region_hint IN (?, 'national') {img_where}
+                    ORDER BY (CASE WHEN image_url IS NOT NULL AND image_url <> '' THEN 0 ELSE 1 END),
+                             COALESCE(published_at, fetched_at) DESC
+                    LIMIT ?;""",
                 (region, limit),
             ).fetchall()
     return [_row_to_article(r) for r in rows]
@@ -878,6 +1001,7 @@ def status() -> dict:
         "jobs_count": j,
         "articles_last_refresh": _get_meta("articles_last_refresh"),
         "jobs_last_refresh": _get_meta("jobs_last_refresh"),
+        "default_region": get_default_region(),
         "regions": [{"id": rid, "label": r["label"]} for rid, r in REGIONS.items()],
     }
 
@@ -887,12 +1011,19 @@ def status() -> dict:
 # ────────────────────────────────────────────────────────────────────
 
 def _row_to_article(r: sqlite3.Row) -> dict:
+    # `image_url` peut être absent sur les DB pré-migration (le row factory
+    # SQLite renvoie KeyError plutôt que None) — on protège avec try.
+    try:
+        img = r["image_url"] or ""
+    except (IndexError, KeyError):
+        img = ""
     return {
         "id": r["id"],
         "url": r["url"],
         "title": r["title"],
         "source": r["source"],
         "summary": r["summary"] or "",
+        "image_url": img,
         "published_at": r["published_at"],
         "region_hint": r["region_hint"],
         "tags": json.loads(r["tags"]) if r["tags"] else [],
