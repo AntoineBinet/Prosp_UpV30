@@ -861,6 +861,139 @@ a.btn[aria-disabled="true"] {
   border-radius: 6px;
 }
 
+/* ── Onglet CR — sections + dropzone + fichiers PDF ─────── */
+.v30-cr-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-3);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  transition: border-color var(--dur-1), background var(--dur-1), color var(--dur-1);
+}
+.v30-cr-dropzone.is-dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--text-1);
+}
+.v30-cr-dropzone--empty {
+  padding: 24px;
+  justify-content: center;
+  text-align: center;
+}
+.v30-cr-dropzone__hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.v30-cr-dropzone__hint strong { color: var(--text-1); }
+
+.v30-cr-section { margin-top: 12px; }
+.v30-cr-section:first-child { margin-top: 0; }
+.v30-cr-section__title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v30-cr-section__count {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-3);
+  background: var(--surface-3, var(--border));
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.v30-cr-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.v30-cr-file-card {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  text-align: left;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .15s;
+  font-family: inherit;
+  width: 100%;
+}
+.v30-cr-file-card:hover,
+.v30-cr-file-card:focus {
+  border-color: var(--accent);
+  background: var(--surface-1, var(--surface-2));
+  outline: none;
+}
+.v30-cr-file-card:active { transform: scale(0.99); }
+.v30-cr-file-card__thumb {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-3, var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+.v30-cr-file-card__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.v30-cr-file-card__thumb-icon {
+  color: var(--text-3);
+  display: inline-flex;
+}
+.v30-cr-file-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.v30-cr-file-card__meta {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v30-cr-file-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.v30-cr-file-card__action--accent { color: var(--accent); }
+
 /* ── Modale CR — vue présentation (lecture seule) ───────── */
 .v30-cr-view__head {
   align-items: flex-start;
@@ -1408,6 +1541,15 @@ a.btn[aria-disabled="true"] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.v30-fp-file-preview__meta {
+  font-size: 11px;
+  color: var(--text-3);
+  background: var(--surface-3, var(--border));
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.v30-fp-file-preview__meta:empty { display: none; }
 .v30-fp-file-preview__body {
   flex: 1;
   overflow: hidden;

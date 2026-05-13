@@ -2318,48 +2318,138 @@
     catch (_) { return iso; }
   }
 
+  function renderCRMeetingCard(m) {
+    var dateStr = shortDateFR(m.date);
+    var preview = (m.summary || m.notes || m.raw_transcript || '').replace(/\s+/g, ' ').trim();
+    if (preview.length > 220) preview = preview.slice(0, 217) + '…';
+    var pendingBadge = m.action_pending > 0
+      ? '<span class="v30-cr-card__pending" title="Tâches en attente">' + m.action_pending + ' à faire</span>'
+      : '';
+    var taskBadge = m.action_count > 0
+      ? '<span class="v30-cr-card__count">' + m.action_count + ' tâche' + (m.action_count > 1 ? 's' : '') + '</span>'
+      : '';
+    var tagsHtml = (m.tags && m.tags.length)
+      ? '<div class="v30-cr-card__tags">' + m.tags.slice(0, 6).map(function (t) {
+          return '<span class="v30-cr-card__tag">' + FP.esc(t) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    return '<button type="button" class="v30-cr-card" data-v30-cr-card="' + m.id + '">' +
+      '<div class="v30-cr-card__head">' +
+        '<strong class="v30-cr-card__date">CR du ' + FP.esc(dateStr) + '</strong>' +
+        taskBadge + pendingBadge +
+      '</div>' +
+      '<div class="v30-cr-card__title">' + FP.esc(m.title || ('CR ' + dateStr)) + '</div>' +
+      (preview ? '<p class="v30-cr-card__excerpt">' + FP.esc(preview) + '</p>' : '') +
+      tagsHtml +
+    '</button>';
+  }
+
+  function fmtFileSize(bytes) {
+    bytes = Number(bytes) || 0;
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  function renderCRFileCard(a) {
+    var dateStr = shortDateFR(a.createdAt);
+    var name = a.original_name || 'Fichier';
+    var mime = (a.mime_type || '').toLowerCase();
+    var isPdf = mime === 'application/pdf';
+    var isImg = mime.indexOf('image/') === 0;
+    var canPreview = isPdf || isImg || mime === 'text/plain';
+    var thumbHtml = a.has_thumbnail
+      ? '<img class="v30-cr-file-card__thumb-img" src="/api/prospect/attachments/' + FP.esc(a.id) + '/thumb" alt="" loading="lazy">'
+      : '<span class="v30-cr-file-card__thumb-icon" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' +
+        '</svg>' +
+        '</span>';
+    var kindBadge = isPdf ? '<span class="v30-cr-card__count">PDF</span>'
+                  : isImg ? '<span class="v30-cr-card__count">Image</span>'
+                  : '<span class="v30-cr-card__count">' + FP.esc((mime.split('/')[1] || 'fichier').slice(0, 8)) + '</span>';
+    var tagsHtml = (a.tags && a.tags.length)
+      ? '<div class="v30-cr-card__tags">' + a.tags.slice(0, 6).map(function (t) {
+          return '<span class="v30-cr-card__tag">' + FP.esc(t) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    var actions =
+      (canPreview
+        ? '<span class="v30-cr-file-card__action v30-cr-file-card__action--accent">' +
+          '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
+          ' Visionner</span>'
+        : '');
+    return '<button type="button" class="v30-cr-file-card" ' +
+      'data-v30-cr-file="' + FP.esc(a.id) + '" ' +
+      'data-att-name="' + FP.esc(name) + '" ' +
+      'data-att-mime="' + FP.esc(mime) + '">' +
+      '<span class="v30-cr-file-card__thumb">' + thumbHtml + '</span>' +
+      '<span class="v30-cr-file-card__body">' +
+        '<span class="v30-cr-card__head">' +
+          '<strong class="v30-cr-card__date">Document du ' + FP.esc(dateStr) + '</strong>' +
+          kindBadge +
+        '</span>' +
+        '<span class="v30-cr-card__title">' + FP.esc(a.title || name) + '</span>' +
+        '<span class="v30-cr-file-card__meta">' + FP.esc(name) + ' · ' + FP.esc(fmtFileSize(a.size)) + '</span>' +
+        tagsHtml +
+        actions +
+      '</span>' +
+    '</button>';
+  }
+
   function loadCRTab() {
     var host = document.querySelector('[data-v30-cr-list]');
     var counter = document.querySelector('[data-field="count-cr"]');
     if (!host) return;
     host.innerHTML = '<div class="empty" style="padding:16px;">Chargement…</div>';
-    FP.fetchJSON('/api/meetings?prospect_id=' + FP.ID).then(function (res) {
-      var meetings = (res && res.meetings) || [];
-      if (counter) counter.textContent = meetings.length || '—';
-      if (!meetings.length) {
-        host.innerHTML = '<div class="empty" style="padding:16px;">Aucun compte-rendu pour ce prospect. Cliquez « Nouveau CR » pour en créer un.</div>';
+    Promise.all([
+      FP.fetchJSON('/api/meetings?prospect_id=' + FP.ID).catch(function () { return { meetings: [] }; }),
+      FP.fetchJSON('/api/prospect/attachments?prospect_id=' + FP.ID).catch(function () { return { attachments: [] }; })
+    ]).then(function (results) {
+      var meetings = (results[0] && results[0].meetings) || [];
+      var attachments = (results[1] && results[1].attachments) || [];
+      var total = meetings.length + attachments.length;
+      if (counter) counter.textContent = total ? String(total) : '—';
+      if (!total) {
+        host.innerHTML = '<div class="v30-cr-dropzone v30-cr-dropzone--empty" data-v30-cr-dropzone>' +
+          '<div class="v30-cr-dropzone__hint">' +
+            '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+            '<div><strong>Glissez un PDF ici</strong><br>ou cliquez « Nouveau CR » pour saisir un compte-rendu structuré.</div>' +
+          '</div>' +
+        '</div>';
         return;
       }
-      host.innerHTML = '<div class="v30-cr-list">' + meetings.map(function (m) {
-        var dateStr = shortDateFR(m.date);
-        var preview = (m.summary || m.notes || m.raw_transcript || '').replace(/\s+/g, ' ').trim();
-        if (preview.length > 220) preview = preview.slice(0, 217) + '…';
-        var pendingBadge = m.action_pending > 0
-          ? '<span class="v30-cr-card__pending" title="Tâches en attente">' + m.action_pending + ' à faire</span>'
-          : '';
-        var taskBadge = m.action_count > 0
-          ? '<span class="v30-cr-card__count">' + m.action_count + ' tâche' + (m.action_count > 1 ? 's' : '') + '</span>'
-          : '';
-        var tagsHtml = (m.tags && m.tags.length)
-          ? '<div class="v30-cr-card__tags">' + m.tags.slice(0, 6).map(function (t) {
-              return '<span class="v30-cr-card__tag">' + FP.esc(t) + '</span>';
-            }).join('') + '</div>'
-          : '';
-        return '<button type="button" class="v30-cr-card" data-v30-cr-card="' + m.id + '">' +
-          '<div class="v30-cr-card__head">' +
-            '<strong class="v30-cr-card__date">CR du ' + FP.esc(dateStr) + '</strong>' +
-            taskBadge + pendingBadge +
-          '</div>' +
-          '<div class="v30-cr-card__title">' + FP.esc(m.title || ('CR ' + dateStr)) + '</div>' +
-          (preview ? '<p class="v30-cr-card__excerpt">' + FP.esc(preview) + '</p>' : '') +
-          tagsHtml +
-        '</button>';
-      }).join('') + '</div>';
+      var html = '<div class="v30-cr-dropzone" data-v30-cr-dropzone>' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+        '<span>Glissez un PDF ou image ici pour ajouter un CR / document.</span>' +
+      '</div>';
+      if (meetings.length) {
+        html += '<div class="v30-cr-section">' +
+          '<h4 class="v30-cr-section__title">' +
+            'Comptes-rendus structurés' +
+            ' <span class="v30-cr-section__count">' + meetings.length + '</span>' +
+          '</h4>' +
+          '<div class="v30-cr-list">' + meetings.map(renderCRMeetingCard).join('') + '</div>' +
+        '</div>';
+      }
+      if (attachments.length) {
+        html += '<div class="v30-cr-section">' +
+          '<h4 class="v30-cr-section__title">' +
+            'PDF & documents' +
+            ' <span class="v30-cr-section__count">' + attachments.length + '</span>' +
+          '</h4>' +
+          '<div class="v30-cr-files">' + attachments.map(renderCRFileCard).join('') + '</div>' +
+        '</div>';
+      }
+      host.innerHTML = html;
     }).catch(function (err) {
       host.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur : ' + FP.esc(err.message || err) + '</div>';
       if (counter) counter.textContent = '—';
     });
   }
+
+  // Exposé pour que le drag-drop global recharge l'onglet CR après upload
+  window._v30LoadCRTab = function () { try { loadCRTab(); } catch (_) {} };
 
   function deleteCR(meetingId) {
     if (!meetingId) return;
@@ -2480,6 +2570,16 @@
       if (crCard) {
         var mid = Number(crCard.dataset.v30CrCard || 0);
         if (mid) openCRViewModal(mid);
+      }
+      // Carte fichier dans l'onglet CR → ouvre la visionneuse
+      var crFileCard = e.target.closest('[data-v30-cr-file]');
+      if (crFileCard) {
+        var attId = Number(crFileCard.dataset.v30CrFile || 0);
+        if (attId) openFilePreview(
+          attId,
+          crFileCard.dataset.attName || 'Fichier',
+          crFileCard.dataset.attMime || ''
+        );
       }
       // Bouton « Modifier » dans la vue présentation → ouvre la modale d'édition
       if (e.target.closest('[data-v30-cr-view-edit]')) {
@@ -2685,6 +2785,7 @@
           .then(function () {
             toast('Pièce jointe supprimée', 'success');
             FP.loadTimeline();
+            if (typeof loadCRTab === 'function') loadCRTab();
           })
           .catch(function (err) { toast('Erreur : ' + err.message, 'error'); });
         return;
@@ -2850,6 +2951,7 @@
             resetUpload();
             if (dropZone) dropZone.style.display = 'none';
             FP.loadTimeline();
+            if (typeof loadCRTab === 'function') loadCRTab();
           })
           .catch(function (err) {
             toast('Erreur upload : ' + err.message, 'error');
@@ -2865,15 +2967,25 @@
     var bd = document.querySelector('[data-v30-file-preview-bd]');
     if (!bd) return;
     var nameEl = bd.querySelector('[data-v30-file-preview-name]');
+    var metaEl = bd.querySelector('[data-v30-file-preview-meta]');
     var dlEl = bd.querySelector('[data-v30-file-preview-dl]');
+    var openEl = bd.querySelector('[data-v30-file-preview-open]');
     var bodyEl = bd.querySelector('[data-v30-file-preview-body]');
     if (nameEl) nameEl.textContent = name || 'Fichier';
     var fileUrl = '/api/prospect/attachments/' + attId + '/file';
     if (dlEl) dlEl.href = fileUrl;
+    if (openEl) openEl.href = fileUrl;
+    mime = (mime || '').toLowerCase();
+    if (metaEl) {
+      var label = mime === 'application/pdf' ? 'PDF'
+                : mime.indexOf('image/') === 0 ? 'Image'
+                : mime === 'text/plain' ? 'Texte'
+                : (mime.split('/')[1] || '').toUpperCase();
+      metaEl.textContent = label || '';
+    }
     if (bodyEl) {
-      mime = (mime || '').toLowerCase();
       if (mime === 'application/pdf') {
-        bodyEl.innerHTML = '<iframe src="' + fileUrl + '" title="Aperçu PDF"></iframe>';
+        bodyEl.innerHTML = '<iframe src="' + fileUrl + '#zoom=page-width&view=FitH" title="Aperçu PDF"></iframe>';
       } else if (mime.indexOf('image/') === 0) {
         bodyEl.innerHTML = '<img src="' + fileUrl + '" alt="' + FP.esc(name) + '">';
       } else if (mime === 'text/plain') {
@@ -3034,6 +3146,7 @@
         if (done) toast(done + ' fichier' + (done > 1 ? 's' : '') + ' ajouté' + (done > 1 ? 's' : ''), 'success');
         if (failed) toast(failed + ' échec' + (failed > 1 ? 's' : ''), 'error');
         FP.loadTimeline();
+        if (typeof loadCRTab === 'function') loadCRTab();
         return;
       }
       var f = queue.shift();
