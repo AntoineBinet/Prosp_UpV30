@@ -1005,6 +1005,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["openCreateCompany"], "endpoints": ["POST /api/companies/create"], "backend": ["routes/companies.py:api_companies_create"]}},
                 {"label": "Éditer fiche entreprise", "href": "/v30/entreprises",
                  "tools": {"handlers": ["openCompanyDetail", "saveCompany"], "endpoints": ["GET /api/company/full", "POST /api/company/update"], "backend": ["routes/misc.py:api_company_full", "routes/misc.py:api_company_update"]}},
+                {"label": "Scrapping IA entreprise (Tavily + Ollama)", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["bindEnrich", "runEnrich", "applyEnrich"], "endpoints": ["POST /api/companies/<id>/enrich", "POST /api/company/update"], "backend": ["routes/companies.py:api_companies_enrich", "routes/misc.py:api_company_update"]}},
                 {"label": "Fusionner deux entreprises", "href": "/v30/duplicates",
                  "tools": {"handlers": ["mergeCompanies"], "endpoints": ["POST /api/companies/merge"], "backend": ["app.py:api_companies_merge"]}},
                 {"label": "Supprimer une entreprise", "href": "/v30/entreprises",

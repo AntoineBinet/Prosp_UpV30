@@ -178,11 +178,12 @@
         <div class="v30-grid-2">
           <div class="v30-field"><label for="v30-ent-add-groupe">Groupe <span class="required" style="color:var(--danger);">*</span></label><input id="v30-ent-add-groupe" class="input required" placeholder="Ex. ACME Corp" required></div>
           <div class="v30-field"><label for="v30-ent-add-site">Site / établissement</label><input id="v30-ent-add-site" class="input" placeholder="Ex. Siège Paris"></div>
-          <div class="v30-field"><label for="v30-ent-add-phone">Téléphone</label><input id="v30-ent-add-phone" class="input" type="tel" placeholder="+33…"></div>
+          <div class="v30-field"><label for="v30-ent-add-phone">Téléphone (standard)</label><input id="v30-ent-add-phone" class="input" type="tel" placeholder="+33…"></div>
           <div class="v30-field"><label for="v30-ent-add-website">Site web</label><input id="v30-ent-add-website" class="input" placeholder="https://…"></div>
           <div class="v30-field"><label for="v30-ent-add-linkedin">LinkedIn</label><input id="v30-ent-add-linkedin" class="input" placeholder="https://linkedin.com/company/…"></div>
           <div class="v30-field"><label for="v30-ent-add-industry">Industrie</label><input id="v30-ent-add-industry" class="input" placeholder="Ex. SaaS B2B"></div>
-          <div class="v30-field"><label for="v30-ent-add-size">Taille</label><input id="v30-ent-add-size" class="input" placeholder="Ex. 500-1000"></div>
+          <div class="v30-field"><label for="v30-ent-add-size">Taille (employés)</label><input id="v30-ent-add-size" class="input" placeholder="Ex. 500-1000"></div>
+          <div class="v30-field v30-ent-field-full"><label for="v30-ent-add-careers-url">Page d'offres d'emploi</label><input id="v30-ent-add-careers-url" class="input" placeholder="https://…/carrieres"></div>
         </div>
       </div>
 
@@ -191,6 +192,7 @@
           <div class="v30-field"><label for="v30-ent-add-city">Ville</label><input id="v30-ent-add-city" class="input" placeholder="Ex. Paris"></div>
           <div class="v30-field"><label for="v30-ent-add-country">Pays</label><input id="v30-ent-add-country" class="input" placeholder="Ex. France"></div>
           <div class="v30-field v30-ent-field-full"><label for="v30-ent-add-address">Adresse complète</label><input id="v30-ent-add-address" class="input" placeholder="12 rue de l'Exemple, 75000…"></div>
+          <div class="v30-field v30-ent-field-full"><label for="v30-ent-add-locations">Autres sites / implantations</label><textarea id="v30-ent-add-locations" class="textarea" rows="3" placeholder="Un site par ligne&#10;Ex. Lyon (France)&#10;Paris (France)"></textarea></div>
         </div>
       </div>
 
@@ -222,6 +224,10 @@
   <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-labelledby="v30-ent-edit-title">
     <div class="v30-modal__head">
       <h2 class="v30-modal__title" id="v30-ent-edit-title">{{ ui.icon('building', 14) }} Fiche entreprise</h2>
+      <div style="flex:1;"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-edit-enrich title="Enrichir via Tavily + IA locale (site web, employés, standard, sites, annonces)">
+        {{ ui.icon('sparkles', 13) }} Scrapping IA
+      </button>
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
     </div>
     <div class="v30-modal__body">
@@ -232,6 +238,7 @@
         <a href="#" target="_blank" rel="noopener" data-v30-ent-qa="phone" hidden>{{ ui.icon('phone', 12) }} <span></span></a>
         <a href="#" target="_blank" rel="noopener" data-v30-ent-qa="website" hidden>{{ ui.icon('link', 12) }} Site web</a>
         <a href="#" target="_blank" rel="noopener" data-v30-ent-qa="linkedin" hidden>{{ ui.icon('link', 12) }} LinkedIn</a>
+        <a href="#" target="_blank" rel="noopener" data-v30-ent-qa="careers" hidden>{{ ui.icon('link', 12) }} Offres d'emploi</a>
         <a href="#" data-v30-ent-qa="prospects" hidden>{{ ui.icon('users', 12) }} <span data-field="prospects-count">0</span> prospects</a>
       </div>
 
@@ -248,11 +255,12 @@
         <div class="v30-grid-2">
           <div class="v30-field"><label for="v30-ent-edit-groupe">Groupe <span class="required" style="color:var(--danger);">*</span></label><input id="v30-ent-edit-groupe" class="input required" required></div>
           <div class="v30-field"><label for="v30-ent-edit-site">Site / établissement</label><input id="v30-ent-edit-site" class="input"></div>
-          <div class="v30-field"><label for="v30-ent-edit-phone">Téléphone</label><input id="v30-ent-edit-phone" class="input" type="tel"></div>
+          <div class="v30-field"><label for="v30-ent-edit-phone">Téléphone (standard)</label><input id="v30-ent-edit-phone" class="input" type="tel"></div>
           <div class="v30-field"><label for="v30-ent-edit-website">Site web</label><input id="v30-ent-edit-website" class="input" placeholder="https://…"></div>
           <div class="v30-field"><label for="v30-ent-edit-linkedin">LinkedIn</label><input id="v30-ent-edit-linkedin" class="input" placeholder="https://linkedin.com/company/…"></div>
           <div class="v30-field"><label for="v30-ent-edit-industry">Industrie</label><input id="v30-ent-edit-industry" class="input"></div>
-          <div class="v30-field"><label for="v30-ent-edit-size">Taille</label><input id="v30-ent-edit-size" class="input" placeholder="Ex. 500-1000"></div>
+          <div class="v30-field"><label for="v30-ent-edit-size">Taille (employés)</label><input id="v30-ent-edit-size" class="input" placeholder="Ex. 500-1000"></div>
+          <div class="v30-field v30-ent-field-full"><label for="v30-ent-edit-careers-url">Page d'offres d'emploi</label><input id="v30-ent-edit-careers-url" class="input" placeholder="https://…/carrieres"></div>
         </div>
       </div>
 
@@ -261,6 +269,7 @@
           <div class="v30-field"><label for="v30-ent-edit-city">Ville</label><input id="v30-ent-edit-city" class="input"></div>
           <div class="v30-field"><label for="v30-ent-edit-country">Pays</label><input id="v30-ent-edit-country" class="input"></div>
           <div class="v30-field v30-ent-field-full"><label for="v30-ent-edit-address">Adresse complète</label><input id="v30-ent-edit-address" class="input"></div>
+          <div class="v30-field v30-ent-field-full"><label for="v30-ent-edit-locations">Autres sites / implantations</label><textarea id="v30-ent-edit-locations" class="textarea" rows="3" placeholder="Un site par ligne — l'IA priorise la région lyonnaise"></textarea></div>
         </div>
       </div>
 
@@ -318,6 +327,52 @@
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-ent-flt-apply>Appliquer</button>
+    </div>
+  </div>
+</div>
+
+{# Enrich IA — Tavily + Ollama #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-enrich" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-ent-enrich-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-enrich-title">{{ ui.icon('sparkles', 14) }} Enrichir la fiche via Tavily + IA</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">
+        Entreprise : <strong data-v30-ent-enrich-name>—</strong>
+      </p>
+      <p class="muted" style="font-size: 12px; margin: 0 0 14px;">
+        Recherche les sites (région lyonnaise en priorité), le nombre d'employés,
+        le site web, le standard et le lien des offres d'emploi.
+      </p>
+
+      <div data-v30-ent-enrich-loading style="margin-top: 4px;" hidden>
+        <span class="skel" style="display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:8px;"></span>
+        <span data-v30-ent-enrich-status>Recherche web Tavily + génération IA en cours… (jusqu'à 2 min)</span>
+      </div>
+
+      <div data-v30-ent-enrich-error style="margin-top: 10px; padding: 10px; background: var(--danger-bg, #fee); border-radius: 6px; font-size: 12.5px;" hidden></div>
+
+      <div data-v30-ent-enrich-diff-wrap style="margin-top: 12px;" hidden>
+        <label class="label" style="margin-bottom:6px;display:block;">Comparaison avant / après — décoche pour ignorer un champ</label>
+        <div data-v30-ent-enrich-diff style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-toggle-all>Tout cocher / décocher</button>
+          <span class="muted" style="font-size:11.5px;">Les champs vides ne sont jamais écrasés sans coche.</span>
+        </div>
+      </div>
+
+      <details data-v30-ent-enrich-sources-wrap style="margin-top: 14px;" hidden>
+        <summary class="muted" style="font-size:11.5px;cursor:pointer;">Sources Tavily</summary>
+        <pre data-v30-ent-enrich-sources style="font-size:11px;white-space:pre-wrap;margin:8px 0 0;color:var(--muted);"></pre>
+      </details>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-retry hidden>Relancer</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-enrich-apply hidden>Appliquer la sélection</button>
     </div>
   </div>
 </div>

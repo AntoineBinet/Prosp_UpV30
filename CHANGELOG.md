@@ -2,6 +2,37 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.61] — 2026-05-13 · Entreprises · Scrapping IA (Tavily + Ollama)
+
+- **Bouton « Scrapping IA »** dans la modale d'édition d'une entreprise,
+  symétrique du bouton existant sur la fiche candidat. Pilote l'enrichissement
+  via `POST /api/companies/<id>/enrich`.
+- **Backend** : nouvelle route dans `routes/companies.py` qui appelle
+  `_call_ai_web` (Tavily + Ollama). Construit une requête Tavily à partir du
+  groupe + site + ville (ou « Lyon France » par défaut pour biaiser les
+  résultats vers la région lyonnaise). Renvoie un JSON normalisé avec
+  10 champs : `website`, `linkedin`, `industry`, `size` (employés), `phone`
+  (standard), `city`, `address`, `country`, `locations` (autres sites,
+  multiligne), `careers_url` (page d'offres d'emploi).
+- **Règles de prompt** :
+  - Priorité absolue aux sites en région lyonnaise (Lyon, Villeurbanne, Bron,
+    Limonest, Écully…). Élargit à la France entière si rien trouvé.
+  - Utilise la ville actuelle comme garde-fou anti-homonyme.
+  - Refuse de deviner : si une info n'est pas vérifiable dans les sources web,
+    renvoie `null` pour ce champ.
+- **Frontend** : nouvelle modale `ent-enrich` (loading → diff → apply).
+  Affiche chaque champ proposé en colonne avec l'ancienne valeur barrée et la
+  nouvelle, case à cocher par champ, bouton « Tout cocher / décocher ». Les
+  sources Tavily sont affichées en details/summary repliable.
+- **Migration DB** : 2 nouvelles colonnes sur la table `companies` —
+  `careers_url` (TEXT) et `locations` (TEXT, multiligne). Migration appliquée
+  automatiquement sur la DB principale et les DB per-user au démarrage via
+  `_v30_apply_migrations()`.
+- **Quick-action** « Offres d'emploi » ajouté dans la fiche entreprise quand
+  `careers_url` est renseigné.
+- Toile d'araignée mise à jour : nouvelle action `Scrapping IA entreprise`
+  dans `routes/pages.py → _build_sitemap_data()`.
+
 ## [32.60] — 2026-05-12 · Entreprises · Vue Split (entreprise + prospects)
 
 - **Nouvelle vue Split** sur `/v30/entreprises`, alignée sur le pattern
