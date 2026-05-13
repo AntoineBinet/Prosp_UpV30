@@ -40,6 +40,9 @@
         {{ ui.icon('filter', 13) }} Filtres
         <span class="badge" data-field="active" hidden>0</span>
       </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-fill-map title="Enrichir + géocoder toutes les entreprises sans coordonnées pour les afficher sur la carte">
+        {{ ui.icon('sparkles', 13) }} Compléter la carte
+      </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-export title="Exporter la liste complète au format Excel">
         {{ ui.icon('arrowD', 13) }} Exporter
       </button>
@@ -148,6 +151,7 @@
         <span data-field="n">0</span> sélectionnée(s)
       </span>
       <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="enrich-ai" title="Enrichir via Tavily + IA (site, adresse, employés…) les entreprises sélectionnées">{{ ui.icon('sparkles', 13) }} Scrapping IA</button>
       <button type="button" class="v30-bulk__btn" data-action="merge" title="Fusionner deux entreprises (sélectionne exactement 2)">{{ ui.icon('link', 13) }} Fusionner</button>
       <button type="button" class="v30-bulk__btn v30-bulk__btn--danger" data-action="delete">{{ ui.icon('x', 13) }} Supprimer</button>
       <span class="v30-bulk__sep"></span>
@@ -373,6 +377,48 @@
       <div class="v30-spacer" style="flex:1;"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-retry hidden>Relancer</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-ent-enrich-apply hidden>Appliquer la sélection</button>
+    </div>
+  </div>
+</div>
+
+{# Bulk AI enrich — pattern aligné prospects #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-enrich-bulk" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-ent-enrich-bulk-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-enrich-bulk-title">{{ ui.icon('sparkles', 14) }} Enrichissement IA en masse</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;" data-v30-ent-enrich-bulk-intro>
+        Enrichir <strong data-v30-ent-enrich-bulk-count>0</strong> entreprise(s) via Tavily + IA locale.
+        Récupère site web, taille (employés), standard, adresse (priorité région lyonnaise), autres sites et page d'offres d'emploi.
+        Les champs déjà renseignés ne sont jamais écrasés.
+      </p>
+      <label class="v30-chip" style="width: fit-content; margin-bottom: 6px;">
+        <input type="checkbox" data-v30-ent-enrich-bulk-geocode checked> <span>Géocoder l'adresse après enrichissement (pour la carte)</span>
+      </label>
+      <p class="muted" style="font-size: 11.5px; margin: 0 0 10px;">
+        Temps estimé : environ 30–60 secondes par entreprise (Tavily + IA + Nominatim).
+      </p>
+      <div data-v30-ent-enrich-bulk-progress hidden>
+        <p style="margin: 0 0 6px;"><span data-v30-ent-enrich-bulk-progress-text>0 / 0 traitées</span></p>
+        <div class="v30-progress"><div class="v30-progress__bar" data-v30-ent-enrich-bulk-progress-bar></div></div>
+        <div data-v30-ent-enrich-bulk-current class="muted" style="font-size:12px;margin-top:6px;"></div>
+      </div>
+      <div data-v30-ent-enrich-bulk-summary hidden style="margin-top: 12px;">
+        <p style="margin: 0 0 6px;">
+          <strong data-v30-ent-enrich-bulk-ok>0</strong> enrichie(s) ·
+          <strong data-v30-ent-enrich-bulk-geo>0</strong> géocodée(s) ·
+          <strong data-v30-ent-enrich-bulk-ko>0</strong> échec(s)
+        </p>
+        <pre data-v30-ent-enrich-bulk-lines class="v30-ai-raw" style="max-height:240px;overflow:auto;font-size:11px;"></pre>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-bulk-stop hidden>Arrêter</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-enrich-bulk-start>Lancer</button>
     </div>
   </div>
 </div>
