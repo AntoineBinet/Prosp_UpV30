@@ -510,12 +510,16 @@
   </div>
 </div>
 
-{# ─── Modale aperçu fichier ─── #}
+{# ─── Modale aperçu fichier (visionneuse PDF / image) ─── #}
 <div class="v30-fp-file-preview-bd" data-v30-file-preview-bd style="display:none;" role="dialog" aria-modal="true" aria-label="Aperçu du fichier">
   <div class="v30-fp-file-preview">
     <div class="v30-fp-file-preview__head">
       <span class="v30-fp-file-preview__name" data-v30-file-preview-name>—</span>
-      <a class="btn btn-ghost btn-sm" data-v30-file-preview-dl href="#" download target="_blank">
+      <span class="v30-fp-file-preview__meta" data-v30-file-preview-meta></span>
+      <a class="btn btn-ghost btn-sm" data-v30-file-preview-open href="#" target="_blank" rel="noopener" title="Ouvrir dans un nouvel onglet">
+        {{ ui.icon('link', 12) }} Ouvrir
+      </a>
+      <a class="btn btn-ghost btn-sm" data-v30-file-preview-dl href="#" download>
         {{ ui.icon('download', 12) }} Télécharger
       </a>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-v30-file-preview-close aria-label="Fermer">
