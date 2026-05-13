@@ -295,6 +295,97 @@
 
       </div>
     </details>
+
+    {# ─── 1bis. Sources d'annonces (Actus — admin) ──────────────────────────────── #}
+    <details class="v30-params__card v30-params__collapse" data-v30-actus-sources data-tab="ia">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('news', 16) }}
+          <h3>Sources d'annonces (Actus)</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Connecter Adzuna / Jobfly pour alimenter la page <a href="/v30/actus">/v30/actus</a>
+          avec des annonces live. Sans configuration, seules les annonces de démonstration
+          s'affichent.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+
+        {# ─── Adzuna ─── #}
+        <h4 class="v30-params__scope-title">Adzuna</h4>
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
+          Free tier 1 000 appels / mois — inscription sur
+          <a href="https://developer.adzuna.com/" target="_blank" rel="noopener">developer.adzuna.com</a>
+          (App ID + App Key).
+        </p>
+
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">App ID</label>
+            <input type="text" class="input" data-v30-actus-adzuna-id
+                   placeholder="ex : 1a2b3c4d" autocomplete="off">
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">App Key</label>
+            <input type="password" class="input" data-v30-actus-adzuna-key
+                   placeholder="Laisser vide pour conserver la clé existante"
+                   autocomplete="off">
+          </div>
+        </div>
+
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-actus-adzuna-enabled>
+          <span>Activer Adzuna comme source d'annonces</span>
+        </label>
+
+        {# ─── Jobfly ─── #}
+        <div class="v30-params__divider"></div>
+        <h4 class="v30-params__scope-title">Jobfly</h4>
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
+          Si vous disposez d'un accès Jobfly (URL d'API + token Bearer), renseignez
+          les credentials ici. Adapter générique — la première fonction qui retourne
+          des résultats gagne.
+        </p>
+
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">URL de l'API</label>
+            <input type="text" class="input" data-v30-actus-jobfly-url
+                   placeholder="https://api.jobfly.example/search" autocomplete="off">
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Token Bearer</label>
+            <input type="password" class="input" data-v30-actus-jobfly-token
+                   placeholder="Laisser vide pour conserver le token existant"
+                   autocomplete="off">
+          </div>
+        </div>
+
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-actus-jobfly-enabled>
+          <span>Activer Jobfly comme source d'annonces</span>
+        </label>
+
+        {# ─── Actions ─── #}
+        <div class="v30-params__divider"></div>
+        <div class="v30-params__btn-row">
+          <button type="button" class="btn btn-accent" data-v30-actus-sources-save>
+            {{ ui.icon('check', 13) }} Enregistrer
+          </button>
+          <button type="button" class="btn btn-ghost" data-v30-actus-sources-test="adzuna">
+            {{ ui.icon('zap', 13) }} Tester Adzuna
+          </button>
+          <button type="button" class="btn btn-ghost" data-v30-actus-sources-test="jobfly">
+            {{ ui.icon('zap', 13) }} Tester Jobfly
+          </button>
+          <span class="muted v30-params__status" data-v30-actus-sources-status></span>
+        </div>
+
+      </div>
+    </details>
     {% endif %}
 
     {# ─── 2. Objectifs & Gamification ────────────────────────────────────────────── #}

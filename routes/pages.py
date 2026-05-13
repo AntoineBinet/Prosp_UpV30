@@ -1110,6 +1110,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadArticles"], "endpoints": ["GET /api/actus/articles"], "backend": ["routes/actus.py:api_actus_articles", "services/actus.py:list_articles"]}},
                 {"label": "Charger les offres", "href": "/v30/actus",
                  "tools": {"handlers": ["loadJobs"], "endpoints": ["GET /api/actus/jobs"], "backend": ["routes/actus.py:api_actus_jobs", "services/actus.py:list_jobs"]}},
+                {"label": "Annonces liées au CRM (entreprises/prospects)", "href": "/v30/actus",
+                 "tools": {"handlers": ["loadCrmJobs"], "endpoints": ["GET /api/actus/jobs/crm"], "backend": ["routes/actus.py:api_actus_jobs_crm", "services/actus.py:list_crm_jobs", "services/actus.py:_companies_match"]}},
                 {"label": "Filtrer par région", "href": "/v30/actus",
                  "tools": {"handlers": ["loadArticles", "loadJobs"], "endpoints": ["GET /api/actus/articles", "GET /api/actus/jobs"], "backend": ["services/actus.py:_detect_region"]}},
                 {"label": "Recherche textuelle (offres)", "href": "/v30/actus",
@@ -1128,6 +1130,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadStatus"], "endpoints": ["GET /api/actus/status"], "backend": ["routes/actus.py:api_actus_status", "services/actus.py:status"]}},
                 {"label": "Définir région par défaut (admin)", "href": "/v30/actus",
                  "tools": {"handlers": ["pinRegionAsDefault"], "endpoints": ["GET /api/actus/config", "POST /api/actus/config"], "backend": ["routes/actus.py:api_actus_config_get", "routes/actus.py:api_actus_config_set", "services/actus.py:set_default_region"]}},
+                {"label": "Configurer sources Adzuna/Jobfly (Paramètres)", "href": "/v30/parametres#actus-sources",
+                 "tools": {"handlers": ["bindActusSources"], "endpoints": ["GET /api/actus/sources-config", "POST /api/actus/sources-config", "POST /api/actus/sources-test"], "backend": ["routes/actus.py:api_actus_sources_config_get", "routes/actus.py:api_actus_sources_config_set", "routes/actus.py:api_actus_sources_test", "services/actus.py:load_sources_config", "services/actus.py:save_sources_config"]}},
             ],
         },
         {

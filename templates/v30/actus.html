@@ -74,10 +74,32 @@
     </div>
   </section>
 
-  {# ─── Section 2 : Offres d'emploi (bas) ─── #}
+  {# ─── Section 2 : Offres d'emploi liées au CRM (milieu) ─── #}
+  <section class="actus-section actus-section--crm">
+    <div class="actus-section__head">
+      <h2 class="actus-section__title">{{ ui.icon('users', 16) }} Annonces liées à votre CRM
+        <span class="actus-section__badge" data-v30-crm-count hidden></span>
+      </h2>
+      <div class="actus-section__sub muted" data-v30-crm-sub>
+        Offres d'emploi détectées chez les entreprises de votre liste (prospects + entreprises).
+      </div>
+    </div>
+    <div class="actus-jobs actus-jobs--crm" data-v30-crm-jobs>
+      <div class="actus-skeleton" aria-hidden="true">
+        <div class="sk-row"></div><div class="sk-row"></div>
+      </div>
+    </div>
+    <div class="actus-empty" data-v30-crm-empty hidden>
+      Aucune annonce pour les entreprises de votre CRM. Le matching s'affine
+      à mesure que le cache d'annonces grossit (configurez une source réelle
+      via <code>ADZUNA_APP_ID</code>/<code>ADZUNA_APP_KEY</code> pour plus de volume).
+    </div>
+  </section>
+
+  {# ─── Section 3 : Offres d'emploi (toutes, bas) ─── #}
   <section class="actus-section">
     <div class="actus-section__head">
-      <h2 class="actus-section__title">{{ ui.icon('checklist', 16) }} Offres d'emploi</h2>
+      <h2 class="actus-section__title">{{ ui.icon('checklist', 16) }} Toutes les offres</h2>
       <div class="actus-section__sub muted">Annonces aggrégées · script Python multi-sources (Jobfly-ready)</div>
     </div>
 

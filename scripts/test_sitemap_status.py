@@ -116,6 +116,8 @@ API_GETS: list[str] = [
     "/api/actus/config",
     "/api/actus/articles?region=ara&limit=9",
     "/api/actus/jobs?region=ara&limit=5",
+    "/api/actus/jobs/crm?region=ara&limit=10",
+    "/api/actus/sources-config",
     "/api/actus/favoris",
     "/api/transcription",
     "/api/transcription/preflight",

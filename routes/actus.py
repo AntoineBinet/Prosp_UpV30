@@ -97,6 +97,26 @@ def api_actus_jobs():
 #  API — favoris
 # ────────────────────────────────────────────────────────────────────
 
+@actus_bp.get("/api/actus/jobs/crm")
+@login_required
+def api_actus_jobs_crm():
+    """Retourne les offres dont l'entreprise correspond à une entreprise du
+    CRM de l'utilisateur. Réponse enrichie : items + métadonnées de
+    matching (companies_count, matched_count, total_companies)."""
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    region = (request.args.get("region") or "national").strip()
+    if region not in actus_svc.REGIONS:
+        region = "national"
+    try:
+        limit = max(1, min(int(request.args.get("limit", 30)), 100))
+    except ValueError:
+        limit = 30
+    result = actus_svc.list_crm_jobs(owner_id=uid, region=region, limit=limit)
+    return jsonify({"ok": True, **result})
+
+
 @actus_bp.get("/api/actus/favoris")
 @login_required
 def api_actus_favoris_list():
@@ -178,3 +198,64 @@ def api_actus_config_set():
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     return jsonify({"ok": True, "default_region": applied})
+
+
+# ────────────────────────────────────────────────────────────────────
+#  API — sources d'annonces (Adzuna, Jobfly) — admin only
+# ────────────────────────────────────────────────────────────────────
+
+@actus_bp.get("/api/actus/sources-config")
+@login_required
+@role_required('admin')
+def api_actus_sources_config_get():
+    """Retourne la config courante avec les secrets masqués (les secrets ne
+    sont jamais renvoyés en clair, l'UI affiche les 3 derniers chars)."""
+    cfg = actus_svc.load_sources_config()
+    return jsonify({"ok": True, "config": actus_svc.mask_sources_config(cfg)})
+
+
+@actus_bp.post("/api/actus/sources-config")
+@login_required
+@role_required('admin')
+def api_actus_sources_config_set():
+    """Met à jour la config sources. Body JSON, clés autorisées :
+    adzuna_app_id, adzuna_app_key, adzuna_enabled, jobfly_api_url,
+    jobfly_token, jobfly_enabled.
+
+    Les chaînes vides sont ignorées pour les secrets afin de ne pas
+    écraser une clé existante quand l'UI envoie le masque '••••xxx'.
+    """
+    payload = request.get_json(silent=True) or {}
+    # Filtre : ne pas écraser un secret avec une valeur masquée (qui
+    # commencerait par un puce unicode) ou avec une chaîne vide.
+    for k in ("adzuna_app_key", "jobfly_token"):
+        v = payload.get(k)
+        if isinstance(v, str) and (not v.strip() or v.startswith("•")):
+            payload.pop(k, None)
+    cfg = actus_svc.save_sources_config(payload)
+    return jsonify({"ok": True, "config": actus_svc.mask_sources_config(cfg)})
+
+
+@actus_bp.post("/api/actus/sources-test")
+@login_required
+@role_required('admin')
+def api_actus_sources_test():
+    """Test live d'une source. Body JSON : `{source: "adzuna"|"jobfly"}`.
+    Effectue une requête réelle (1 query, région nationale) et retourne le
+    nombre de résultats. N'écrit pas dans le cache."""
+    payload = request.get_json(silent=True) or {}
+    source = (payload.get("source") or "").lower().strip()
+    if source == "adzuna":
+        src = actus_svc.AdzunaSource()
+    elif source == "jobfly":
+        src = actus_svc.JobflyAdapter()
+    else:
+        return jsonify({"ok": False, "error": "source inconnue (adzuna|jobfly)"}), 400
+    if not src.available:
+        return jsonify({"ok": False, "error": f"{source} : credentials manquantes ou désactivés"}), 400
+    try:
+        items = src.fetch(["robotique"], "national")
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"{source} a échoué : {exc}"}), 500
+    return jsonify({"ok": True, "source": source, "count": len(items),
+                    "sample": (items[0] if items else None)})
