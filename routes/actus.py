@@ -249,8 +249,10 @@ def api_actus_sources_test():
         src = actus_svc.AdzunaSource()
     elif source == "jobfly":
         src = actus_svc.JobflyAdapter()
+    elif source in ("france_travail", "france-travail", "ft"):
+        src = actus_svc.FranceTravailOAuthSource()
     else:
-        return jsonify({"ok": False, "error": "source inconnue (adzuna|jobfly)"}), 400
+        return jsonify({"ok": False, "error": "source inconnue (adzuna|jobfly|france_travail)"}), 400
     if not src.available:
         return jsonify({"ok": False, "error": f"{source} : credentials manquantes ou désactivés"}), 400
     try:

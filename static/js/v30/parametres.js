@@ -1885,6 +1885,9 @@
     var $id     = card.querySelector('[data-v30-actus-adzuna-id]');
     var $key    = card.querySelector('[data-v30-actus-adzuna-key]');
     var $adzEn  = card.querySelector('[data-v30-actus-adzuna-enabled]');
+    var $ftId   = card.querySelector('[data-v30-actus-ft-id]');
+    var $ftSec  = card.querySelector('[data-v30-actus-ft-secret]');
+    var $ftEn   = card.querySelector('[data-v30-actus-ft-enabled]');
     var $url    = card.querySelector('[data-v30-actus-jobfly-url]');
     var $tok    = card.querySelector('[data-v30-actus-jobfly-token]');
     var $jbfEn  = card.querySelector('[data-v30-actus-jobfly-enabled]');
@@ -1909,6 +1912,9 @@
           if ($id)    $id.value    = c.adzuna_app_id || '';
           if ($key)   $key.placeholder = c.adzuna_app_key_set ? ('Clé enregistrée : ' + (c.adzuna_app_key_masked || '••••')) : 'Aucune clé enregistrée';
           if ($adzEn) $adzEn.checked = !!c.adzuna_enabled;
+          if ($ftId)  $ftId.value  = c.france_travail_client_id || '';
+          if ($ftSec) $ftSec.placeholder = c.france_travail_client_secret_set ? ('Secret enregistré : ' + (c.france_travail_client_secret_masked || '••••')) : 'Aucun secret enregistré';
+          if ($ftEn)  $ftEn.checked = !!c.france_travail_enabled;
           if ($url)   $url.value   = c.jobfly_api_url || '';
           if ($tok)   $tok.placeholder = c.jobfly_token_set ? ('Token enregistré : ' + (c.jobfly_token_masked || '••••')) : 'Aucun token enregistré';
           if ($jbfEn) $jbfEn.checked = !!c.jobfly_enabled;
@@ -1920,12 +1926,15 @@
       var body = {
         adzuna_app_id: $id ? $id.value.trim() : '',
         adzuna_enabled: $adzEn ? !!$adzEn.checked : false,
+        france_travail_client_id: $ftId ? $ftId.value.trim() : '',
+        france_travail_enabled: $ftEn ? !!$ftEn.checked : false,
         jobfly_api_url: $url ? $url.value.trim() : '',
         jobfly_enabled: $jbfEn ? !!$jbfEn.checked : false
       };
       // Secrets : seulement envoyés s'ils sont remplis (sinon on conserve l'existant)
-      if ($key && $key.value.trim()) body.adzuna_app_key = $key.value.trim();
-      if ($tok && $tok.value.trim()) body.jobfly_token   = $tok.value.trim();
+      if ($key  && $key.value.trim())  body.adzuna_app_key             = $key.value.trim();
+      if ($ftSec && $ftSec.value.trim()) body.france_travail_client_secret = $ftSec.value.trim();
+      if ($tok  && $tok.value.trim())  body.jobfly_token               = $tok.value.trim();
 
       status('Enregistrement…');
       fetch('/api/actus/sources-config', {
@@ -1937,8 +1946,9 @@
         .then(function (d) {
           if (!d.ok) { status(d.error || 'Erreur', false); return; }
           status('Enregistré', true);
-          if ($key) $key.value = '';
-          if ($tok) $tok.value = '';
+          if ($key)  $key.value  = '';
+          if ($ftSec) $ftSec.value = '';
+          if ($tok)  $tok.value  = '';
           if (window.showToast) window.showToast('Sources d\'annonces enregistrées', 'success');
           load();
         })

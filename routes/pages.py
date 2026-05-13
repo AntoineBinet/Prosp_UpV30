@@ -1130,8 +1130,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadStatus"], "endpoints": ["GET /api/actus/status"], "backend": ["routes/actus.py:api_actus_status", "services/actus.py:status"]}},
                 {"label": "Définir région par défaut (admin)", "href": "/v30/actus",
                  "tools": {"handlers": ["pinRegionAsDefault"], "endpoints": ["GET /api/actus/config", "POST /api/actus/config"], "backend": ["routes/actus.py:api_actus_config_get", "routes/actus.py:api_actus_config_set", "services/actus.py:set_default_region"]}},
-                {"label": "Configurer sources Adzuna/Jobfly (Paramètres)", "href": "/v30/parametres#actus-sources",
-                 "tools": {"handlers": ["bindActusSources"], "endpoints": ["GET /api/actus/sources-config", "POST /api/actus/sources-config", "POST /api/actus/sources-test"], "backend": ["routes/actus.py:api_actus_sources_config_get", "routes/actus.py:api_actus_sources_config_set", "routes/actus.py:api_actus_sources_test", "services/actus.py:load_sources_config", "services/actus.py:save_sources_config"]}},
+                {"label": "Configurer sources Adzuna/France Travail/Jobfly (Paramètres)", "href": "/v30/parametres?card=actus-sources",
+                 "tools": {"handlers": ["bindActusSources"], "endpoints": ["GET /api/actus/sources-config", "POST /api/actus/sources-config", "POST /api/actus/sources-test"], "backend": ["routes/actus.py:api_actus_sources_config_get", "routes/actus.py:api_actus_sources_config_set", "routes/actus.py:api_actus_sources_test", "services/actus.py:load_sources_config", "services/actus.py:save_sources_config", "services/actus.py:FranceTravailOAuthSource"]}},
             ],
         },
         {
