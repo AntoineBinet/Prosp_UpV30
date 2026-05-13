@@ -2,6 +2,36 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.63] — 2026-05-13 · Fiche prospect · CR de RDV par PDF + visionneuse
+
+- **Onglet « CR » enrichi** sur la fiche prospect : affiche désormais
+  **deux sections côte à côte** —
+  - *Comptes-rendus structurés* (cartes inchangées : synthèse + tâches),
+  - *PDF & documents* : toutes les pièces jointes du prospect rendues
+    en cartes miniatures (thumbnail PDF/image, nom, taille, tags, bouton
+    « Visionner »).
+- **Visionneuse PDF intégrée** : un clic sur une carte fichier ouvre la
+  modale d'aperçu déjà existante (`v30-fp-file-preview`), avec PDF iframe
+  en `#zoom=page-width&view=FitH` pour un confort de lecture immédiat.
+  Le header de la visionneuse a maintenant un bouton « **Ouvrir** » qui
+  charge le PDF dans un nouvel onglet (pour scroll / zoom hors modale) en
+  plus du bouton « Télécharger ».
+- **Drag-and-drop direct sur l'onglet CR** : une dropzone discrète en
+  haut du panel rappelle qu'on peut glisser un PDF. Le drag-and-drop
+  global déjà existant continue de fonctionner partout sur la fiche ; le
+  rechargement de l'onglet CR (`loadCRTab`) est automatique après chaque
+  upload/suppression pour refléter immédiatement la nouvelle pièce
+  jointe.
+- **Compteur de l'onglet CR** : désormais somme `meetings + attachments`
+  (au lieu de seulement les meetings structurés).
+- **Bugfix critique** : `routes/attachments.py` utilisait `uuid.uuid4()`
+  sans `import uuid` — l'upload d'attachement plantait (NameError) dès
+  qu'on tentait d'écrire un fichier. Import ajouté.
+- **Toile d'araignée** : deux nouvelles actions sur la page « Prospects »
+  (*Onglet CR (comptes-rendus + PDF)*, *Visionneuse PDF (CR drag-drop)*)
+  + correction du backend ref de *Pièces jointes (upload)*
+  (`api_attachment_upload` → `api_prospect_attachment_upload`).
+
 ## [32.62] — 2026-05-13 · Entreprises · Scrapping IA en masse + Compléter la carte
 
 - **Bouton « Scrapping IA » dans la bulk bar** : sélectionne plusieurs

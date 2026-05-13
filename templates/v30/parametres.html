@@ -44,11 +44,112 @@
     <button type="button" class="tab-btn" data-tab="about" role="tab" aria-selected="false">À propos</button>
   </div>
 
-  <div class="v30-params__grid">
+  {# ─── Layout 2 colonnes : sidebar (nav verticale) + main (section active) ─── #}
+  <div class="v30-params__layout" data-v30-params-layout>
+
+    {# ─── Sidebar gauche : navigation hiérarchique par catégorie ─── #}
+    <aside class="v30-params__sidebar" data-v30-params-sidebar aria-label="Navigation paramètres">
+      <button type="button" class="v30-params__sidebar-toggle" data-v30-params-sidebar-toggle
+              aria-expanded="false" aria-controls="v30-params-sidebar-nav">
+        {{ ui.icon('cog', 14) }}
+        <span data-v30-params-sidebar-current>Toutes les sections</span>
+        {{ ui.icon('arrowD', 12) }}
+      </button>
+
+      <nav class="v30-params__sidebar-nav" id="v30-params-sidebar-nav" data-v30-params-sidebar-nav>
+        <button type="button" class="v30-params__sidebar-item v30-params__sidebar-item--all is-active"
+                data-section="all" aria-current="page">
+          <span class="v30-params__sidebar-label">Toutes les sections</span>
+        </button>
+
+        <div class="v30-params__sidebar-group" data-cat="personnalisation">
+          <h4 class="v30-params__sidebar-cat">Personnalisation</h4>
+          <button type="button" class="v30-params__sidebar-item" data-section="account">
+            <span class="v30-params__sidebar-label">Mon compte</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="notif">
+            <span class="v30-params__sidebar-label">Notifications</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="calsync">
+            <span class="v30-params__sidebar-label">Calendrier externe</span>
+            <span class="v30-params__sidebar-badge v30-params__sidebar-badge--ghost"
+                  data-v30-sidebar-badge="calsync" hidden>non liée</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="goals">
+            <span class="v30-params__sidebar-label">Objectifs &amp; XP</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="kpi">
+            <span class="v30-params__sidebar-label">KPI manuels</span>
+            <span class="v30-params__sidebar-badge" data-v30-sidebar-badge="kpi" hidden>0</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="email-reports">
+            <span class="v30-params__sidebar-label">Rapports email</span>
+          </button>
+        </div>
+
+        <div class="v30-params__sidebar-group" data-cat="data-ia">
+          <h4 class="v30-params__sidebar-cat">Données &amp; IA</h4>
+          {% if current_user and current_user.role == 'admin' %}
+          <button type="button" class="v30-params__sidebar-item" data-section="ia">
+            <span class="v30-params__sidebar-label">Configuration IA</span>
+            <span class="v30-params__sidebar-badge" data-v30-sidebar-badge="ia-subsect">4 sous-sect.</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="actus-sources">
+            <span class="v30-params__sidebar-label">Sources d'annonces</span>
+          </button>
+          {% endif %}
+          <button type="button" class="v30-params__sidebar-item" data-section="backup">
+            <span class="v30-params__sidebar-label">Sauvegardes</span>
+            <span class="v30-params__sidebar-badge" data-v30-sidebar-badge="backup" hidden>0</span>
+          </button>
+        </div>
+
+        {% if current_user and current_user.role == 'admin' %}
+        <div class="v30-params__sidebar-group" data-cat="admin">
+          <h4 class="v30-params__sidebar-cat">Console admin</h4>
+          <button type="button" class="v30-params__sidebar-item" data-section="users">
+            <span class="v30-params__sidebar-label">Utilisateurs</span>
+            <span class="v30-params__sidebar-badge" data-v30-sidebar-badge="users" hidden>0</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="activity">
+            <span class="v30-params__sidebar-label">Journal d'activité</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="deploy">
+            <span class="v30-params__sidebar-label">Déploiement</span>
+          </button>
+        </div>
+        {% endif %}
+
+        <div class="v30-params__sidebar-group" data-cat="outils">
+          <h4 class="v30-params__sidebar-cat">Outils</h4>
+          <button type="button" class="v30-params__sidebar-item" data-section="sitemap">
+            <span class="v30-params__sidebar-label">Toile d'araignée</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="dc">
+            <span class="v30-params__sidebar-label">DC Generator</span>
+          </button>
+          <button type="button" class="v30-params__sidebar-item" data-section="about">
+            <span class="v30-params__sidebar-label">À propos</span>
+          </button>
+        </div>
+      </nav>
+    </aside>
+
+    {# ─── Main droit : grille des sections (le JS bascule la visibilité) ─── #}
+    <div class="v30-params__main">
+
+      {# Header dynamique : breadcrumb + titre serif italique (injecté par JS quand une section est active) #}
+      <header class="v30-params__section-header" data-v30-section-header hidden>
+        <p class="v30-params__breadcrumb" data-v30-section-breadcrumb></p>
+        <h2 class="v30-params__section-title" data-v30-section-title></h2>
+        <p class="v30-params__section-sub" data-v30-section-sub></p>
+      </header>
+
+      <div class="v30-params__grid">
 
     {# ─── 1. Configuration IA (admin) ──────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse" data-v30-ai data-tab="ia">
+    <details class="v30-params__card v30-params__collapse" data-v30-ai data-tab="ia" data-section="ia">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('sparkles', 16) }}
@@ -297,7 +398,7 @@
     </details>
 
     {# ─── 1bis. Sources d'annonces (Actus — admin) ──────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-actus-sources data-tab="ia">
+    <details class="v30-params__card v30-params__collapse" data-v30-actus-sources data-tab="ia" data-section="actus-sources">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('news', 16) }}
@@ -464,7 +565,7 @@
     {% endif %}
 
     {# ─── 2. Objectifs & Gamification ────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-goals data-tab="goals">
+    <details class="v30-params__card v30-params__collapse" data-v30-goals data-tab="goals" data-section="goals">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('chart', 16) }}
@@ -558,7 +659,7 @@
     </details>
 
     {# ─── KPI manuels (manual_kpi) ──────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-kpi data-tab="kpi">
+    <details class="v30-params__card v30-params__collapse" data-v30-kpi data-tab="kpi" data-section="kpi">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('chart', 16) }}
@@ -587,7 +688,7 @@
     </details>
 
     {# ─── 3. Calendrier externe (Outlook / Google) ────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync data-tab="notif">
+    <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync data-tab="notif" data-section="calsync">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('calendar', 16) }}
@@ -620,7 +721,7 @@
     </details>
 
     {# ─── 4. Sauvegardes & données ──────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots admin">
+    <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots admin" data-section="backup">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('inbox', 16) }}
@@ -652,7 +753,7 @@
     </details>
 
     {# ─── 4. Notifications navigateur ─────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-notif data-tab="notif">
+    <details class="v30-params__card v30-params__collapse" data-v30-notif data-tab="notif" data-section="notif">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('bell', 16) }}
@@ -687,7 +788,7 @@
     </details>
 
     {# ─── Rapports email (quotidien + hebdomadaire) ─────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" id="email-reports" data-v30-email-reports data-tab="notif">
+    <details class="v30-params__card v30-params__collapse" id="email-reports" data-v30-email-reports data-tab="notif" data-section="email-reports">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('mail', 16) }}
@@ -869,7 +970,7 @@
 
     {# ─── ADMIN — Utilisateurs ──────────────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--users" data-v30-users data-tab="admin">
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--users" data-v30-users data-tab="admin" data-section="users">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('user', 16) }}
@@ -947,7 +1048,7 @@
 
     {# ─── ADMIN — Journal d'activité ────────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--activity" data-v30-activity data-tab="admin">
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--activity" data-v30-activity data-tab="admin" data-section="activity">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('clock', 16) }}
@@ -997,7 +1098,7 @@
     {% endif %}
 
     {# ─── 5. Mon compte ───────────────────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-account data-tab="account">
+    <details class="v30-params__card v30-params__collapse" data-v30-account data-tab="account" data-section="account">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('user', 16) }}
@@ -1039,7 +1140,7 @@
     </details>
 
     {# ─── 5b. Toile d'araignée — sitemap visuel ─────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse v30-params__sitemap-card" data-v30-sitemap data-tab="explore">
+    <details class="v30-params__card v30-params__collapse v30-params__sitemap-card" data-v30-sitemap data-tab="explore" data-section="sitemap">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('kanban', 16) }}
@@ -1099,7 +1200,7 @@
     </details>
 
     {# ─── ANCIENS OUTILS / ESSAIS — DC Generator ──────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--dc" data-v30-dc data-tab="legacy">
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--dc" data-v30-dc data-tab="legacy" data-section="dc">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('report', 16) }}
@@ -1125,7 +1226,7 @@
     </details>
 
     {# ─── 6. À propos ─────────────────────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-about data-tab="about">
+    <details class="v30-params__card v30-params__collapse" data-v30-about data-tab="about" data-section="about">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('bulb', 16) }}
@@ -1167,7 +1268,7 @@
 
     {# ─── Mise à jour serveur (admin) ─────────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-deploy data-tab="deploy">
+    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-deploy data-tab="deploy" data-section="deploy">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('arrowU', 16) }}
@@ -1214,7 +1315,7 @@
 
     {# ─── Mise à jour Portfolio (admin) ──────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-portfolio-deploy data-tab="deploy">
+    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-portfolio-deploy data-tab="deploy" data-section="deploy">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('arrowU', 16) }}
@@ -1251,7 +1352,9 @@
     </details>
     {% endif %}
 
-  </div>
+      </div> {# /.v30-params__grid #}
+    </div> {# /.v30-params__main #}
+  </div> {# /.v30-params__layout #}
 </div>
 
 {# ─── Modale création / édition utilisateur (admin) ─── #}
