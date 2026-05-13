@@ -959,6 +959,173 @@ def list_jobs(region: str = "national", q: str = "", contract: list[str] | None 
     return [_row_to_job(r, fav_ids) for r in rows]
 
 
+# ────────────────────────────────────────────────────────────────────
+#  CRM cross-reference — offres liées aux entreprises/prospects du CRM
+# ────────────────────────────────────────────────────────────────────
+
+# Suffixes juridiques fréquents à supprimer pour normaliser les noms
+# d'entreprises avant matching (sinon « Aldebaran SAS » ne matchera pas
+# « Aldebaran Robotics »).
+_COMPANY_SUFFIXES = (
+    "sas", "sa.s", "s.a.s", "sa", "s.a", "sarl", "s.a.r.l",
+    "sasu", "scop", "snc", "gie", "eurl", "ltd", "limited",
+    "inc", "incorporated", "gmbh", "ag", "bv", "nv", "spa",
+    "plc", "llc", "corp", "co", "group", "groupe", "holding",
+)
+
+# Mots génériques à ignorer lors du matching (sinon "Solutions" matche
+# "RH Solutions" et autres faux positifs).
+_COMPANY_STOPWORDS = {
+    "solutions", "services", "technologies", "tech", "consulting",
+    "international", "france", "europe", "global", "digital",
+    "systems", "system", "company",
+}
+
+_PUNCT_RE = re.compile(r"[\.,;:!?\-_/\\\(\)\[\]\{\}'\"`]+")
+
+
+def _normalize_company_name(name: str) -> str:
+    """Normalise un nom d'entreprise pour comparaison floue.
+    Lowercase, sans accent, sans ponctuation, sans suffixes juridiques.
+    Les tokens d'1 caractère sont aussi droppés (résidus de S.A.S. → s a s)."""
+    if not name:
+        return ""
+    t = _norm(name)
+    t = _PUNCT_RE.sub(" ", t)
+    parts = [p for p in t.split() if p and len(p) > 1 and p not in _COMPANY_SUFFIXES]
+    return " ".join(parts).strip()
+
+
+def _company_match_tokens(name: str) -> list[str]:
+    """Retourne les tokens significatifs d'un nom d'entreprise normalisé,
+    excluant les stopwords et les tokens trop courts (< 3 chars).
+    Sert de base pour le matching tolérant."""
+    norm = _normalize_company_name(name)
+    return [t for t in norm.split() if len(t) >= 3 and t not in _COMPANY_STOPWORDS]
+
+
+def _companies_match(job_company: str, crm_company: str) -> bool:
+    """True si les deux noms d'entreprise sont raisonnablement similaires.
+    Stratégie : un token significatif d'au moins 4 caractères doit
+    apparaître dans les deux côtés normalisés."""
+    if not job_company or not crm_company:
+        return False
+    nj = _normalize_company_name(job_company)
+    nc = _normalize_company_name(crm_company)
+    if not nj or not nc:
+        return False
+    # Cas trivial : noms strictement égaux après normalisation.
+    if nj == nc:
+        return True
+    # Substring strict (avec longueur minimale pour limiter les faux positifs).
+    if len(nc) >= 4 and nc in nj:
+        return True
+    if len(nj) >= 4 and nj in nc:
+        return True
+    # Token match : au moins un token significatif partagé.
+    job_tokens = set(t for t in _company_match_tokens(job_company) if len(t) >= 4)
+    crm_tokens = set(t for t in _company_match_tokens(crm_company) if len(t) >= 4)
+    return bool(job_tokens & crm_tokens)
+
+
+def _load_user_companies(owner_id: int) -> list[dict]:
+    """Charge la liste des entreprises du CRM utilisateur (avec compte de
+    prospects associés pour priorisation). Hits la DB session-aware (per-user
+    si elle existe, sinon DB centrale avec filtre owner_id)."""
+    # Import paresseux pour éviter une dépendance circulaire au boot
+    # (utils.db importe DATA_DIR depuis config, ok ; mais on garde la
+    # connexion session-aware seulement pour ce point d'entrée).
+    from utils.db import _conn as _user_conn
+    try:
+        with _user_conn() as conn:
+            # Schéma : la table companies a `groupe`, `site`, et selon
+            # les DBs un `owner_id`. On compose la query dynamiquement.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(companies);").fetchall()}
+            has_owner = "owner_id" in cols
+            has_deleted = "deleted_at" in cols
+            sql_parts = ["SELECT c.id, c.groupe, c.site"]
+            if has_owner:
+                sql_parts.append(", c.owner_id")
+            sql_parts.append(
+                ", (SELECT COUNT(*) FROM prospects p WHERE p.company_id = c.id) AS prospects_count"
+            )
+            sql_parts.append("FROM companies c WHERE 1=1")
+            params: list = []
+            if has_owner:
+                sql_parts.append("AND (c.owner_id = ? OR c.owner_id IS NULL)")
+                params.append(owner_id)
+            if has_deleted:
+                sql_parts.append("AND (c.deleted_at IS NULL OR c.deleted_at = '')")
+            sql_parts.append("ORDER BY prospects_count DESC, c.id DESC")
+            rows = conn.execute(" ".join(sql_parts), tuple(params)).fetchall()
+            return [
+                {"id": r["id"], "groupe": r["groupe"] or "", "site": r["site"] or "",
+                 "prospects_count": r["prospects_count"] or 0}
+                for r in rows
+            ]
+    except Exception as exc:
+        logger.warning("Actus _load_user_companies: %s", exc)
+        return []
+
+
+def list_crm_jobs(owner_id: int, region: str = "national",
+                  limit: int = 30) -> dict:
+    """Retourne les offres d'emploi dont l'entreprise correspond à une
+    entreprise du CRM de l'utilisateur. Renvoie un dict
+    `{items, companies_count, matched_count}` plutôt qu'une simple liste,
+    pour que le front puisse afficher du contexte (n entreprises matchées
+    sur le CRM)."""
+    user_companies = _load_user_companies(owner_id)
+    if not user_companies:
+        return {"items": [], "companies_count": 0, "matched_count": 0, "total_companies": 0}
+
+    # Charge le pool de jobs candidats (un filtre régional optionnel).
+    where = []
+    params: list = []
+    if region != "national":
+        where.append("region_hint = ?")
+        params.append(region)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    with _conn() as conn:
+        all_jobs = conn.execute(
+            f"SELECT * FROM actus_jobs {where_sql} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 500;",
+            tuple(params),
+        ).fetchall()
+        # Favoris user pour annoter chaque job
+        fav_rows = conn.execute(
+            "SELECT job_id FROM actus_favoris WHERE owner_id=?;",
+            (owner_id,),
+        ).fetchall()
+    fav_ids = {int(r["job_id"]) for r in fav_rows}
+
+    # Matching côté Python : volume modéré (≤ 500 jobs × ≤ qq centaines
+    # de companies → reste acceptable). On annote chaque job match avec
+    # l'entreprise CRM correspondante.
+    matched: list[dict] = []
+    matched_companies: set[int] = set()
+    for job in all_jobs:
+        jc = job["company"] or ""
+        for c in user_companies:
+            if _companies_match(jc, c["groupe"]):
+                d = _row_to_job(job, fav_ids)
+                d["matched_company"] = {
+                    "id": c["id"],
+                    "groupe": c["groupe"],
+                    "site": c["site"],
+                    "prospects_count": c["prospects_count"],
+                }
+                matched.append(d)
+                matched_companies.add(c["id"])
+                break  # un job ne match qu'une fois
+
+    return {
+        "items": matched[:limit],
+        "companies_count": len(matched_companies),
+        "matched_count": len(matched),
+        "total_companies": len(user_companies),
+    }
+
+
 def list_favoris(owner_id: int, limit: int = 100) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

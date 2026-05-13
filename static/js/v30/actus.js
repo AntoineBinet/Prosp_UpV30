@@ -61,9 +61,12 @@
     sort: 'date',
     view: 'all', // 'all' | 'favoris'
     articles: [],
-    jobs: []
+    jobs: [],
+    crmJobs: [],
+    crmMeta: {}
   };
   var ARTICLES_LIMIT = 9;
+  var CRM_LIMIT = 20;
 
   // ─── DOM ──────────────────────────────────────────────────
   var $region = document.querySelector('[data-v30-region]');
@@ -74,6 +77,10 @@
   var $articlesEmpty = document.querySelector('[data-v30-articles-empty]');
   var $jobs = document.querySelector('[data-v30-jobs]');
   var $jobsEmpty = document.querySelector('[data-v30-jobs-empty]');
+  var $crmJobs = document.querySelector('[data-v30-crm-jobs]');
+  var $crmEmpty = document.querySelector('[data-v30-crm-empty]');
+  var $crmCount = document.querySelector('[data-v30-crm-count]');
+  var $crmSub = document.querySelector('[data-v30-crm-sub]');
   var $search = document.querySelector('[data-v30-jobs-search]');
   var $contractPills = Array.from(document.querySelectorAll('[data-v30-contract]'));
   var $sortBtns = Array.from(document.querySelectorAll('[data-v30-sort]'));
@@ -134,6 +141,55 @@
     return '';
   }
 
+  // Factory : construit le HTML d'une seule carte d'offre.
+  // `opts.crmBadge` = true pour afficher le tag entreprise CRM matchée.
+  function jobCardHTML(j, opts) {
+    opts = opts || {};
+    var tags = (j.tags || []).slice(0, 3).map(function (t) {
+      return '<span class="actus-tag">' + esc(t) + '</span>';
+    }).join('');
+    var meta = [];
+    if (j.company) meta.push('<strong>' + esc(j.company) + '</strong>');
+    if (j.location) meta.push(esc(j.location));
+    if (j.salary) meta.push(esc(j.salary));
+    if (j.source) meta.push('<span class="muted">via ' + esc(j.source) + '</span>');
+    var titleHTML = j.url && j.url !== '#'
+      ? '<a href="' + esc(j.url) + '" target="_blank" rel="noopener noreferrer">' + esc(j.title) + '</a>'
+      : esc(j.title);
+    var pill = j.contract_type
+      ? '<span class="actus-pill ' + pillClass(j.contract_type) + '">' + esc(j.contract_type) + '</span>'
+      : '';
+    var favClass = j.is_favori ? 'actus-job__fav is-on' : 'actus-job__fav';
+    var favLabel = j.is_favori ? '★ Favori' : '☆ Sauver';
+    // Tag entreprise CRM (cliquable vers la fiche entreprise)
+    var crmTag = '';
+    if (opts.crmBadge && j.matched_company) {
+      var mc = j.matched_company;
+      var label = mc.groupe + (mc.site ? ' · ' + mc.site : '');
+      var pCount = mc.prospects_count
+        ? ' (' + mc.prospects_count + ' prospect' + (mc.prospects_count > 1 ? 's' : '') + ')'
+        : '';
+      crmTag = '<span class="actus-job__crm-tag" title="Entreprise présente dans votre CRM">'
+             + '★ <a href="/v30/entreprises#company-' + esc(String(mc.id)) + '">'
+             + esc(label) + '</a>' + esc(pCount)
+             + '</span>';
+    }
+    return ''
+      + '<article class="actus-job" data-job-id="' + esc(String(j.id)) + '">'
+      +   '<div class="actus-job__main">'
+      +     '<h3 class="actus-job__title">' + titleHTML + '</h3>'
+      +     '<div class="actus-job__meta">' + meta.join(' · ') + ' · <span class="actus-card__date">' + esc(fmtRelativeDate(j.posted_at || j.fetched_at)) + '</span></div>'
+      +     (crmTag ? '<div class="actus-job__tags">' + crmTag + '</div>' : '')
+      +     (j.description ? '<p class="actus-job__desc">' + esc(j.description) + '</p>' : '')
+      +     (tags ? '<div class="actus-job__tags">' + tags + '</div>' : '')
+      +   '</div>'
+      +   '<div class="actus-job__side">'
+      +     pill
+      +     '<button type="button" class="' + favClass + '" data-v30-fav="' + esc(String(j.id)) + '" aria-label="Sauvegarder cette offre">' + favLabel + '</button>'
+      +   '</div>'
+      + '</article>';
+  }
+
   function renderJobs() {
     if (!STATE.jobs.length) {
       $jobs.innerHTML = '';
@@ -144,38 +200,44 @@
       return;
     }
     $jobsEmpty.hidden = true;
-    var html = STATE.jobs.map(function (j) {
-      var tags = (j.tags || []).slice(0, 3).map(function (t) {
-        return '<span class="actus-tag">' + esc(t) + '</span>';
-      }).join('');
-      var meta = [];
-      if (j.company) meta.push('<strong>' + esc(j.company) + '</strong>');
-      if (j.location) meta.push(esc(j.location));
-      if (j.salary) meta.push(esc(j.salary));
-      if (j.source) meta.push('<span class="muted">via ' + esc(j.source) + '</span>');
-      var titleHTML = j.url && j.url !== '#'
-        ? '<a href="' + esc(j.url) + '" target="_blank" rel="noopener noreferrer">' + esc(j.title) + '</a>'
-        : esc(j.title);
-      var pill = j.contract_type
-        ? '<span class="actus-pill ' + pillClass(j.contract_type) + '">' + esc(j.contract_type) + '</span>'
-        : '';
-      var favClass = j.is_favori ? 'actus-job__fav is-on' : 'actus-job__fav';
-      var favLabel = j.is_favori ? '★ Favori' : '☆ Sauver';
-      return ''
-        + '<article class="actus-job" data-job-id="' + esc(String(j.id)) + '">'
-        +   '<div class="actus-job__main">'
-        +     '<h3 class="actus-job__title">' + titleHTML + '</h3>'
-        +     '<div class="actus-job__meta">' + meta.join(' · ') + ' · <span class="actus-card__date">' + esc(fmtRelativeDate(j.posted_at || j.fetched_at)) + '</span></div>'
-        +     (j.description ? '<p class="actus-job__desc">' + esc(j.description) + '</p>' : '')
-        +     (tags ? '<div class="actus-job__tags">' + tags + '</div>' : '')
-        +   '</div>'
-        +   '<div class="actus-job__side">'
-        +     pill
-        +     '<button type="button" class="' + favClass + '" data-v30-fav="' + esc(String(j.id)) + '" aria-label="Sauvegarder cette offre">' + favLabel + '</button>'
-        +   '</div>'
-        + '</article>';
-    }).join('');
-    $jobs.innerHTML = html;
+    $jobs.innerHTML = STATE.jobs.map(function (j) { return jobCardHTML(j); }).join('');
+  }
+
+  function renderCrmJobs() {
+    if (!$crmJobs) return;
+    var items = STATE.crmJobs || [];
+    var meta = STATE.crmMeta || {};
+    // Badge counter
+    if ($crmCount) {
+      if (items.length) {
+        $crmCount.hidden = false;
+        $crmCount.textContent = items.length + ' offre' + (items.length > 1 ? 's' : '')
+          + ' · ' + (meta.companies_count || 0) + ' entreprise' + ((meta.companies_count || 0) > 1 ? 's' : '');
+      } else {
+        $crmCount.hidden = true;
+      }
+    }
+    // Subtitle context
+    if ($crmSub) {
+      if (meta.total_companies != null && meta.total_companies > 0) {
+        $crmSub.textContent = 'Cross-référence sur ' + meta.total_companies
+          + ' entreprise' + (meta.total_companies > 1 ? 's' : '') + ' de votre CRM.';
+      }
+    }
+    if (!items.length) {
+      $crmJobs.innerHTML = '';
+      if ($crmEmpty) {
+        $crmEmpty.hidden = false;
+        $crmEmpty.textContent = meta.total_companies
+          ? 'Aucune annonce trouvée pour les ' + meta.total_companies
+            + ' entreprise' + (meta.total_companies > 1 ? 's' : '')
+            + ' de votre CRM dans le cache actuel. Configurez Adzuna/Jobfly pour plus de volume, ou élargissez la région.'
+          : 'Aucune entreprise dans votre CRM. Ajoutez-en depuis /v30/entreprises pour activer le matching.';
+      }
+      return;
+    }
+    if ($crmEmpty) $crmEmpty.hidden = true;
+    $crmJobs.innerHTML = items.map(function (j) { return jobCardHTML(j, { crmBadge: true }); }).join('');
   }
 
   // ─── Status bar ───────────────────────────────────────────
@@ -194,6 +256,27 @@
       renderArticles();
     }).catch(function (e) {
       toast('Impossible de charger les actus : ' + e.message, 'error');
+    });
+  }
+
+  function loadCrmJobs() {
+    if (!$crmJobs) return Promise.resolve();
+    var url = '/api/actus/jobs/crm?region=' + encodeURIComponent(STATE.region)
+            + '&limit=' + CRM_LIMIT;
+    return fetchJSON(url).then(function (r) {
+      STATE.crmJobs = r.items || [];
+      STATE.crmMeta = {
+        companies_count: r.companies_count || 0,
+        matched_count: r.matched_count || 0,
+        total_companies: r.total_companies || 0
+      };
+      renderCrmJobs();
+    }).catch(function (e) {
+      STATE.crmJobs = [];
+      STATE.crmMeta = {};
+      renderCrmJobs();
+      // Erreur silencieuse pour ne pas couvrir l'erreur principale de loadJobs.
+      console.warn('actus crm jobs:', e.message);
     });
   }
 
@@ -285,7 +368,7 @@
       // Le refresh est asynchrone côté serveur. On reload après un délai
       // raisonnable pour laisser le temps aux flux RSS de répondre.
       setTimeout(function () {
-        Promise.all([loadArticles(), loadJobs(), loadStatus()]).then(function () {
+        Promise.all([loadArticles(), loadCrmJobs(), loadJobs(), loadStatus()]).then(function () {
           toast('Actus mises à jour', 'success');
         });
       }, 3500);
@@ -300,9 +383,12 @@
     return postJSON('/api/actus/favoris', { job_id: Number(jobId) }).then(function (r) {
       btn.classList.toggle('is-on', !!r.on);
       btn.textContent = r.on ? '★ Favori' : '☆ Sauver';
-      // Met à jour le state local
-      var j = STATE.jobs.find(function (x) { return String(x.id) === String(jobId); });
-      if (j) j.is_favori = !!r.on;
+      // Met à jour le state local dans les deux sections (un job peut
+      // figurer à la fois dans Toutes les offres et dans CRM).
+      var jAll = STATE.jobs.find(function (x) { return String(x.id) === String(jobId); });
+      if (jAll) jAll.is_favori = !!r.on;
+      var jCrm = STATE.crmJobs.find(function (x) { return String(x.id) === String(jobId); });
+      if (jCrm) jCrm.is_favori = !!r.on;
       if (!r.on && STATE.view === 'favoris') {
         // Vue favoris : retirer la carte
         var card = btn.closest('.actus-job');
@@ -321,6 +407,7 @@
         STATE.region = $region.value;
         localStorage.setItem('v30.actus.region', STATE.region);
         loadArticles();
+        loadCrmJobs();
         loadJobs();
       });
     }
@@ -367,16 +454,18 @@
         loadJobs();
       });
     });
-    // Délégation pour les boutons favoris (les jobs sont re-rendus à chaque load)
-    if ($jobs) {
-      $jobs.addEventListener('click', function (e) {
+    // Délégation pour les boutons favoris (les jobs sont re-rendus à chaque load).
+    // On bind sur les deux sections : toutes les offres ET CRM.
+    [$jobs, $crmJobs].forEach(function (container) {
+      if (!container) return;
+      container.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-v30-fav]');
         if (!btn) return;
         e.preventDefault();
         var jobId = btn.getAttribute('data-v30-fav');
         toggleFavori(jobId, btn);
       });
-    }
+    });
   }
 
   // ─── Boot ─────────────────────────────────────────────────
@@ -385,7 +474,7 @@
     // loadStatus en premier : il peut modifier STATE.region en fonction de
     // la config serveur (si aucun choix utilisateur n'est en localStorage).
     loadStatus().then(function () {
-      return Promise.all([loadArticles(), loadJobs()]);
+      return Promise.all([loadArticles(), loadCrmJobs(), loadJobs()]);
     });
   }
 

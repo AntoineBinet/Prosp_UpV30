@@ -97,6 +97,26 @@ def api_actus_jobs():
 #  API — favoris
 # ────────────────────────────────────────────────────────────────────
 
+@actus_bp.get("/api/actus/jobs/crm")
+@login_required
+def api_actus_jobs_crm():
+    """Retourne les offres dont l'entreprise correspond à une entreprise du
+    CRM de l'utilisateur. Réponse enrichie : items + métadonnées de
+    matching (companies_count, matched_count, total_companies)."""
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    region = (request.args.get("region") or "national").strip()
+    if region not in actus_svc.REGIONS:
+        region = "national"
+    try:
+        limit = max(1, min(int(request.args.get("limit", 30)), 100))
+    except ValueError:
+        limit = 30
+    result = actus_svc.list_crm_jobs(owner_id=uid, region=region, limit=limit)
+    return jsonify({"ok": True, **result})
+
+
 @actus_bp.get("/api/actus/favoris")
 @login_required
 def api_actus_favoris_list():

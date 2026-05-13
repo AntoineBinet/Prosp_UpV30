@@ -88,6 +88,41 @@
   color: var(--text);
 }
 .actus-section__sub { font-size: 12px; }
+.actus-section__badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  letter-spacing: 0.3px;
+}
+
+/* CRM section : accent visuel léger pour la démarquer du reste. */
+.actus-section--crm .actus-section__head {
+  border-bottom-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+}
+.actus-jobs--crm .actus-job {
+  border-left: 3px solid color-mix(in oklch, var(--accent) 60%, transparent);
+}
+.actus-job__crm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  font-weight: 600;
+}
+.actus-job__crm-tag a {
+  color: inherit;
+  text-decoration: none;
+}
+.actus-job__crm-tag a:hover { text-decoration: underline; }
 
 /* ─── Articles (haut) — grille cartes ─────────────────────────── */
 .actus-articles {

@@ -1106,6 +1106,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadArticles"], "endpoints": ["GET /api/actus/articles"], "backend": ["routes/actus.py:api_actus_articles", "services/actus.py:list_articles"]}},
                 {"label": "Charger les offres", "href": "/v30/actus",
                  "tools": {"handlers": ["loadJobs"], "endpoints": ["GET /api/actus/jobs"], "backend": ["routes/actus.py:api_actus_jobs", "services/actus.py:list_jobs"]}},
+                {"label": "Annonces liées au CRM (entreprises/prospects)", "href": "/v30/actus",
+                 "tools": {"handlers": ["loadCrmJobs"], "endpoints": ["GET /api/actus/jobs/crm"], "backend": ["routes/actus.py:api_actus_jobs_crm", "services/actus.py:list_crm_jobs", "services/actus.py:_companies_match"]}},
                 {"label": "Filtrer par région", "href": "/v30/actus",
                  "tools": {"handlers": ["loadArticles", "loadJobs"], "endpoints": ["GET /api/actus/articles", "GET /api/actus/jobs"], "backend": ["services/actus.py:_detect_region"]}},
                 {"label": "Recherche textuelle (offres)", "href": "/v30/actus",
