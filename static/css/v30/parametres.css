@@ -127,22 +127,232 @@
 
 /* Topbar paramètres : remplacée par le pattern .page-header (Phase 2). */
 
+/* ═══════════════════════════════════════════════════════
+   Layout 2 colonnes (sidebar nav + main section active)
+   Inspiration : pattern "Piste A — Navigation verticale"
+   ═══════════════════════════════════════════════════════ */
+.v30-params__layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .v30-params__layout { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ─── Sidebar (col 1) : navigation hiérarchique ─────────── */
+.v30-params__sidebar {
+  position: sticky;
+  top: 56px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.v30-params__sidebar-toggle {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  cursor: pointer;
+}
+.v30-params__sidebar-toggle [data-v30-params-sidebar-current] {
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+}
+@media (max-width: 900px) {
+  .v30-params__sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+  .v30-params__sidebar-toggle { display: inline-flex; }
+  .v30-params__sidebar-nav { display: none; }
+  .v30-params__sidebar[data-open="1"] .v30-params__sidebar-nav {
+    display: flex;
+    margin-top: 6px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+  }
+}
+.v30-params__sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v30-params__sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 14px;
+}
+.v30-params__sidebar-cat {
+  margin: 0 0 4px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.v30-params__sidebar-item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+  line-height: 1.25;
+}
+.v30-params__sidebar-item:hover {
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  color: var(--text);
+}
+.v30-params__sidebar-item.is-active {
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.v30-params__sidebar-item.is-active::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+  margin-right: 2px;
+}
+.v30-params__sidebar-item--all {
+  font-weight: 500;
+  color: var(--text);
+}
+.v30-params__sidebar-item[hidden] { display: none !important; }
+.v30-params__sidebar-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v30-params__sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.v30-params__sidebar-item.is-active .v30-params__sidebar-badge {
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  color: color-mix(in oklch, var(--accent) 80%, var(--text));
+  border-color: color-mix(in oklch, var(--accent) 25%, var(--border));
+}
+.v30-params__sidebar-badge--ghost {
+  background: transparent;
+  border-style: dashed;
+}
+.v30-params__sidebar-badge[hidden] { display: none !important; }
+.v30-params__sidebar-group[hidden] { display: none !important; }
+
+/* ─── Main (col 2) : section active + header dynamique ──── */
+.v30-params__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v30-params__section-header {
+  padding: 4px 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.v30-params__section-header[hidden] { display: none; }
+.v30-params__breadcrumb {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.v30-params__section-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+.v30-params__section-sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .v30-params__section-title { font-size: 26px; }
+}
+
+/* ─── Grille : en mode "section active", masquer les autres cards ─── */
 .v30-params__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
-@media (max-width: 1100px) {
-  .v30-params__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* En mode "all", on garde la disposition mono-colonne (lisible dans le main) */
+.v30-params__grid[data-active-section="all"] {
+  grid-template-columns: minmax(0, 1fr);
 }
-@media (max-width: 720px) {
-  .v30-params__grid { grid-template-columns: 1fr; }
+/* En mode section ciblée, on masque toutes les cartes qui ne correspondent pas */
+.v30-params__grid[data-active-section]:not([data-active-section="all"]) .v30-params__card[data-section]:not([data-section-match]) {
+  display: none;
 }
 
-/* Carte ouverte : s'étend sur toute la largeur pour afficher le formulaire */
+/* Carte ouverte : s'étend sur toute la largeur (legacy — toujours fonctionnel) */
 .v30-params__collapse[open] {
   grid-column: 1 / -1;
+}
+
+/* Quand on est en section ciblée, masquer le summary interne (titre+desc redondants avec le header dynamique) */
+.v30-params__grid[data-active-section]:not([data-active-section="all"]) .v30-params__card[data-section-match] .v30-params__card-summary {
+  display: none;
+}
+.v30-params__grid[data-active-section]:not([data-active-section="all"]) .v30-params__card[data-section-match] .v30-params__form {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .v30-params__card {

@@ -1548,49 +1548,273 @@
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  Tabs (filtre cards par data-tab)
+  //  Navigation : tab-bar (filtre par data-tab) + sidebar (data-section)
   // ══════════════════════════════════════════════════════════════
-  function applyTab(tab) {
+
+  // Mapping section → en-tête dynamique (breadcrumb + titre serif + sous-titre).
+  // Une seule source de vérité pour la sidebar / le header / les compteurs.
+  var SECTION_MAP = {
+    'ia':            { cat: 'Personnalisation › Données & IA', title: 'Configuration IA',     sub: 'IA locale (Ollama) · Transcription (Whisper + Claude) · Tavily · GPU.' },
+    'actus-sources': { cat: 'Personnalisation › Données & IA', title: "Sources d'annonces",   sub: "Connecter Adzuna / Jobfly pour alimenter la page Actus." },
+    'goals':         { cat: 'Personnalisation › Pilotage',     title: 'Objectifs & XP',       sub: 'Cibles quotidiennes et hebdomadaires affichées sur le dashboard.' },
+    'kpi':           { cat: 'Personnalisation › Pilotage',     title: 'KPI manuels',          sub: "Enregistrer les actions faites hors de l'app (appels, emails, etc.)." },
+    'calsync':       { cat: 'Personnalisation › Intégrations', title: 'Calendrier externe',   sub: 'Affiche tes événements Outlook ou Google Calendar via un lien ICS.' },
+    'backup':        { cat: 'Données & IA › Stockage',         title: 'Sauvegardes & données', sub: 'Snapshots SQLite (auto 3 h, rétention 14 jours) · export Excel / JSON.' },
+    'notif':         { cat: 'Personnalisation › Communication', title: 'Notifications navigateur', sub: 'Push natif pour les relances et tâches du jour.' },
+    'email-reports': { cat: 'Personnalisation › Communication', title: 'Rapports email',      sub: 'Rapports quotidien et hebdomadaire envoyés par mail.' },
+    'users':         { cat: 'Console admin › Équipe',          title: 'Utilisateurs',         sub: 'Comptes, rôles, mots de passe, historique de connexion.' },
+    'activity':      { cat: 'Console admin › Audit',           title: "Journal d'activité",   sub: 'Audit des connexions, créations, modifications et suppressions.' },
+    'deploy':        { cat: 'Console admin › Mise à jour',     title: 'Déploiement',          sub: 'Pull Git + snapshot DB + redémarrage automatique (serveur & Portfolio).' },
+    'account':       { cat: 'Personnalisation › Mon compte',   title: 'Mon compte',           sub: 'Changer le mot de passe (min 8 car., 1 chiffre, 1 lettre).' },
+    'sitemap':       { cat: 'Outils › Cartographie',           title: "Toile d'araignée",     sub: "Vue radiale interactive de toutes les pages et actions de l'app." },
+    'dc':            { cat: 'Outils › Anciens essais',         title: 'DC Generator',         sub: 'Dossier de compétence DOCX (outil expérimental).' },
+    'about':         { cat: 'Outils › Info',                   title: 'À propos',             sub: 'Version, commit, branche Git, stockage local.' }
+  };
+
+  // Liste des sections "primaires" qui doivent rester visibles dans la sidebar
+  // selon l'onglet sélectionné (tab du haut).
+  // tab "all" = on garde toutes les sections. Sinon on conserve celles dont la
+  // catégorie sidebar peut contenir l'onglet (la matrice est traitée via les
+  // data-tab des cartes côté grille — on miroite ça côté sidebar).
+  function tabAllowsSection(tab, section) {
+    if (!tab || tab === 'all') return true;
+    var card = document.querySelector('.v30-params__card[data-section="' + section + '"]');
+    if (!card) return true;
+    var cardTabs = (card.getAttribute('data-tab') || '').split(/\s+/).filter(Boolean);
+    // Cas particulier "deploy" : il y a 2 cartes — il suffit que l'une corresponde.
+    if (section === 'deploy') {
+      var any = document.querySelectorAll('.v30-params__card[data-section="deploy"]');
+      for (var i = 0; i < any.length; i++) {
+        var t = (any[i].getAttribute('data-tab') || '').split(/\s+/).filter(Boolean);
+        if (t.indexOf(tab) !== -1) return true;
+      }
+      return false;
+    }
+    return cardTabs.indexOf(tab) !== -1;
+  }
+
+  function applySection(section) {
     var grid = document.querySelector('.v30-params__grid');
     if (!grid) return;
-    grid.setAttribute('data-active-tab', tab || 'all');
-    var cards = grid.querySelectorAll('.v30-params__card[data-tab]');
+    var sec = section || 'all';
+    grid.setAttribute('data-active-section', sec);
+
+    // Match cartes par data-section (plusieurs cartes peuvent partager le même)
+    var cards = grid.querySelectorAll('.v30-params__card[data-section]');
     cards.forEach(function (c) {
-      var cardTabs = (c.getAttribute('data-tab') || '').split(/\s+/).filter(Boolean);
-      var match = (tab === 'all') || cardTabs.indexOf(tab) !== -1;
-      if (match) c.setAttribute('data-tab-match', '1');
-      else c.removeAttribute('data-tab-match');
+      var match = (sec === 'all') || c.getAttribute('data-section') === sec;
+      if (match) {
+        c.setAttribute('data-section-match', '1');
+        // Force-open les cartes ciblées (sinon le formulaire reste caché par <details>)
+        if (sec !== 'all') c.open = true;
+      } else {
+        c.removeAttribute('data-section-match');
+      }
     });
-    // Rendre la persistance simple
+
+    // Sidebar : marquer l'item actif
+    document.querySelectorAll('[data-v30-params-sidebar-nav] .v30-params__sidebar-item').forEach(function (b) {
+      var act = (b.getAttribute('data-section') === sec);
+      b.classList.toggle('is-active', act);
+      if (act) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+
+    // Mobile : étiquette du toggle
+    var toggleLabel = $('[data-v30-params-sidebar-current]');
+    if (toggleLabel) {
+      toggleLabel.textContent = (SECTION_MAP[sec] && SECTION_MAP[sec].title) || 'Toutes les sections';
+    }
+
+    // Header dynamique (breadcrumb + titre serif italique)
+    var header = $('[data-v30-section-header]');
+    var bcEl   = $('[data-v30-section-breadcrumb]');
+    var ttlEl  = $('[data-v30-section-title]');
+    var subEl  = $('[data-v30-section-sub]');
+    if (header && bcEl && ttlEl && subEl) {
+      var meta = SECTION_MAP[sec];
+      if (meta) {
+        bcEl.textContent  = meta.cat || '';
+        ttlEl.textContent = meta.title || '';
+        subEl.textContent = meta.sub || '';
+        header.hidden = false;
+      } else {
+        header.hidden = true;
+      }
+    }
+
+    // Persistance
+    try { localStorage.setItem('v30_params_section', sec); } catch (_) {}
+
+    // Replier la sidebar mobile une fois sélectionnée
+    var aside = $('[data-v30-params-sidebar]');
+    if (aside) aside.removeAttribute('data-open');
+  }
+
+  function applyTab(tab) {
+    // Filtrer les items sidebar selon l'onglet du haut
+    document.querySelectorAll('[data-v30-params-sidebar-nav] .v30-params__sidebar-item[data-section]').forEach(function (item) {
+      var sec = item.getAttribute('data-section');
+      if (sec === 'all') { item.hidden = false; return; }
+      item.hidden = !tabAllowsSection(tab, sec);
+    });
+    // Masquer une catégorie complète si tous ses items sont cachés
+    document.querySelectorAll('[data-v30-params-sidebar-nav] .v30-params__sidebar-group').forEach(function (g) {
+      var visible = g.querySelectorAll('.v30-params__sidebar-item:not([hidden])').length;
+      g.hidden = (visible === 0);
+    });
+
+    // Si la section actuellement active n'est plus visible avec ce tab, retomber sur "all"
+    var grid = document.querySelector('.v30-params__grid');
+    if (grid) {
+      var current = grid.getAttribute('data-active-section') || 'all';
+      if (current !== 'all' && !tabAllowsSection(tab, current)) {
+        applySection('all');
+      }
+    }
+
     try { localStorage.setItem('v30_params_tab', tab || 'all'); } catch (_) {}
   }
+
   function bindTabs() {
     var bar = $('[data-v30-params-tabs]');
-    if (!bar) return;
-    bar.addEventListener('click', function (e) {
-      var btn = e.target.closest('button[data-tab]');
-      if (!btn) return;
-      bar.querySelectorAll('button[data-tab]').forEach(function (b) {
-        var act = (b === btn);
-        b.classList.toggle('is-active', act);
-        b.setAttribute('aria-selected', act ? 'true' : 'false');
+    if (bar) {
+      bar.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-tab]');
+        if (!btn) return;
+        bar.querySelectorAll('button[data-tab]').forEach(function (b) {
+          var act = (b === btn);
+          b.classList.toggle('is-active', act);
+          b.setAttribute('aria-selected', act ? 'true' : 'false');
+        });
+        applyTab(btn.getAttribute('data-tab'));
       });
-      applyTab(btn.getAttribute('data-tab'));
-    });
-    // Restaurer onglet précédent
-    var saved = 'all';
-    try { saved = localStorage.getItem('v30_params_tab') || 'all'; } catch (_) {}
-    var match = bar.querySelector('button[data-tab="' + saved + '"]');
-    if (match) {
-      bar.querySelectorAll('button[data-tab]').forEach(function (b) {
-        var act = (b === match);
-        b.classList.toggle('is-active', act);
-        b.setAttribute('aria-selected', act ? 'true' : 'false');
-      });
-      applyTab(saved);
-    } else {
-      applyTab('all');
+
+      // Restaurer l'onglet précédent
+      var savedTab = 'all';
+      try { savedTab = localStorage.getItem('v30_params_tab') || 'all'; } catch (_) {}
+      var match = bar.querySelector('button[data-tab="' + savedTab + '"]');
+      if (match) {
+        bar.querySelectorAll('button[data-tab]').forEach(function (b) {
+          var act = (b === match);
+          b.classList.toggle('is-active', act);
+          b.setAttribute('aria-selected', act ? 'true' : 'false');
+        });
+        applyTab(savedTab);
+      } else {
+        applyTab('all');
+      }
     }
+
+    // Sidebar : clic sur item → applySection
+    var navRoot = $('[data-v30-params-sidebar-nav]');
+    if (navRoot) {
+      navRoot.addEventListener('click', function (e) {
+        var btn = e.target.closest('.v30-params__sidebar-item[data-section]');
+        if (!btn) return;
+        applySection(btn.getAttribute('data-section'));
+      });
+    }
+
+    // Toggle sidebar mobile
+    var toggle = $('[data-v30-params-sidebar-toggle]');
+    var aside  = $('[data-v30-params-sidebar]');
+    if (toggle && aside) {
+      toggle.addEventListener('click', function () {
+        var open = aside.getAttribute('data-open') === '1';
+        if (open) aside.removeAttribute('data-open');
+        else aside.setAttribute('data-open', '1');
+        toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      });
+    }
+
+    // Restaurer la section : URL hash > localStorage > 'all'
+    var initSection = 'all';
+    var hash = (window.location.hash || '').replace(/^#/, '');
+    if (hash && SECTION_MAP[hash]) {
+      initSection = hash;
+    } else {
+      try { initSection = localStorage.getItem('v30_params_section') || 'all'; } catch (_) {}
+      if (initSection !== 'all' && !SECTION_MAP[initSection]) initSection = 'all';
+    }
+    applySection(initSection);
+
+    // Hash listener (deep-links externes vers une section)
+    window.addEventListener('hashchange', function () {
+      var h = (window.location.hash || '').replace(/^#/, '');
+      if (h && SECTION_MAP[h]) applySection(h);
+    });
+
+    // Charger les compteurs dynamiques (KPI, snapshots, users, calsync)
+    loadSidebarBadges();
+  }
+
+  // ─── Compteurs dynamiques pour la sidebar ──────────────────────
+  function setSidebarBadge(key, value, opts) {
+    var el = document.querySelector('[data-v30-sidebar-badge="' + key + '"]');
+    if (!el) return;
+    if (value == null || value === '' || value === 0) {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = String(value);
+    if (opts && opts.ghost) el.classList.add('v30-params__sidebar-badge--ghost');
+    else el.classList.remove('v30-params__sidebar-badge--ghost');
+  }
+
+  async function loadSidebarBadges() {
+    // KPI manuels : nb d'entrées récentes
+    try {
+      var r = await fetch('/api/manual-kpi', { credentials: 'same-origin' });
+      if (r.ok) {
+        var j = await r.json();
+        var n = (j && j.entries) ? j.entries.length : 0;
+        setSidebarBadge('kpi', n);
+      }
+    } catch (_) {}
+
+    // Snapshots : compter
+    try {
+      var r2 = await fetch('/api/snapshots', { credentials: 'same-origin' });
+      if (r2.ok) {
+        var j2 = await r2.json();
+        var n2 = (j2 && j2.items) ? j2.items.length : 0;
+        setSidebarBadge('backup', n2);
+      }
+    } catch (_) {}
+
+    // Utilisateurs (admin) : compter
+    if (document.querySelector('[data-section="users"]')) {
+      try {
+        var r3 = await fetch('/api/users', { credentials: 'same-origin' });
+        if (r3.ok) {
+          var j3 = await r3.json();
+          var n3 = (j3 && j3.users) ? j3.users.length : 0;
+          setSidebarBadge('users', n3);
+        }
+      } catch (_) {}
+    }
+
+    // Calendrier externe : "lié" si URL configurée, sinon "non liée"
+    try {
+      var r4 = await fetch('/api/settings', { credentials: 'same-origin' });
+      if (r4.ok) {
+        var j4 = await r4.json();
+        var linked = !!(j4 && j4.settings && j4.settings.calendar_external_ics_url);
+        var calBadge = document.querySelector('[data-v30-sidebar-badge="calsync"]');
+        if (calBadge) {
+          if (linked) {
+            calBadge.hidden = true;
+          } else {
+            calBadge.hidden = false;
+            calBadge.textContent = 'non liée';
+            calBadge.classList.add('v30-params__sidebar-badge--ghost');
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1873,6 +2097,11 @@
     var card = document.querySelector('[' + attr + ']');
     if (!card) return;
     card.open = true;
+    // Synchroniser la sidebar/header sur la section correspondante si possible
+    var sec = card.getAttribute('data-section');
+    if (sec && typeof SECTION_MAP !== 'undefined' && SECTION_MAP[sec]) {
+      try { applySection(sec); } catch (_) {}
+    }
     setTimeout(function () {
       card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
