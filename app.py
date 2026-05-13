@@ -8765,6 +8765,8 @@ from routes.admin import admin_bp  # noqa: E402
 from routes.dc import dc_bp  # noqa: E402
 from routes.collab import collab_bp  # noqa: E402
 from routes.bug_reports import bug_reports_bp  # noqa: E402
+from routes.actus import actus_bp  # noqa: E402
+from services import actus as _actus_svc  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
@@ -8789,11 +8791,16 @@ app.register_blueprint(misc_bp)
 app.register_blueprint(dc_bp)
 app.register_blueprint(collab_bp)
 app.register_blueprint(bug_reports_bp)
+app.register_blueprint(actus_bp)
 
 
 if __name__ == "__main__":
     DATA_DIR.mkdir(exist_ok=True)
     init_db()
+    try:
+        _actus_svc.init_schema()
+    except Exception as _exc:
+        logger.warning("init_schema Actus a échoué : %s", _exc)
     _migrate_users_schema()
     _migrate_candidate_statuses(DB_PATH)
     _migrate_all_user_dbs()
@@ -8874,9 +8881,21 @@ if __name__ == "__main__":
                 max_instances=1,
                 coalesce=True,
             )
+            _scheduler.add_job(
+                func=lambda: _actus_svc.refresh_all(force=False),
+                trigger='interval',
+                hours=6,
+                id='actus_refresh',
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
             _scheduler.start()
             atexit.register(lambda: _scheduler.shutdown())
-            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min, email reports chaque minute")
+            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min, email reports chaque minute, actus refresh toutes les 6h")
+            # Premier refresh actus au boot (best-effort, en thread pour ne pas bloquer)
+            threading.Thread(target=lambda: _actus_svc.refresh_all(force=False),
+                             daemon=True, name='actus_refresh_startup').start()
             # Premier check immédiat au démarrage (en thread pour ne pas bloquer)
             threading.Thread(target=_do_git_update_check, daemon=True, name='update_check_startup').start()
         except ImportError:
