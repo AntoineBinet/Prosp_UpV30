@@ -1,0 +1,115 @@
+{% extends "v30/base.html" %}
+{% block title %}Actus — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-actus{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/actus.css?v={{ static_hash('css/v30/actus.css') }}">
+{% endblock %}
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-actus>
+
+  {# ─── Page header ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">
+        <span class="actus-logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v15a2 2 0 0 0 2 2H7a2 2 0 0 1-2-2z"/>
+            <path d="M9 10h10M9 14h10M9 18h6"/>
+            <path d="M23 14v8a2 2 0 0 0 2 2"/>
+            <circle cx="26" cy="9" r="2.5" stroke-width="1.6"/>
+            <path d="M26 6.5v-2M28.5 9h2M26 11.5v2M23.5 9h-2" stroke-width="1.3"/>
+          </svg>
+        </span>
+        Actus
+      </h1>
+      <span class="page-subtitle muted">Marché du travail · Robotique · Embarqué · Informatique</span>
+    </div>
+    <div class="page-header__actions">
+      <label class="actus-region-picker" title="Région cible">
+        {{ ui.icon('map', 13) }}
+        <select data-v30-region aria-label="Filtrer par région">
+          {# Peuplé par le JS via /api/actus/status — fallback statique ci-dessous #}
+          <option value="national">France entière</option>
+          <option value="idf">Île-de-France</option>
+          <option value="ara">Auvergne-Rhône-Alpes</option>
+          <option value="occitanie">Occitanie</option>
+          <option value="paca">PACA</option>
+          <option value="bretagne">Bretagne</option>
+          <option value="hdf">Hauts-de-France</option>
+          <option value="ge">Grand Est</option>
+          <option value="naq">Nouvelle-Aquitaine</option>
+        </select>
+      </label>
+      <button type="button" class="btn btn-ghost" data-v30-actus-refresh aria-label="Actualiser actus et annonces">
+        {{ ui.icon('sync', 13) }} Actualiser
+      </button>
+    </div>
+  </div>
+
+  {# ─── Bandeau status (dernier refresh) ─── #}
+  <div class="actus-status muted" data-v30-actus-status>Chargement…</div>
+
+  {# ─── Section 1 : Actus marché du travail (haut) ─── #}
+  <section class="actus-section">
+    <div class="actus-section__head">
+      <h2 class="actus-section__title">{{ ui.icon('news', 16) }} Actus marché du travail</h2>
+      <div class="actus-section__sub muted">Dernières actus tech · robotique · embarqué · informatique dans votre région</div>
+    </div>
+    <div class="actus-articles" data-v30-articles>
+      <div class="actus-skeleton" aria-hidden="true">
+        <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
+      </div>
+    </div>
+    <div class="actus-empty" data-v30-articles-empty hidden>
+      Aucune actu pour cette région. Cliquez <strong>Actualiser</strong> pour récupérer les derniers articles.
+    </div>
+  </section>
+
+  {# ─── Section 2 : Offres d'emploi (bas) ─── #}
+  <section class="actus-section">
+    <div class="actus-section__head">
+      <h2 class="actus-section__title">{{ ui.icon('checklist', 16) }} Offres d'emploi</h2>
+      <div class="actus-section__sub muted">Annonces aggrégées · script Python multi-sources (Jobfly-ready)</div>
+    </div>
+
+    {# Toolbar : recherche + filtres contrat + tri #}
+    <div class="actus-toolbar">
+      <label class="actus-search">
+        {{ ui.icon('search', 13) }}
+        <input type="search" class="v30-input" data-v30-jobs-search placeholder="Rechercher un poste, une entreprise…">
+      </label>
+      <div class="actus-contract-pills" role="group" aria-label="Filtrer par type de contrat">
+        <button type="button" class="v30-chip" data-v30-contract="CDI"><input type="checkbox"><span>CDI</span></button>
+        <button type="button" class="v30-chip" data-v30-contract="CDD"><input type="checkbox"><span>CDD</span></button>
+        <button type="button" class="v30-chip" data-v30-contract="STAGE"><input type="checkbox"><span>Stage</span></button>
+        <button type="button" class="v30-chip" data-v30-contract="ALTERNANCE"><input type="checkbox"><span>Alternance</span></button>
+        <button type="button" class="v30-chip" data-v30-contract="FREELANCE"><input type="checkbox"><span>Freelance</span></button>
+      </div>
+      <div class="actus-sort-toggle segmented" role="tablist" aria-label="Tri">
+        <button type="button" class="active" data-v30-sort="date" role="tab" aria-selected="true">Date</button>
+        <button type="button" data-v30-sort="title" role="tab" aria-selected="false">A→Z</button>
+      </div>
+      <div class="actus-sort-toggle segmented" role="tablist" aria-label="Vue">
+        <button type="button" class="active" data-v30-view="all" role="tab" aria-selected="true">Toutes</button>
+        <button type="button" data-v30-view="favoris" role="tab" aria-selected="false">{{ ui.icon('bookmark', 12) }} Favoris</button>
+      </div>
+    </div>
+
+    <div class="actus-jobs" data-v30-jobs>
+      <div class="actus-skeleton" aria-hidden="true">
+        <div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div>
+      </div>
+    </div>
+    <div class="actus-empty" data-v30-jobs-empty hidden>
+      Aucune offre pour ces filtres. Élargissez la région ou retirez un filtre contrat.
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="/static/js/v30/actus.js?v={{ static_hash('js/v30/actus.js') }}"></script>
+{% endblock %}
