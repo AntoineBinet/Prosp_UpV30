@@ -1077,6 +1077,215 @@
     });
   }
 
+  // ─── Bulk enrichissement IA (Tavily + Ollama + géocodage) ─
+  var BULK_ENRICH = { ids: [], running: false, abort: false };
+
+  function getBulkEnrichEls() {
+    var m = getModal('ent-enrich-bulk');
+    if (!m) return null;
+    return {
+      modal: m,
+      intro: m.querySelector('[data-v30-ent-enrich-bulk-intro]'),
+      count: m.querySelector('[data-v30-ent-enrich-bulk-count]'),
+      geocode: m.querySelector('[data-v30-ent-enrich-bulk-geocode]'),
+      progress: m.querySelector('[data-v30-ent-enrich-bulk-progress]'),
+      progressText: m.querySelector('[data-v30-ent-enrich-bulk-progress-text]'),
+      progressBar: m.querySelector('[data-v30-ent-enrich-bulk-progress-bar]'),
+      current: m.querySelector('[data-v30-ent-enrich-bulk-current]'),
+      summary: m.querySelector('[data-v30-ent-enrich-bulk-summary]'),
+      okCount: m.querySelector('[data-v30-ent-enrich-bulk-ok]'),
+      geoCount: m.querySelector('[data-v30-ent-enrich-bulk-geo]'),
+      koCount: m.querySelector('[data-v30-ent-enrich-bulk-ko]'),
+      lines: m.querySelector('[data-v30-ent-enrich-bulk-lines]'),
+      startBtn: m.querySelector('[data-v30-ent-enrich-bulk-start]'),
+      stopBtn: m.querySelector('[data-v30-ent-enrich-bulk-stop]')
+    };
+  }
+
+  function openBulkEnrichModal(ids) {
+    BULK_ENRICH.ids = ids.slice();
+    BULK_ENRICH.running = false;
+    BULK_ENRICH.abort = false;
+    var els = getBulkEnrichEls();
+    if (!els) return;
+    if (els.count) els.count.textContent = String(ids.length);
+    if (els.progress) els.progress.hidden = true;
+    if (els.summary) els.summary.hidden = true;
+    if (els.lines) els.lines.textContent = '';
+    if (els.progressBar) els.progressBar.style.width = '0%';
+    if (els.progressText) els.progressText.textContent = '0 / ' + ids.length + ' traitées';
+    if (els.current) els.current.textContent = '';
+    if (els.startBtn) { els.startBtn.disabled = false; els.startBtn.hidden = false; els.startBtn.textContent = 'Lancer'; }
+    if (els.stopBtn) els.stopBtn.hidden = true;
+    openModal(els.modal);
+  }
+
+  // Pour chaque company : enrich → applique champs non-vides et différents → géocode si demandé.
+  function processBulkEnrich(els, doGeocode) {
+    var total = BULK_ENRICH.ids.length;
+    var i = 0, ok = 0, geo = 0, ko = 0;
+    var logLines = [];
+
+    function appendLog(line) {
+      logLines.push(line);
+      if (els.lines) {
+        els.lines.textContent = logLines.join('\n');
+        els.lines.scrollTop = els.lines.scrollHeight;
+      }
+    }
+
+    function updateProgress(label) {
+      var pct = total ? Math.round((i / total) * 100) : 0;
+      if (els.progressBar) els.progressBar.style.width = pct + '%';
+      if (els.progressText) els.progressText.textContent = i + ' / ' + total + ' traitées';
+      if (els.current) els.current.textContent = label || '';
+    }
+
+    function finish() {
+      BULK_ENRICH.running = false;
+      if (els.okCount) els.okCount.textContent = String(ok);
+      if (els.geoCount) els.geoCount.textContent = String(geo);
+      if (els.koCount) els.koCount.textContent = String(ko);
+      if (els.summary) els.summary.hidden = false;
+      if (els.startBtn) { els.startBtn.disabled = true; els.startBtn.hidden = true; }
+      if (els.stopBtn) els.stopBtn.hidden = true;
+      if (els.current) els.current.textContent = BULK_ENRICH.abort ? 'Arrêté' : 'Terminé';
+      toast(ok + ' enrichie(s)' + (geo ? ', ' + geo + ' géocodée(s)' : '') + (ko ? ', ' + ko + ' échec(s)' : ''),
+            ko ? 'warning' : 'success');
+      reload();
+    }
+
+    function step() {
+      if (BULK_ENRICH.abort || i >= total) return finish();
+      var id = BULK_ENRICH.ids[i];
+      var row = STATE.companies.filter(function (c) { return c.id === id; })[0] || {};
+      var label = row.groupe || ('Entreprise ' + id);
+      updateProgress('Enrichissement : ' + label);
+
+      fetchPost('/api/companies/' + encodeURIComponent(id) + '/enrich', {})
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
+          var fields = res.fields || {};
+          // N'écrase pas les champs déjà renseignés côté DB — ne push que les champs vides actuellement
+          var payload = { id: id };
+          var pushed = [];
+          Object.keys(fields).forEach(function (k) {
+            var v = fields[k];
+            if (v == null) return;
+            var s = String(v).trim();
+            if (!s) return;
+            var current = row[k];
+            var curStr = current == null ? '' : String(current).trim();
+            if (curStr) return; // ne pas écraser
+            payload[k] = s;
+            pushed.push(k);
+          });
+          if (!pushed.length) {
+            appendLog('· ' + label + ' : aucun champ vide à compléter');
+            return null;
+          }
+          appendLog('✓ ' + label + ' : ' + pushed.join(', '));
+          return fetchPost('/api/company/update', payload).then(function () { return payload; });
+        })
+        .then(function (payload) {
+          if (!doGeocode) return null;
+          // Géocoder si l'IA a fourni une nouvelle adresse OU si l'entreprise a
+          // déjà une adresse mais pas de coords (cas « Compléter la carte »).
+          var newAddress = payload && (('address' in payload) || ('city' in payload));
+          var hasAnyAddress = newAddress
+            || (row.address && String(row.address).trim())
+            || (row.city && String(row.city).trim());
+          var alreadyGeocoded = (row.latitude != null && row.longitude != null) && !newAddress;
+          if (!hasAnyAddress || alreadyGeocoded) return null;
+          updateProgress('Géocodage : ' + label);
+          return fetchPost('/api/map/geocode', { entity: 'company', id: id })
+            .then(function (g) {
+              if (g && g.ok && (g.latitude != null || g.lat != null)) {
+                geo++;
+                appendLog('  ↳ géocodée (' + (g.lat != null ? g.lat.toFixed(4) : g.latitude) + ', ' + (g.lon != null ? g.lon.toFixed(4) : g.longitude) + ')');
+              } else {
+                appendLog('  ↳ géocodage : adresse introuvable');
+              }
+            })
+            .catch(function (e) {
+              var msg = e && e.message ? e.message : String(e);
+              if (msg.indexOf('404') >= 0) {
+                appendLog('  ↳ géocodage : adresse introuvable');
+              } else {
+                appendLog('  ↳ géocodage échoué : ' + msg);
+              }
+            });
+        })
+        .then(function () { ok++; })
+        .catch(function (err) {
+          ko++;
+          appendLog('✗ ' + label + ' : ' + (err && err.message ? err.message : err));
+        })
+        .then(function () {
+          i++;
+          updateProgress('');
+          // Pause 800 ms entre 2 entreprises pour souffler Tavily/Ollama
+          setTimeout(step, 800);
+        });
+    }
+    step();
+  }
+
+  function bindBulkEnrich() {
+    document.addEventListener('click', function (e) {
+      var start = e.target.closest('[data-v30-ent-enrich-bulk-start]');
+      if (start) {
+        if (BULK_ENRICH.running) return;
+        if (!BULK_ENRICH.ids.length) { toast('Aucune entreprise à enrichir', 'warning'); return; }
+        var els = getBulkEnrichEls();
+        if (!els) return;
+        var doGeocode = !!(els.geocode && els.geocode.checked);
+        BULK_ENRICH.running = true;
+        BULK_ENRICH.abort = false;
+        if (els.progress) els.progress.hidden = false;
+        if (els.summary) els.summary.hidden = true;
+        if (els.lines) els.lines.textContent = '';
+        if (start) { start.disabled = true; start.textContent = 'En cours…'; }
+        if (els.stopBtn) els.stopBtn.hidden = false;
+        processBulkEnrich(els, doGeocode);
+        return;
+      }
+      var stop = e.target.closest('[data-v30-ent-enrich-bulk-stop]');
+      if (stop && BULK_ENRICH.running) {
+        BULK_ENRICH.abort = true;
+        stop.disabled = true;
+        stop.textContent = 'Arrêt…';
+      }
+    });
+  }
+
+  // ─── « Compléter la carte » : enrichit les entreprises sans lat/lng ───
+  function bindFillMap() {
+    var btn = $('[data-v30-ent-fill-map]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      // Filtre les entreprises non géocodées (latitude ou longitude null/absent)
+      var missing = (STATE.companies || []).filter(function (c) {
+        return c && (c.latitude == null || c.longitude == null);
+      });
+      if (!missing.length) {
+        toast('Toutes les entreprises sont déjà géocodées', 'info');
+        return;
+      }
+      var hasAddress = missing.filter(function (c) {
+        return (c.address && String(c.address).trim()) || (c.city && String(c.city).trim());
+      }).length;
+      var ok = window.confirm(
+        missing.length + ' entreprise(s) sans coordonnées sur la carte.\n' +
+        'Dont ' + hasAddress + ' avec une adresse partielle.\n\n' +
+        'Lancer l\'enrichissement IA + géocodage ?\n' +
+        '(env. 30–60 sec par entreprise — peut prendre du temps)'
+      );
+      if (!ok) return;
+      openBulkEnrichModal(missing.map(function (c) { return c.id; }));
+    });
+  }
+
   // ─── Export ──────────────────────────────────────────────
   function bindExport() {
     var btn = $('[data-v30-ent-export]');
@@ -1114,7 +1323,9 @@
         return;
       }
       if (!ids.length) { toast('Aucune sélection', 'warning'); return; }
-      if (action === 'merge') {
+      if (action === 'enrich-ai') {
+        openBulkEnrichModal(ids);
+      } else if (action === 'merge') {
         if (ids.length !== 2) { toast('Sélectionne exactement 2 entreprises', 'warning'); return; }
         STATE.mergeCtx = { keep: ids[0], merge: ids[1] };
         var m = getModal('ent-merge');
@@ -1210,6 +1421,8 @@
     bindAdd();
     bindEdit();
     bindEnrich();
+    bindBulkEnrich();
+    bindFillMap();
     bindFilters();
     bindExport();
     bindBulk();

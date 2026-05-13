@@ -2,6 +2,34 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.62] — 2026-05-13 · Entreprises · Scrapping IA en masse + Compléter la carte
+
+- **Bouton « Scrapping IA » dans la bulk bar** : sélectionne plusieurs
+  entreprises et lance l'enrichissement IA séquentiel (pattern repris du
+  bulk-enrich prospects).
+- **Bouton « Compléter la carte »** dans le header de la page Entreprises :
+  identifie automatiquement toutes les entreprises sans coordonnées GPS
+  (`latitude` ou `longitude` à null) et propose de les enrichir + géocoder
+  en un clic. Cas d'usage principal : remplir la carte qui apparaît vide
+  parce que les adresses ne sont pas renseignées.
+- **Modale bulk dédiée** (`ent-enrich-bulk`) avec :
+  - compteur d'entreprises à traiter,
+  - case « Géocoder après enrichissement » (cochée par défaut),
+  - barre de progression temps réel + ligne « entreprise en cours »,
+  - log détaillé par ligne (✓ champs ajoutés, ↳ statut géocodage, ✗ erreurs),
+  - bouton « Arrêter » pour interrompre proprement la boucle.
+- **Comportement non-destructif** : pour chaque entreprise, seuls les champs
+  **actuellement vides** côté DB sont écrasés. Si tout est déjà rempli mais
+  pas de coords → on tente quand même le géocodage avec l'adresse existante.
+- **Géocodage automatique** : appel à `POST /api/map/geocode` (Nominatim OSM,
+  1 req/s côté serveur) après chaque enrichissement réussi qui ajoute une
+  adresse OU pour toute entreprise sans coords mais déjà adressée.
+- **Pause inter-requête** : 800 ms entre 2 entreprises pour souffler
+  Tavily / Ollama. Compter ~30–60 sec par entreprise (durée affichée dans
+  l'intro de la modale).
+- **Toile d'araignée** : 2 nouvelles actions ajoutées
+  (`Scrapping IA en masse`, `Compléter la carte`).
+
 ## [32.61] — 2026-05-13 · Entreprises · Scrapping IA (Tavily + Ollama)
 
 - **Bouton « Scrapping IA »** dans la modale d'édition d'une entreprise,
