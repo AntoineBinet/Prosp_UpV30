@@ -194,6 +194,86 @@ def init_schema() -> None:
 DEFAULT_REGION_FALLBACK = "ara"  # Auvergne-Rhône-Alpes / Lyon
 
 
+# Config sources d'annonces (Adzuna, Jobfly…) persistée dans
+# data/actus_config.json — gitignored au même titre que data/ai_config.json.
+# Lecture : valeurs du fichier en priorité, variables d'env en fallback.
+from config import DATA_DIR as _DATA_DIR  # noqa: E402
+
+_SOURCES_CONFIG_FILE = _DATA_DIR / "actus_config.json"
+_sources_config_cache: dict | None = None
+
+
+def _sources_config_defaults() -> dict:
+    return {
+        "adzuna_app_id": os.environ.get("ADZUNA_APP_ID", ""),
+        "adzuna_app_key": os.environ.get("ADZUNA_APP_KEY", ""),
+        "adzuna_enabled": bool(os.environ.get("ADZUNA_APP_ID") and os.environ.get("ADZUNA_APP_KEY")),
+        "jobfly_api_url": os.environ.get("JOBFLY_API_URL", ""),
+        "jobfly_token": os.environ.get("JOBFLY_TOKEN", ""),
+        "jobfly_enabled": bool(os.environ.get("JOBFLY_API_URL")),
+    }
+
+
+def load_sources_config() -> dict:
+    """Charge la config sources d'annonces (cache mémoire + fichier).
+    Les variables d'environnement servent de défaut si le fichier n'existe
+    pas ou si la clé y est vide."""
+    global _sources_config_cache
+    if _sources_config_cache is not None:
+        return _sources_config_cache
+    cfg = _sources_config_defaults()
+    if _SOURCES_CONFIG_FILE.exists():
+        try:
+            with open(_SOURCES_CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f) or {}
+            for k, v in saved.items():
+                if v is not None and v != "":
+                    cfg[k] = v
+        except Exception as exc:
+            logger.warning("Actus sources config load: %s", exc)
+    _sources_config_cache = cfg
+    return cfg
+
+
+def save_sources_config(updates: dict) -> dict:
+    """Persiste les clés autorisées du dict `updates` dans
+    `data/actus_config.json`. Retourne la config résultante (avec secrets
+    masqués via `mask_sources_config()` au choix de l'appelant)."""
+    global _sources_config_cache
+    allowed = {"adzuna_app_id", "adzuna_app_key", "adzuna_enabled",
+               "jobfly_api_url", "jobfly_token", "jobfly_enabled"}
+    current = load_sources_config().copy()
+    for k, v in (updates or {}).items():
+        if k in allowed:
+            if k.endswith("_enabled"):
+                current[k] = bool(v)
+            else:
+                current[k] = (v or "").strip() if isinstance(v, str) else v
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_SOURCES_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(current, f, ensure_ascii=False, indent=2)
+    _sources_config_cache = current
+    return current
+
+
+def mask_sources_config(cfg: dict) -> dict:
+    """Masque les secrets pour exposition côté UI (ne révèle que le
+    dernier triplet de caractères des clés/tokens)."""
+    out = dict(cfg)
+    for k in ("adzuna_app_key", "jobfly_token"):
+        v = out.get(k) or ""
+        if v:
+            tail = v[-3:] if len(v) > 6 else "***"
+            out[k + "_masked"] = "•" * max(0, len(v) - 3) + tail
+        else:
+            out[k + "_masked"] = ""
+        out[k + "_set"] = bool(v)
+        out[k] = ""  # ne jamais renvoyer en clair
+    out["adzuna_app_id_set"] = bool(out.get("adzuna_app_id"))
+    out["jobfly_api_url_set"] = bool(out.get("jobfly_api_url"))
+    return out
+
+
 def get_default_region() -> str:
     """Retourne la région par défaut configurée. Fallback `ara` si absent."""
     val = _get_meta("default_region")
@@ -538,25 +618,31 @@ class JobSource:
 class AdzunaSource(JobSource):
     """Adapter Adzuna (https://developer.adzuna.com/). Free tier 1000 calls/mois.
 
-    Requiert deux variables d'environnement :
-    - ADZUNA_APP_ID
-    - ADZUNA_APP_KEY
-
-    Si absentes, la source se déclare inutilisable (cf. `available`).
+    Identifiants lus depuis `data/actus_config.json` (configurables via
+    Paramètres > Sources d'annonces) ; à défaut, les variables d'environnement
+    `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` servent de fallback.
     """
 
     name = "Adzuna"
     BASE = "https://api.adzuna.com/v1/api/jobs/fr/search/1"
 
+    def _creds(self) -> tuple[str, str, bool]:
+        cfg = load_sources_config()
+        return (
+            (cfg.get("adzuna_app_id") or "").strip(),
+            (cfg.get("adzuna_app_key") or "").strip(),
+            bool(cfg.get("adzuna_enabled", True)),
+        )
+
     @property
     def available(self) -> bool:
-        return bool(os.environ.get("ADZUNA_APP_ID") and os.environ.get("ADZUNA_APP_KEY"))
+        app_id, app_key, enabled = self._creds()
+        return enabled and bool(app_id and app_key)
 
     def fetch(self, queries: Iterable[str], region: str) -> list[dict]:
-        if not self.available:
+        app_id, app_key, enabled = self._creds()
+        if not (enabled and app_id and app_key):
             return []
-        app_id = os.environ["ADZUNA_APP_ID"]
-        app_key = os.environ["ADZUNA_APP_KEY"]
         out: list[dict] = []
         for q in queries:
             params = {
@@ -676,7 +762,7 @@ class DemoSource(JobSource):
                 "company": s["company"],
                 "location": s["location"],
                 "contract_type": s["contract"],
-                "description": "Offre de démonstration. Configurez une source réelle (ADZUNA_APP_ID/KEY) pour des données live.",
+                "description": "Offre de démonstration. Configurez Adzuna ou Jobfly depuis Paramètres > Sources d'annonces pour des données live.",
                 "salary": "",
                 "source": self.name,
                 "posted_at": now,
@@ -686,23 +772,31 @@ class DemoSource(JobSource):
 
 class JobflyAdapter(JobSource):
     """Placeholder pour brancher une vraie source Jobfly si jamais elle
-    devient disponible. À ce jour, aucun service public clair n'expose
-    d'API/RSS sous ce nom. Implémenter `fetch()` ci-dessous quand on aura
-    la doc/URL/clé.
+    devient disponible. URL/Token lus depuis `data/actus_config.json`
+    (configurables via Paramètres > Sources d'annonces), fallback env
+    `JOBFLY_API_URL` / `JOBFLY_TOKEN`.
     """
 
     name = "Jobfly"
 
+    def _creds(self) -> tuple[str, str, bool]:
+        cfg = load_sources_config()
+        return (
+            (cfg.get("jobfly_api_url") or "").strip(),
+            (cfg.get("jobfly_token") or "").strip(),
+            bool(cfg.get("jobfly_enabled", True)),
+        )
+
     @property
     def available(self) -> bool:
-        # Activable via une variable d'env quand la doc Jobfly sera connue.
-        return bool(os.environ.get("JOBFLY_API_URL"))
+        url, _, enabled = self._creds()
+        return enabled and bool(url)
 
     def fetch(self, queries: Iterable[str], region: str) -> list[dict]:
-        if not self.available:
+        url0, token, enabled = self._creds()
+        if not (enabled and url0):
             return []
-        base = os.environ["JOBFLY_API_URL"].rstrip("/")
-        token = os.environ.get("JOBFLY_TOKEN", "")
+        base = url0.rstrip("/")
         out: list[dict] = []
         for q in queries:
             params = {"q": q}

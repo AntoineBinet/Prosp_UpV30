@@ -1878,10 +1878,115 @@
     }, 100);
   }
 
+  // ─── Sources d'annonces (Actus — Adzuna / Jobfly) ───────────
+  function bindActusSources() {
+    var card = document.querySelector('[data-v30-actus-sources]');
+    if (!card) return;
+    var $id     = card.querySelector('[data-v30-actus-adzuna-id]');
+    var $key    = card.querySelector('[data-v30-actus-adzuna-key]');
+    var $adzEn  = card.querySelector('[data-v30-actus-adzuna-enabled]');
+    var $url    = card.querySelector('[data-v30-actus-jobfly-url]');
+    var $tok    = card.querySelector('[data-v30-actus-jobfly-token]');
+    var $jbfEn  = card.querySelector('[data-v30-actus-jobfly-enabled]');
+    var $save   = card.querySelector('[data-v30-actus-sources-save]');
+    var $status = card.querySelector('[data-v30-actus-sources-status]');
+    var $tests  = Array.from(card.querySelectorAll('[data-v30-actus-sources-test]'));
+
+    function status(msg, ok) {
+      if (!$status) return;
+      $status.textContent = msg || '';
+      $status.style.color = ok === false ? 'var(--danger, #dc2626)'
+                          : ok === true  ? 'var(--success, #16a34a)'
+                          : '';
+    }
+
+    function load() {
+      fetch('/api/actus/sources-config', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { status(d.error || 'Erreur de chargement', false); return; }
+          var c = d.config || {};
+          if ($id)    $id.value    = c.adzuna_app_id || '';
+          if ($key)   $key.placeholder = c.adzuna_app_key_set ? ('Clé enregistrée : ' + (c.adzuna_app_key_masked || '••••')) : 'Aucune clé enregistrée';
+          if ($adzEn) $adzEn.checked = !!c.adzuna_enabled;
+          if ($url)   $url.value   = c.jobfly_api_url || '';
+          if ($tok)   $tok.placeholder = c.jobfly_token_set ? ('Token enregistré : ' + (c.jobfly_token_masked || '••••')) : 'Aucun token enregistré';
+          if ($jbfEn) $jbfEn.checked = !!c.jobfly_enabled;
+        })
+        .catch(function (e) { status('Erreur : ' + e.message, false); });
+    }
+
+    function save() {
+      var body = {
+        adzuna_app_id: $id ? $id.value.trim() : '',
+        adzuna_enabled: $adzEn ? !!$adzEn.checked : false,
+        jobfly_api_url: $url ? $url.value.trim() : '',
+        jobfly_enabled: $jbfEn ? !!$jbfEn.checked : false
+      };
+      // Secrets : seulement envoyés s'ils sont remplis (sinon on conserve l'existant)
+      if ($key && $key.value.trim()) body.adzuna_app_key = $key.value.trim();
+      if ($tok && $tok.value.trim()) body.jobfly_token   = $tok.value.trim();
+
+      status('Enregistrement…');
+      fetch('/api/actus/sources-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { status(d.error || 'Erreur', false); return; }
+          status('Enregistré', true);
+          if ($key) $key.value = '';
+          if ($tok) $tok.value = '';
+          if (window.showToast) window.showToast('Sources d\'annonces enregistrées', 'success');
+          load();
+        })
+        .catch(function (e) { status('Erreur : ' + e.message, false); });
+    }
+
+    function test(source) {
+      status('Test ' + source + '…');
+      fetch('/api/actus/sources-test', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: source })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { status(source + ' : ' + (d.error || 'KO'), false); return; }
+          var sample = d.sample ? ' — ex: ' + (d.sample.title || '?').substring(0, 50) : '';
+          status(source + ' OK · ' + d.count + ' résultat' + (d.count > 1 ? 's' : '') + sample, true);
+        })
+        .catch(function (e) { status(source + ' : ' + e.message, false); });
+    }
+
+    if ($save) $save.addEventListener('click', save);
+    $tests.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        test(btn.getAttribute('data-v30-actus-sources-test'));
+      });
+    });
+
+    // Lazy-load au premier déploiement du <details>.
+    card.addEventListener('toggle', function () {
+      if (card.open && !card.dataset.loaded) {
+        card.dataset.loaded = '1';
+        load();
+      }
+    });
+    // Charge aussi immédiatement si la carte est ouverte au boot (deep-link).
+    if (card.open) {
+      card.dataset.loaded = '1';
+      load();
+    }
+  }
+
   function bind() {
     bindTabs();
     bindDeploy();
     bindAi();
+    bindActusSources();
     bindGoals();
     bindKpi();
     bindCalSync();
