@@ -316,11 +316,28 @@
 
         {# ─── Adzuna ─── #}
         <h4 class="v30-params__scope-title">Adzuna</h4>
-        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
-          Free tier 1 000 appels / mois — inscription sur
-          <a href="https://developer.adzuna.com/" target="_blank" rel="noopener">developer.adzuna.com</a>
-          (App ID + App Key).
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:6px;">
+          Free tier 1 000 appels / mois. Inscription gratuite, App ID + App Key
+          disponibles immédiatement.
         </p>
+        <div class="v30-params__btn-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <a class="btn btn-ghost btn-sm" href="https://developer.adzuna.com/signup"
+             target="_blank" rel="noopener" title="Créer un compte développeur Adzuna">
+            {{ ui.icon('plus', 13) }} Créer un compte
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://developer.adzuna.com/admin/access-details"
+             target="_blank" rel="noopener" title="Récupérer App ID et App Key">
+            {{ ui.icon('star', 13) }} Mes credentials
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://developer.adzuna.com/docs/search"
+             target="_blank" rel="noopener" title="Documentation de l'API search">
+            {{ ui.icon('file', 13) }} Documentation
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://www.adzuna.fr/"
+             target="_blank" rel="noopener" title="Site Adzuna France">
+            {{ ui.icon('link', 13) }} adzuna.fr
+          </a>
+        </div>
 
         <div class="v30-params__grid-2">
           <div class="v30-params__field">
@@ -344,11 +361,24 @@
         {# ─── Jobfly ─── #}
         <div class="v30-params__divider"></div>
         <h4 class="v30-params__scope-title">Jobfly</h4>
-        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
-          Si vous disposez d'un accès Jobfly (URL d'API + token Bearer), renseignez
-          les credentials ici. Adapter générique — la première fonction qui retourne
-          des résultats gagne.
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:6px;">
+          Adapter générique. Si vous disposez d'un accès Jobfly (URL d'API + token Bearer),
+          saisissez-les ici. La première source qui renvoie des résultats gagne.
         </p>
+        <div class="v30-params__btn-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <a class="btn btn-ghost btn-sm" href="https://jobfly.io/"
+             target="_blank" rel="noopener" title="Site officiel Jobfly">
+            {{ ui.icon('link', 13) }} jobfly.io
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://jobfly.io/contact"
+             target="_blank" rel="noopener" title="Demander un accès API à Jobfly">
+            {{ ui.icon('mail', 13) }} Contact / Accès API
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://jobfly.io/login"
+             target="_blank" rel="noopener" title="Se connecter à Jobfly">
+            {{ ui.icon('user', 13) }} Se connecter
+          </a>
+        </div>
 
         <div class="v30-params__grid-2">
           <div class="v30-params__field">
