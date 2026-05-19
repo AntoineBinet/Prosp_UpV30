@@ -2,6 +2,25 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.76] — 2026-05-19 · Mode Prosp respecte le tri + filtres du tableau Prospects
+
+- **Mode Prosp — ordre fidèle au tableau** : le deck reprend désormais la
+  sélection (ou la liste complète si rien n'est coché) **dans l'ordre du
+  tri actif** de la page `/v30/prospects` ET en appliquant tous les
+  filtres en vigueur (statut, tags, pertinence, relance, recherche,
+  vues sauvegardées…). Avant, deux régressions cumulées :
+  1. avec une sélection, les IDs partaient dans l'ordre des cases
+     cochées (insertion du `Set`) — pas l'ordre du tableau ;
+  2. côté `mode_prosp.js`, un tri automatique par Score IA décroissant
+     écrasait l'ordre reçu du backend (introduit en Phase 3 / v32.67).
+- **Fix** : `bindModeProsp` (`static/js/v30/prospects.js`) part toujours
+  de `STATE.filteredAll` (liste filtrée+triée) et, si sélection, filtre
+  par `STATE.selected.has(id)` en conservant l'ordre. `mode_prosp.js`
+  ne re-trie plus, l'API `/api/mode-prosp/data` retourne déjà les
+  prospects dans l'ordre d'envoi (`prospects_list = [p_map[i] for i in ids]`).
+- **Toile d'araignée** : entrée "Tri par score IA dans Mode Prosp" remplacée
+  par "Mode Prosp respecte le tri + filtres du tableau".
+
 ## [32.75] — 2026-05-19 · Fiche entretien EC1 export Excel + pièces jointes candidat
 
 - **Fiche entretien EC1 — export Excel pré-rempli** : nouveau bouton
