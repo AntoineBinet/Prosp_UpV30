@@ -2,6 +2,32 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.65] — 2026-05-19 · Carte · Géocodage en masse avec fallbacks
+
+- **Plus d'« erreur » pour les grands groupes type EDF, JTEKT…** dont
+  l'adresse contient un nom de bâtiment ou de campus (« Tour EDF »,
+  « Cœur Défense »…) que Nominatim n'indexe pas en tant qu'adresse
+  postale standard.
+- **Chaîne de repli** dans `routes/map.py::_company_queries()` /
+  `_prospect_queries()` — la 1re requête qui répond gagne :
+  1. `adresse, ville, pays` (variante historique)
+  2. `adresse` seule (cas où elle contient déjà code postal + ville)
+  3. `site, ville, pays` (campus connus de Nominatim)
+  4. `nom_société, ville, pays` (Nominatim connaît EDF, Total…)
+  5. `ville, pays` (dernier recours : marqueur sur le centre-ville
+     plutôt qu'une erreur).
+- **Normalisation des champs adresse** : sauts de ligne, tabulations et
+  espaces multiples remplacés par `, ` avant d'envoyer la requête
+  (évite des échecs sur des adresses multi-lignes copiées).
+- **Visibilité des essais** côté UI :
+  - les entrées **erreur** affichent en muted la 1re requête tentée
+    (avec toutes les variantes en `title` au survol),
+  - les entrées **succès via repli** sont marquées `≈ requête utilisée`
+    pour distinguer un marqueur « à l'adresse » d'un marqueur
+    « centre-ville approximatif ».
+- **Endpoint single-shot** `POST /api/map/geocode` : retourne désormais
+  la liste `tried[]` en cas de 404, pour faciliter le debug.
+
 ## [32.64] — 2026-05-19 · Besoins · 2 nouveaux statuts candidat (Présenté / Démarré)
 
 - **Statuts candidat enrichis** sur la fiche Traitement Besoin : ajout de
