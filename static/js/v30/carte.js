@@ -330,7 +330,25 @@
               const li = document.createElement('li');
               li.className = 'v30-carte__bulk-log-item v30-carte__bulk-log-item--' + (ev.status || '');
               const dot = ev.status === 'ok' ? '✓' : ev.status === 'skip' ? '·' : '×';
-              li.innerHTML = `<span class="v30-carte__bulk-log-dot">${dot}</span> <span>${escapeHtml(ev.name || '—')}</span>`;
+              // Détail : requête utilisée (succès) ou tentatives échouées (erreur)
+              let detail = '';
+              let titleAttr = '';
+              if (ev.status === 'ok' && ev.fallback && ev.query) {
+                detail = ` <span class="muted" style="font-size:11px;">≈ ${escapeHtml(ev.query)}</span>`;
+                titleAttr = ` title="Adresse exacte introuvable — marqueur posé sur : ${escapeHtml(ev.query)}"`;
+              } else if (ev.status === 'error') {
+                const tried = Array.isArray(ev.tried) ? ev.tried : (ev.query ? [ev.query] : []);
+                if (tried.length) {
+                  const summary = tried[0];
+                  detail = ` <span class="muted" style="font-size:11px;">— ${escapeHtml(summary)}</span>`;
+                  titleAttr = ` title="Aucune correspondance Nominatim pour : ${escapeHtml(tried.join(' | '))}"`;
+                } else if (ev.reason === 'no_address') {
+                  detail = ` <span class="muted" style="font-size:11px;">— aucune adresse</span>`;
+                }
+              } else if (ev.status === 'skip') {
+                detail = ` <span class="muted" style="font-size:11px;">— aucune adresse</span>`;
+              }
+              li.innerHTML = `<span class="v30-carte__bulk-log-dot"${titleAttr}>${dot}</span> <span${titleAttr}>${escapeHtml(ev.name || '—')}${detail}</span>`;
               $log.prepend(li);
               while ($log.children.length > 80) $log.removeChild($log.lastChild);
             }

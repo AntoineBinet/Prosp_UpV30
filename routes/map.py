@@ -17,6 +17,7 @@ Le geocoding utilise Nominatim (OSM, gratuit). Politique d'usage :
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 import urllib.error
@@ -92,20 +93,114 @@ def _geocode(query: str, *, timeout: float = 15.0) -> tuple[float, float] | None
         return None
 
 
+def _clean_part(value) -> str:
+    """Nettoie une portion d'adresse : retire sauts de ligne, espaces multiples."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    # Sauts de ligne / tabs -> virgule + espace (cas champ multi-ligne)
+    s = re.sub(r"[\r\n\t]+", ", ", s)
+    # Espaces multiples -> un seul
+    s = re.sub(r"\s+", " ", s)
+    # Virgules consécutives ", , " -> ", "
+    s = re.sub(r"(\s*,\s*){2,}", ", ", s)
+    return s.strip(" ,")
+
+
+def _build_query(*parts) -> str:
+    """Concatène des fragments d'adresse non vides séparés par ', '."""
+    cleaned = [_clean_part(p) for p in parts]
+    return ", ".join(p for p in cleaned if p)
+
+
+def _company_queries(row: dict) -> list[str]:
+    """Liste ordonnée de requêtes Nominatim à tenter pour une entreprise,
+    de la plus précise à la plus générique. La première qui répond gagne.
+
+    Permet de géocoder même quand l'adresse contient un nom de bâtiment ou
+    un campus (ex. « Tour EDF, La Défense ») que Nominatim n'indexe pas.
+    """
+    address = row.get("address")
+    city = row.get("city")
+    country = row.get("country")
+    site = row.get("site")
+    groupe = row.get("groupe")
+    candidates: list[str] = []
+
+    def _add(q: str) -> None:
+        if q and q not in candidates:
+            candidates.append(q)
+
+    # 1) Variante historique : adresse + ville + pays
+    _add(_build_query(address, city, country))
+    # 2) Adresse seule (contient souvent déjà code postal + ville)
+    _add(_build_query(address))
+    # 3) Site + ville + pays (bâtiments/campus connus de Nominatim)
+    _add(_build_query(site, city, country))
+    # 4) Nom de la société + ville + pays (grands groupes type EDF, Total…)
+    _add(_build_query(groupe, city, country))
+    # 5) Ville + pays — dernier recours pour au moins poser le marqueur
+    #    sur la bonne ville plutôt que de remonter une erreur.
+    _add(_build_query(city, country))
+    return candidates
+
+
 def _company_query(row: dict) -> str:
-    parts = [row.get("address"), row.get("city"), row.get("country")]
-    return ", ".join(p for p in (str(x).strip() for x in parts if x) if p)
+    """Compat : retourne la requête principale (1re variante)."""
+    qs = _company_queries(row)
+    return qs[0] if qs else ""
+
+
+def _prospect_queries(row: dict) -> list[str]:
+    """Idem mais pour un prospect, avec fallback sur l'entreprise rattachée."""
+    candidates: list[str] = []
+
+    def _add(q: str) -> None:
+        if q and q not in candidates:
+            candidates.append(q)
+
+    address = row.get("address")
+    city = row.get("city")
+    country = row.get("country")
+    company_address = row.get("company_address")
+    company_city = row.get("company_city")
+    company_country = row.get("company_country")
+    company_name = row.get("company_name")
+
+    # Adresse propre du prospect
+    _add(_build_query(address, city, country))
+    _add(_build_query(address))
+    # Repli sur la boîte
+    _add(_build_query(company_address, company_city, company_country))
+    _add(_build_query(company_address))
+    _add(_build_query(company_name, company_city, company_country))
+    # Repli ville/pays prospect puis société
+    _add(_build_query(city, country))
+    _add(_build_query(company_city, company_country))
+    return candidates
 
 
 def _prospect_query(row: dict) -> str:
-    """Query pour un prospect. Si address/city/country du prospect manquent,
-    fallback sur ceux de l'entreprise rattachée."""
-    parts = [row.get("address"), row.get("city"), row.get("country")]
-    parts = [p for p in (str(x).strip() for x in parts if x) if p]
-    if parts:
-        return ", ".join(parts)
-    fb = [row.get("company_address"), row.get("company_city"), row.get("company_country")]
-    return ", ".join(p for p in (str(x).strip() for x in fb if x) if p)
+    """Compat : retourne la requête principale (1re variante)."""
+    qs = _prospect_queries(row)
+    return qs[0] if qs else ""
+
+
+def _geocode_with_fallbacks(
+    queries: list[str], *, timeout: float = 15.0
+) -> tuple[float, float, str] | None:
+    """Tente plusieurs requêtes dans l'ordre. Retourne (lat, lon, used_query)
+    dès le premier hit, sinon None. Chaque requête respecte le throttle 1 req/s
+    via le verrou global de _geocode().
+    """
+    for q in queries:
+        coords = _geocode(q, timeout=timeout)
+        if coords:
+            lat, lon = coords
+            return lat, lon, q
+    return None
 
 
 def _now_iso() -> str:
@@ -284,16 +379,17 @@ def api_map_geocode_one():
     with _conn() as conn:
         if entity == "company":
             row = conn.execute(
-                "SELECT id, groupe, address, city, country FROM companies "
+                "SELECT id, groupe, site, address, city, country FROM companies "
                 "WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
                 (ent_id, uid)
             ).fetchone()
             if not row:
                 return jsonify(ok=False, error="Entreprise introuvable"), 404
-            q = _company_query(dict(row))
+            queries = _company_queries(dict(row))
         else:
             row = conn.execute(
                 "SELECT p.id, p.name, p.address, p.city, p.country, "
+                "       c.groupe AS company_name, "
                 "       c.address AS company_address, c.city AS company_city, "
                 "       c.country AS company_country "
                 "FROM prospects p "
@@ -304,13 +400,17 @@ def api_map_geocode_one():
             ).fetchone()
             if not row:
                 return jsonify(ok=False, error="Prospect introuvable"), 404
-            q = _prospect_query(dict(row))
-        if not q:
+            queries = _prospect_queries(dict(row))
+        if not queries:
             return jsonify(ok=False, error="Aucune adresse exploitable"), 422
-        coords = _geocode(q)
-        if not coords:
-            return jsonify(ok=False, error="Adresse non trouvée"), 404
-        lat, lon = coords
+        result = _geocode_with_fallbacks(queries)
+        if not result:
+            return jsonify(
+                ok=False,
+                error="Adresse non trouvée",
+                tried=queries,
+            ), 404
+        lat, lon, used_query = result
         ts = _now_iso()
         if entity == "company":
             conn.execute(
@@ -325,7 +425,7 @@ def api_map_geocode_one():
                 (lat, lon, ts, ent_id, uid)
             )
         conn.commit()
-    return jsonify(ok=True, lat=lat, lon=lon, query=q)
+    return jsonify(ok=True, lat=lat, lon=lon, query=used_query, tried=queries)
 
 
 @map_bp.get("/api/map/geocode/bulk")
@@ -354,7 +454,7 @@ def api_map_geocode_bulk():
     with _conn() as conn:
         if entity in ("companies", "all"):
             rows = conn.execute(
-                "SELECT id, groupe, address, city, country FROM companies "
+                "SELECT id, groupe, site, address, city, country FROM companies "
                 "WHERE owner_id=? AND deleted_at IS NULL "
                 "  AND (latitude IS NULL OR longitude IS NULL) "
                 "  AND ((address IS NOT NULL AND address<>'') "
@@ -366,11 +466,12 @@ def api_map_geocode_bulk():
             for r in rows:
                 d = dict(r)
                 co_targets.append({"id": int(d["id"]), "name": d.get("groupe") or "—",
-                                   "query": _company_query(d)})
+                                   "queries": _company_queries(d)})
         remaining = max(0, limit - len(co_targets)) if entity == "all" else limit
         if entity in ("prospects", "all") and remaining > 0:
             rows = conn.execute(
                 "SELECT p.id, p.name, p.address, p.city, p.country, "
+                "       c.groupe AS company_name, "
                 "       c.address AS company_address, c.city AS company_city, "
                 "       c.country AS company_country "
                 "FROM prospects p "
@@ -391,7 +492,7 @@ def api_map_geocode_bulk():
             for r in rows:
                 d = dict(r)
                 pr_targets.append({"id": int(d["id"]), "name": d.get("name") or "—",
-                                   "query": _prospect_query(d)})
+                                   "queries": _prospect_queries(d)})
 
     total = len(co_targets) + len(pr_targets)
 
@@ -411,21 +512,22 @@ def api_map_geocode_bulk():
             *(("prospect", t) for t in pr_targets),
         ):
             idx += 1
-            q = target.get("query") or ""
-            if not q:
+            queries = target.get("queries") or []
+            if not queries:
                 skip_count += 1
                 yield _emit({"type": "progress", "i": idx, "total": total,
                              "kind": kind, "id": target["id"], "name": target["name"],
                              "status": "skip", "reason": "no_address"})
                 continue
-            coords = _geocode(q)
-            if not coords:
+            result = _geocode_with_fallbacks(queries)
+            if not result:
                 err_count += 1
                 yield _emit({"type": "progress", "i": idx, "total": total,
                              "kind": kind, "id": target["id"], "name": target["name"],
-                             "status": "error", "query": q})
+                             "status": "error", "reason": "not_found",
+                             "tried": queries})
                 continue
-            lat, lon = coords
+            lat, lon, used_query = result
             ts = _now_iso()
             try:
                 with _conn() as conn:
@@ -437,9 +539,14 @@ def api_map_geocode_bulk():
                     )
                     conn.commit()
                 ok_count += 1
+                # On signale au front quand on a dû tomber sur un repli moins
+                # précis (ex. ville seule) — utile pour distinguer un marqueur
+                # "à l'adresse" d'un marqueur "centre-ville approximatif".
+                fallback = used_query != queries[0]
                 yield _emit({"type": "progress", "i": idx, "total": total,
                              "kind": kind, "id": target["id"], "name": target["name"],
-                             "status": "ok", "lat": lat, "lon": lon})
+                             "status": "ok", "lat": lat, "lon": lon,
+                             "query": used_query, "fallback": fallback})
             except Exception as e:
                 err_count += 1
                 logger.warning("[map] persist failed kind=%s id=%s: %s",
