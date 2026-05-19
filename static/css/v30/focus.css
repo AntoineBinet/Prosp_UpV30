@@ -134,6 +134,63 @@
   margin-top: 2px;
 }
 
+/* ─── Bloc RDV à statuer (Phase 1 productivité) ───────────────────── */
+.v30-focus-rdv-review {
+  border-left: 3px solid var(--danger);
+}
+.v30-rdv-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.v30-rdv-review-row:first-child { border-top: none; }
+.v30-rdv-review-row__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.v30-rdv-review-row__info { min-width: 0; }
+.v30-rdv-review-row__name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-rdv-review-row__meta {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-rdv-review-row__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.v30-rdv-review-row__actions .btn { font-size: 12px; padding: 5px 10px; }
+.v30-rdv-review-row__actions .btn--tenu { background: var(--success); color: white; }
+.v30-rdv-review-row__actions .btn--noshow { background: var(--danger); color: white; }
+.v30-rdv-review-row__actions .btn--annule { background: var(--warning, #c47); color: white; }
+.v30-rdv-review-row__actions .btn--reprog { background: var(--accent); color: white; }
+.v30-rdv-review-row[data-busy="1"] { opacity: 0.55; pointer-events: none; }
+
+@media (max-width: 720px) {
+  .v30-rdv-review-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .v30-rdv-review-row__actions { justify-content: flex-start; }
+}
+
 /* ─── Modale choix numéro (phone picker) ─── */
 .v30-phone-picker__list {
   display: flex;

@@ -907,6 +907,12 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["bindPushRelances"], "endpoints": ["GET /api/push-logs/relance-reminders"], "backend": ["routes/push.py:api_push_logs_relance_reminders"]}},
                 {"label": "Supprimer tâche", "href": "/v30/focus",
                  "tools": {"handlers": ["onTaskDelete"], "endpoints": ["POST /api/tasks/delete"], "backend": ["routes/admin.py:api_tasks_delete"]}},
+                {"label": "RDV à statuer (workflow no-show)", "href": "/v30/focus",
+                 "tools": {"handlers": ["loadRdvReview", "renderRdvReview", "bindRdvReview"], "endpoints": ["GET /api/rdv/pending-review", "GET /api/dashboard"], "backend": ["routes/rdv_review.py:api_rdv_pending_review", "app.py:api_dashboard"]}},
+                {"label": "Statuer un RDV (tenu / no-show / annulé / reprog)", "href": "/v30/focus",
+                 "tools": {"handlers": ["bindRdvReview"], "endpoints": ["POST /api/rdv/<id>/review"], "backend": ["routes/rdv_review.py:api_rdv_review", "utils/ai_helpers.py:_call_ai"]}},
+                {"label": "Relance IA après no-show / annulé", "href": "/v30/focus",
+                 "tools": {"handlers": ["_openRelanceModal"], "endpoints": ["POST /api/rdv/<id>/review"], "backend": ["routes/rdv_review.py:_generate_relance_ai"]}},
             ],
         },
         {

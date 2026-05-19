@@ -142,6 +142,8 @@ API_GETS: list[str] = [
     "/api/ec1-checklist/themes",
     "/api/rdv-checklist/themes",
     "/api/rdv-checklist?prospect_id=1",
+    "/api/rdv/pending-review",
+    "/api/rdv/no-show-stats",
     "/api/ec1-checklist?candidate_id=1",
     "/api/export/day",
     "/api/export/xlsx",

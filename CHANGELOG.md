@@ -2,6 +2,36 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.65] — 2026-05-19 · Productivité Phase 1 · Workflow RDV no-show
+
+- **Nouvelle section « RDV à statuer »** dans `/v30/focus` : les RDV passés
+  au statut "Rendez-vous" qui n'ont pas encore été revus apparaissent en
+  tête, avec quatre actions inline — *Tenu* / *No-show* / *Annulé* /
+  *Reprogrammé*. Aucun modal bloquant : la section disparaît dès qu'il n'y
+  a plus rien à statuer.
+- **Outcome no-show / annulé** : statut auto basculé en *À rappeler*,
+  `nextFollowUp` repositionnée à J+3 (no-show) ou J+7 (annulé) jours
+  ouvrés, et l'IA locale rédige un email de relance (sujet + corps) avec
+  3 créneaux suggérés (J+5 / J+8 / J+12 ouvrés à 10:00). Aperçu dans une
+  modale : copier ou ouvrir dans le client mail. Pas d'envoi auto.
+- **Outcome reprogrammé** : statut maintenu *Rendez-vous*, `rdvDate`
+  effacée — l'utilisateur choisit un nouveau créneau dans le calendrier.
+- **Outcome tenu** : pas de bascule de statut, simple marquage *revu*.
+  L'utilisateur lance ensuite l'IA Après RDV depuis la fiche prospect.
+- **Badge notif topbar** : `RDV à statuer` ajouté au panneau cloche, le
+  compteur global ajoute la file de revue à `overdue + due_today + extras`.
+- **Schéma** : deux nouvelles colonnes sur `prospects` :
+  - `rdv_reviewed_at` (timestamp ISO de la revue, NULL = non revu),
+  - `rdv_outcome` (`tenu` / `no-show` / `annule` / `reprogramme`).
+  Migration appliquée à la DB principale et aux DB user.
+- **API** :
+  - `GET /api/rdv/pending-review` — liste les RDV à statuer.
+  - `POST /api/rdv/<id>/review` — applique l'outcome, retourne l'IA
+    relance + créneaux pour no-show / annulé.
+  - `GET /api/rdv/no-show-stats` — stats 30j (count par outcome,
+    distribution par jour de la semaine, taux no-show). Utilisé Phase 3.
+- **Toile** : 3 nouvelles actions sous *Focus* dans `_build_sitemap_data()`.
+
 ## [32.64] — 2026-05-19 · Besoins · 2 nouveaux statuts candidat (Présenté / Démarré)
 
 - **Statuts candidat enrichis** sur la fiche Traitement Besoin : ajout de
