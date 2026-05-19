@@ -80,7 +80,7 @@
         if (!isF1 && !isCtrlShiftH) return;
         e.preventDefault();
         var hash = window._helpSection ? '#' + window._helpSection : '';
-        window.location.href = '/help' + hash;
+        window.location.href = '/v30/help' + hash;
     });
 
     // Au chargement : décorer tous les éléments ayant data-help-section (après construction sidebar)

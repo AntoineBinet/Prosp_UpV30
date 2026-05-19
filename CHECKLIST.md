@@ -39,7 +39,7 @@
 - [x] **Calendrier** → `/v30/calendrier` (grille mois, nav < > Today, events RDV/relance/EC1)
 - [x] **Rapport** → `/v30/rapport` (topbar + KPI + activité + pipeline + notes WYSIWYG autosave)
 - [x] **Utilisateurs** → `/v30/users` (admin) : cartes + modale CRUD
-- [x] **Paramètres** → `/v30/parametres` : hub 8 cartes (opt-out v29 inclus)
+- [x] **Paramètres** → `/v30/parametres` : hub 8 cartes
 - [x] **Snapshots** → `/v30/snapshots` (admin) : liste + create/restore/delete
 - [x] **Activité** → `/v30/activity` (admin) : table filtrable paginée
 - [x] **Collaboration** → `/v30/collab` : hub 3 cartes
@@ -63,8 +63,8 @@
 - [ ] Toasts, skeletons, empty states cohérents
 - [ ] Responsive desktop 1440 (rien ne doit casser <1280)
 - [ ] Tests Playwright adaptés (14 specs)
-- [x] Flag UI client-only (localStorage `prospup_ui_mode`) + bouton `v29` dans la sidebar v30 + bannière opt-in sur les pages legacy + **redirect serveur + client vers v30 par défaut** (v30.1, escape hatch `?force_v29=1`).
-- [x] PR `feat/ui-v30` → `main` avec récap + captures light + dark (v30.1, voir docs/PARITE_V29_V30.md + docs/PR_v30.md)
+- [x] Migration complète vers v30 — interface unique, plus de fallback legacy.
+- [x] PR `feat/ui-v30` → `main` avec récap + captures light + dark.
 
 ## Étape 6 · Back-office
 
@@ -72,7 +72,7 @@
 - [x] Migration DB : table `push_campaigns` (+ index `owner_id`)
 - [x] Migration DB : tables `candidate_skills` (UNIQUE candidate_id+name, level 1-5) + `candidate_availability` (UNIQUE candidate_id+week_iso)
 - [x] Migration DB : `push_logs.campaign_id` (+ index)
-- [x] Backup automatique avant migration (`scripts/v30_backup.py` + `docs/ROLLBACK_V30.md`)
+- [x] Backup automatique avant migration (`scripts/v30_backup.py`).
 - [x] Endpoint `POST /api/views/save` (déjà présent) + nouveau `DELETE /api/views/<id>`
 - [x] Service Worker : refresh cache manifest avec nouveaux assets v30 (12 CSS + 15 JS)
 - [x] Endpoints `/api/push-campaigns` (CRUD + recipients-preview + send)

@@ -1,6 +1,8 @@
-# ProspUp v29.7
+# ProspUp
 
 CRM de prospection et sourcing pour ESN/ingénierie — Up Technologies.
+
+> Version courante : voir `APP_VERSION` dans `app.py` et [CHANGELOG.md](CHANGELOG.md).
 
 ## Fonctionnalités
 
@@ -51,17 +53,19 @@ Si l'accès est coupé :
 ## Structure du projet
 
 ```
-Prosp_UpV25/
-├── app.py                 # Backend Flask (~17500 lignes) — routes, API, auth, DB
-├── routes/                # Blueprints (ai.py, auth.py, deploy.py)
-├── services/              # Logique métier (dashboard_goals.py)
-├── templates/             # 20 pages HTML (Jinja2)
+Prosp_UpV30/
+├── app.py                 # Backend Flask monolithique — routes, API, auth, DB
+├── routes/                # Blueprints (pages, ai, auth, deploy, calendar, …)
+├── services/              # Logique métier (dashboard_goals, working_days, …)
+├── templates/
+│   ├── v30/               # Pages HTML (Jinja2) — toutes les vues
+│   └── _partials/v30/     # Partials (topbar, sidebar, palette, …)
 ├── static/
-│   ├── css/               # style.css, mobile.css, mode-prosp.css, dashboard-v2.css
-│   └── js/                # app.js + page-*.js (un fichier par page)
-├── scripts/               # Outils admin (supervisor, audit, watchdog…)
+│   ├── css/v30/           # Design system (tokens, components, *.css par page)
+│   └── js/v30/            # Scripts par page + helpers (toast, ollama, …)
+├── scripts/               # Outils admin (supervisor, audit, watchdog, …)
 ├── tests/
-│   ├── e2e/               # Tests Playwright (14 specs desktop + mobile)
+│   ├── e2e/               # Tests Playwright (v30-*.spec.js)
 │   └── test_*.py          # Tests pytest (API, services)
 ├── docs/                  # Documentation
 ├── sample/                # Templates Word (dossier compétence)

@@ -2,6 +2,44 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.74] — 2026-05-19 · Nettoyage final · Suppression complète de la v29
+
+- **Suppression du dossier `archives/v29/`** : templates legacy + JS
+  page-*.js + app.js + opt-in.js retirés (~30 fichiers, source archivée
+  depuis v31.7 et plus consultée).
+- **Suppression des redirects legacy** (`/dashboard`, `/sourcing`,
+  `/candidat`, `/entreprises`, `/push`, `/stats`, `/calendrier`,
+  `/rapport`, `/focus`, `/duplicates`, `/snapshots`, `/activity`,
+  `/help`, `/aide`, `/metiers`, `/users`, `/parametres`, `/collab`,
+  `/dc-generator`, `/prospects/mode-prosp`) qui redirigeaient en 302
+  vers leur équivalent `/v30/...`. Seul `/` reste comme entrée racine
+  vers `/v30/dashboard`.
+- **Login** : suppression du check `localStorage.prospup_ui_mode === 'v29'`
+  dans `login.html`. La redirection après login mène toujours vers
+  `/v30/dashboard`.
+- **Pages d'erreur** : `400.html`, `404.html`, `500.html` pointent
+  désormais vers `/v30/dashboard` (au lieu de `/dashboard`).
+- **Tests E2E** : suppression des 11 specs qui testaient l'UI v29
+  (`dashboard.spec.js`, `focus.spec.js`, `help.spec.js`,
+  `checklist-ui-mars2025.spec.js`, `stats-rapport.spec.js`,
+  `prospects.spec.js`, `navigation.spec.js`, `mobile.spec.js`,
+  `import-excel.spec.js`, `assistant-ia.spec.js`,
+  `avant-reunion-ia.spec.js`). Couverture maintenue par les
+  `v30-*.spec.js`. Mise à jour de `login.spec.js` et `pwa.spec.js` pour
+  pointer vers `/v30/dashboard`.
+- **Docs** : suppression de `docs/PARITE_V29_V30.md`, `docs/PR_v30.md`,
+  `docs/PR_v30_1.md`, `docs/ROLLBACK_V30.md` et
+  `docs/ANALYSE_VISUELLE_V30.md` (audits de migration achevés).
+- **`audit_prospup.py`** : URLs mises à jour vers `/v30/...`.
+- **`static/js/mobile.js`** : bottom nav et `PAGE_ORDER` mis à jour vers
+  les URLs `/v30/...`.
+- **Commentaires** : nettoyage des références « (parité v29) » dans les
+  CSS/JS v30 et des commentaires `# v29.x` dans `app.py`.
+- **CLAUDE.md, README.md, CHECKLIST.md** : nettoyage des mentions v29 et
+  des escape hatches (`force_v29`, `prospup_ui_mode`).
+- Le `CHANGELOG.md` conserve l'historique v29 → v30 comme trace, mais
+  l'app ne porte plus aucun code lié à la v29.
+
 ## [32.73] — 2026-05-19 · Sécurité · Defense in depth (Phase 3)
 
 Troisième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).
@@ -106,6 +144,7 @@ Non touché dans cette phase (volontairement, sur demande utilisateur) :
 - E1 admin/admin par défaut (mdp déjà changé en prod)
 - C4 fuite `cloudflare-config.yml` (révocation tunnel = blocage du
   service prospup.work, à faire depuis le PC hébergeur).
+
 
 ## [32.70] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
 

@@ -1728,11 +1728,6 @@ def api_export_day():
 # Rapport hebdomadaire – export markdown / copie OneNote
 # ────────────────────────────────────────────────────────────────────
 
-@misc_bp.get("/rapport")
-def page_rapport():
-    return redirect("/v30/stats", code=302)
-
-
 @misc_bp.get("/api/rapport-hebdo")
 def api_rapport_hebdo():
     """Generate a weekly report with KPIs, activity, and pipeline summary."""

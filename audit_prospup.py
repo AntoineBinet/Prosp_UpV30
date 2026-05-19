@@ -42,22 +42,20 @@ REPORT_FILE       = "audit_report.html"
 
 # Pages HTML à auditer (route → page_id attendu dans data-page)
 HTML_PAGES = [
-    ("/dashboard",  "dashboard"),
-    ("/",           "prospects"),
-    ("/entreprises","companies"),
-    ("/focus",      "focus"),
-    ("/sourcing",   "sourcing"),
-    ("/calendrier", "calendar"),
-    ("/collab",     "collab"),
-    ("/push",       "push"),
-    ("/templates",  "templates"),
-    ("/stats",      "stats"),
-    ("/rapport",    "rapport"),
-    ("/metiers",    "metiers"),
-    ("/duplicates", "duplicates"),
-    ("/snapshots",  "snapshots"),
-    ("/parametres", "settings"),
-    ("/help",       "help"),
+    ("/v30/dashboard",   "dashboard"),
+    ("/v30/prospects",   "prospects"),
+    ("/v30/entreprises", "companies"),
+    ("/v30/focus",       "focus"),
+    ("/v30/sourcing",    "sourcing"),
+    ("/v30/calendrier",  "calendar"),
+    ("/v30/collab",      "collab"),
+    ("/v30/push",        "push"),
+    ("/v30/stats",       "stats"),
+    ("/v30/metiers",     "metiers"),
+    ("/v30/duplicates",  "duplicates"),
+    ("/v30/snapshots",   "snapshots"),
+    ("/v30/parametres",  "settings"),
+    ("/v30/help",        "help"),
 ]
 
 # API GET rapides à vérifier (status 200 attendu)

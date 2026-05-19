@@ -30,7 +30,7 @@
 }
 .v30-pp-views::-webkit-scrollbar { height: 0; }
 
-/* Grille cartes entreprises (parite v29) */
+/* Grille cartes entreprises */
 .v30-ent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -72,7 +72,7 @@
 
 
 /* KPI cards : remplacés par le pattern .kpi / .kpi-grid (Phase 3 — patterns.css).
-   Marge supérieure spécifique à la page Prospects (cohérence v29). */
+   Marge supérieure spécifique à la page Prospects. */
 .kpi-grid[data-v30-pp-kpis] { margin: 14px 0 6px; }
 
 .v30-pill {

@@ -2,7 +2,7 @@
 
 /* Réutilise : v30-fp (header + body + aside) depuis prospect_detail.css */
 
-/* ─── Bloc Informations (parité v29) ─── */
+/* ─── Bloc Informations ─── */
 .v30-fc-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

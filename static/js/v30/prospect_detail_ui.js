@@ -2616,7 +2616,7 @@
       if (!btn) return;
       var act = btn.dataset.v30Action;
       if (act === 'push') {
-        // Popup v30 (logique v29) — chargé globalement via base.html
+        // Popup push — chargé globalement via base.html
         if (window.V30PushModal && typeof window.V30PushModal.open === 'function') {
           window.V30PushModal.open(FP.ID, 'email');
         } else {

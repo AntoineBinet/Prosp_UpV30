@@ -831,10 +831,7 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
       });
       var data = await resp.json();
       if (data.ok) {
-        var optOut = false;
-        try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
-        var target = optOut ? '/dashboard' : '/v30/dashboard';
-        window.location.href = target;
+        window.location.href = '/v30/dashboard';
       } else {
         errText.textContent = (data.error || 'Identifiant ou mot de passe incorrect.');
         err.classList.add('show');

@@ -23,7 +23,7 @@ test.describe('Login page', () => {
     await expect(err).toContainText('Identifiants');
   });
 
-  test('successful login redirects to /', async ({ page }) => {
+  test('successful login redirects to /v30/dashboard', async ({ page }) => {
     const user = process.env.PROSPUP_USER || 'admin';
     const pass = process.env.PROSPUP_PASS || 'admin';
 
@@ -32,12 +32,12 @@ test.describe('Login page', () => {
     await page.fill('#password', pass);
     await page.click('.btn-login');
 
-    await page.waitForURL('/', { timeout: 10_000 });
-    await expect(page).toHaveURL('/');
+    await page.waitForURL('**/v30/dashboard', { timeout: 10_000 });
+    await expect(page).toHaveURL(/\/v30\/dashboard/);
   });
 
   test('unauthenticated access redirects to /login', async ({ page }) => {
-    await page.goto('/dashboard');
+    await page.goto('/v30/dashboard');
     await expect(page).toHaveURL(/\/login/);
   });
 });

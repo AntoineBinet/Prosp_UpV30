@@ -666,7 +666,7 @@ Types d'actions disponibles:
 - "ia_apres_reunion": générer compte-rendu après réunion (params: {{"prospect_id": ...}})
 
 Exemples d'actions intelligentes:
-- Pour "prospects à relancer": {{"type": "navigate", "label": "Voir les relances en retard", "params": {{"url": "/focus"}}}}
+- Pour "prospects à relancer": {{"type": "navigate", "label": "Voir les relances en retard", "params": {{"url": "/v30/focus"}}}}
 - Pour "créer un prospect Jean Dupont": {{"type": "create_prospect", "label": "Créer le prospect", "params": {{"name": "Jean Dupont", "company": "..."}}}}
 - Pour "enrichis ce prospect avec l'IA": {{"type": "ia_scrap", "label": "Enrichir avec l'IA", "params": {{"type": "prospect", "id": ...}}}}
 - Pour "génère la fiche avant réunion": {{"type": "ia_avant_reunion", "label": "Générer fiche préparation", "params": {{"prospect_id": ...}}}}
@@ -694,7 +694,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
                 assistant_data["actions"] = [{
                     "type": "navigate",
                     "label": "Voir les relances en retard",
-                    "params": {"url": "/focus"}
+                    "params": {"url": "/v30/focus"}
                 }]
             elif "rdv" in question.lower() or "rendez-vous" in question.lower():
                 assistant_data["actions"] = [{
@@ -1031,6 +1031,6 @@ def api_assistant_action():
 
 
 # ═══════════════════════════════════════════════════════════════════
-# v29.0: DC Generator — Dossier de Compétences format Up Technologies
+# DC Generator — Dossier de Compétences format Up Technologies
 # ═══════════════════════════════════════════════════════════════════
 

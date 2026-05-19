@@ -1,4 +1,4 @@
-/* ProspUp v30 — Push : catégories + historique + templates (mécanique v29 sous UI v30). */
+/* ProspUp — Push : catégories + historique + templates. */
 (function () {
   'use strict';
 

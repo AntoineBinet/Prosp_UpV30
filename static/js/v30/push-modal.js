@@ -1,13 +1,10 @@
-/* ProspUp v30 — Popup « Pousser » depuis une fiche prospect ou une ligne de la table.
+/* ProspUp — Popup « Pousser » depuis une fiche prospect ou une ligne de la table.
  *
- * Porte la logique v29 (app.js:openPushSelectModal/confirmPushSend) sous un
- * habillage v30 (.v30-modal-bd / .v30-field / .v30-input). Exposé sur
- * window.V30PushModal.open(prospectId, channel='email'|'linkedin').
+ * Exposé sur window.V30PushModal.open(prospectId, channel='email'|'linkedin').
  *
- * Aucun changement backend : utilise /api/push-categories,
- * /api/prospect/<id>/best-candidates, /api/users/for-push, /api/push-logs/add,
- * /api/pushs/open, /api/settings, /api/candidates/<id>/dossier-competence,
- * /api/ollama/generate-stream.
+ * Utilise /api/push-categories, /api/prospect/<id>/best-candidates,
+ * /api/users/for-push, /api/push-logs/add, /api/pushs/open, /api/settings,
+ * /api/candidates/<id>/dossier-competence, /api/ollama/generate-stream.
  */
 (function () {
   'use strict';
@@ -1191,7 +1188,7 @@
         });
       }
       // Générer le mail Outlook (.eml téléchargé ou brouillon Outlook) avec DC candidats en PJ
-      // via /api/push/generate — reprise du comportement v29.
+      // via /api/push/generate.
       chain = chain.then(function () {
         if (!vals.catId || !templateName) return null;
         // Synchronise l'accroche depuis la textarea si l'utilisateur a édité manuellement

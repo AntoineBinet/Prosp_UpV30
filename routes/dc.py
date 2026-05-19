@@ -23,22 +23,6 @@ from utils.validation import _safe_row_to_dict
 dc_bp = Blueprint("dc", __name__)
 
 
-@dc_bp.route('/dc-generator')
-@login_required
-def dc_generator():
-    """Redirige vers l'UI v30. ?candidate=X conservé via segment /v30/dc/<X>."""
-    cid = (request.args.get("candidate") or "").strip()
-    if cid.isdigit():
-        return redirect(f"/v30/dc/{cid}", code=302)
-    return redirect("/v30/dc", code=302)
-
-
-@dc_bp.route('/candidates/<int:candidate_id>/dc-generator')
-@login_required
-def dc_generator_candidate(candidate_id):
-    return redirect(f"/v30/dc/{candidate_id}", code=302)
-
-
 @dc_bp.route('/dc-generator/template')
 @login_required
 def dc_generator_template():

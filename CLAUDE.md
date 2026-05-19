@@ -1,32 +1,31 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
-> **Version courante** : 32.1 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
-> **Interface unique** : v30/v31. L'UI v29 a été dépréciée à la v31.7 — son code est archivé dans `archives/v29/` (templates, JS, opt-in). Les anciennes URLs (`/dashboard`, `/sourcing`, `/candidat?id=…`, etc.) renvoient désormais des **redirects 302** vers leur équivalent `/v30/...`. Aucun escape hatch (plus de bouton sidebar v29, plus de flag `?force_v29=1`).
+> **Version courante** : voir `APP_VERSION` dans [app.py](app.py) — historique dans [CHANGELOG.md](CHANGELOG.md).
+> **Interface** : v30 uniquement. Toutes les URLs publiques sont sous `/v30/...` (`/v30/dashboard`, `/v30/prospects`, `/v30/sourcing`, …). La racine `/` redirige vers `/v30/dashboard`. Plus aucun fallback ou code lié à une UI antérieure.
 
 ## Stack technique
 - **Backend** : Flask (app.py ~17 500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF, python-docx pour DOCX
-- **Frontend** : Vanilla JS (pas de framework), templates Jinja2 (v30 uniquement), Chart.js (stats uniquement)
-- **CSS** : design system v30 (`static/css/v30/*.css`), `prefers-color-scheme` pour light mode. Le skin legacy `style.css` n'est plus chargé.
+- **Frontend** : Vanilla JS (pas de framework), templates Jinja2, Chart.js (stats uniquement)
+- **CSS** : design system v30 (`static/css/v30/*.css`), `prefers-color-scheme` pour light mode
 - **PWA** : Service Worker (`static/sw.js`), manifest (`start_url=/v30/dashboard`), offline.html
 - **Hébergement** : Cloudflare Tunnel → prospup.work, port 8000
-- **Tests E2E** : Playwright (Chromium), 14+ specs desktop + mobile Pixel 5
+- **Tests E2E** : Playwright (Chromium), specs `v30-*.spec.js`
 
 ## Architecture fichiers
 ```
 app.py                  # Backend Flask monolithique — routes, API, auth, DB
-routes/                 # Blueprints (ai.py, auth.py, deploy.py)
-services/               # Logique métier (dashboard_goals.py)
+routes/                 # Blueprints (pages, ai, auth, deploy, calendar, dc, misc, collab, admin)
+services/               # Logique métier (dashboard_goals, working_days, …)
 templates/
-  v30/                  # Templates v30 (dashboard, prospects, candidate_detail, …)
-  _partials/            # Partials (v30/topbar, v30/sidebar, v30/palette, …)
+  v30/                  # Templates Jinja2 (dashboard, prospects, candidate_detail, …)
+  _partials/v30/        # Partials (topbar, sidebar, palette, …)
 static/
   css/
-    v30/                 # Design system v30 (palette, components, tokens, *.css par page)
+    v30/                 # Design system (palette, components, tokens, *.css par page)
     mode-prosp.css       # Mode Prosp (deck 3D, autonome — réutilisé par /v30/mode-prosp)
     mobile-2026*.css     # Skin mobile commun (PWA)
   js/
-    v30/                 # Tous les scripts v30 (un fichier par page + utilitaires)
-    sidebar.js           # Sidebar mobile (déclarative)
+    v30/                 # Scripts par page + utilitaires (toast, ollama, palette, …)
     v8-features.js       # SW, bottom nav, haptic
     mobile-2026.js       # Bottom nav v8 mobile
     notifications.js     # Push notifications
@@ -35,22 +34,14 @@ static/
     xlsx.min.js          # SheetJS (import Excel)
   sw.js                  # Service Worker (network-first HTML/API, cache-first static)
   manifest.json          # PWA manifest (shortcuts, share_target — tous /v30/...)
-scripts/                # Outils admin (supervisor, watchdog, audit)
+scripts/                # Outils admin (supervisor, watchdog, audit, sitemap status)
 tests/
-  e2e/                   # Tests Playwright
+  e2e/                   # Tests Playwright (v30-*.spec.js)
   test_*.py              # Tests pytest (API, services)
   audit_multi_user.py    # Audit multi-user
 sample/                 # Templates DOCX (dossier compétence)
 pushs/                  # Templates push par catégorie
-archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.js +
-                        # opt-in.js). Non chargé par l'app — voir
-                        # archives/v29/README.md pour la procédure de restauration.
 ```
-
-## Migration v29 → v30 (v31.7)
-- **20 routes legacy** (`/`, `/dashboard`, `/sourcing`, `/candidat`, `/entreprises`, `/push`, `/stats`, `/calendrier`, `/rapport`, `/focus`, `/duplicates`, `/snapshots`, `/activity`, `/help`, `/aide`, `/metiers`, `/users`, `/parametres`, `/collab`, `/dc-generator`, `/prospects/mode-prosp`) → **redirect 302** vers `/v30/...`. `/candidat?id=X` et `/dc-generator?candidate=X` extraient le query param et redirigent vers `/v30/candidat/<X>` ou `/v30/dc/<X>`.
-- Toute autre URL legacy (sans équivalent v30) → 404 Flask par défaut.
-- Aucune table SQL n'a été migrée — les données restent identiques, seule l'UI change.
 
 ## Auth
 - Session cookie Flask (`session['user_id']`) + JWT Bearer (mobile)
@@ -243,7 +234,7 @@ python -m tests.audit_multi_user    # Audit isolation multi-user (PYTHONIOENCODI
 - Python 3.14, encodage console cp1252 → `PYTHONIOENCODING=utf-8` pour Playwright et scripts avec caractères spéciaux.
 - Identifiants par défaut : `admin / admin` (configurables via `PROSPUP_USER` / `PROSPUP_PASS`).
 - Pas de `cache: 'no-store'` sur les fetch.
-- `node_modules/` n'est **pas** versionné (ajouté au .gitignore au nettoyage v29.6). Si vous clonez fraîchement : `npm install` avant de lancer les tests.
+- `node_modules/` n'est **pas** versionné. Si vous clonez fraîchement : `npm install` avant de lancer les tests.
 - `backups/`, `snapshots/`, `logs/`, `data/` sont gitignored (runtime local).
 
 ## Fichiers Claude annexes
