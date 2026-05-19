@@ -217,20 +217,8 @@ window.mpToggleDarkMode = function () {
         }
         if (prospects.length === 0) { viewport.innerHTML = '<div class="mp-empty-state">Aucun prospect trouvé.</div>'; return; }
 
-        // Phase 3 productivité : tri par score IA décroissant par défaut.
-        // Fetch en parallèle, tolère un échec (Ollama ou /api/prospects/scores down).
-        try {
-            var scoreRes = await fetch('/api/prospects/scores', { credentials: 'same-origin' });
-            if (scoreRes.ok) {
-                var scoreData = await scoreRes.json();
-                var scores = (scoreData && scoreData.scores) || {};
-                prospects.sort(function (a, b) {
-                    var sa = scores[a.id] ? scores[a.id].score : -1;
-                    var sb = scores[b.id] ? scores[b.id].score : -1;
-                    return sb - sa; // décroissant
-                });
-            }
-        } catch (e) { /* fallback : ordre du backend */ }
+        // L'ordre est désormais celui hérité du tableau Prospects (tri + filtres
+        // appliqués au moment du lancement). On ne re-trie plus côté Mode Prosp.
 
         if (directIds.length > 0) showSelectionBadge(prospects.length);
 

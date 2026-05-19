@@ -2595,10 +2595,17 @@
     var btn = document.querySelector('[data-v30-mode-prosp]');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      var ids = Array.from(STATE.selected);
-      if (!ids.length) {
-        // Aucune sélection : on prend les prospects filtrés+triés courants (dataset complet non paginé).
-        var pool = STATE.filteredAll || STATE.prospects || [];
+      // On part toujours de la liste filtrée+triée du tableau pour respecter
+      // l'ordre de tri ET les filtres actifs (statut, tags, pertinence, etc.).
+      var pool = STATE.filteredAll || STATE.prospects || [];
+      var ids;
+      if (STATE.selected && STATE.selected.size) {
+        // Sélection : on garde uniquement les prospects cochés présents dans
+        // la liste filtrée, dans l'ordre du tri courant (Set.has = O(1)).
+        ids = pool
+          .filter(function (p) { return STATE.selected.has(p.id); })
+          .map(function (p) { return p.id; });
+      } else {
         ids = pool.map(function (p) { return p.id; });
       }
       if (!ids.length) { toast('Aucun prospect à traiter', 'warning'); return; }
