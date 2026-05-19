@@ -35,7 +35,7 @@
     if (!t && !r.entity_label) return '—';
     var label = r.entity_label || '';
     var id = r.entity_id != null ? ' #' + r.entity_id : '';
-    // Lien click si type connu (parite v29 : clic -> ouvrir la fiche)
+    // Lien click si type connu : clic -> ouvrir la fiche
     var href = '';
     if (t === 'prospect' && r.entity_id) href = '/v30/prospect/' + r.entity_id;
     else if (t === 'candidate' && r.entity_id) href = '/v30/candidat/' + r.entity_id;

@@ -396,9 +396,6 @@ def server_error(e):
 @app.get("/login")
 def page_login():
     if session.get('user_id'):
-        # v30 est l'interface par defaut depuis 30.1. L'opt-out client
-        # (localStorage.prospup_ui_mode === 'v29') est gere par base.html
-        # legacy qui redirige vers l'equivalent legacy si necessaire.
         return redirect('/v30/dashboard')
     return send_from_directory(APP_DIR, "login.html")
 
@@ -434,12 +431,6 @@ def api_tick():
 # ═══════════════════════════════════════════════════════════════════
 # User management (admin only)
 # ═══════════════════════════════════════════════════════════════════
-
-@app.get("/users")
-@login_required
-@role_required('admin')
-def page_users():
-    return redirect("/v30/users", code=302)
 
 @app.get("/api/users")
 @login_required
@@ -1353,7 +1344,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             if _col not in cand_cols:
                 _add_col("candidates", _col, _ddl)
 
-        # v29.0: DC Generator — dossier généré par le générateur interne
+        # DC Generator — dossier généré par le générateur interne
         if "dossier_path" not in cand_cols:
             _add_col("candidates", "dossier_path", "TEXT")
         if "dossier_generated_at" not in cand_cols:
@@ -2215,8 +2206,8 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception as e:
             print(f"[WARN] Migration tables diverses ({db_path}): {e}")
-        # Migration v29+: créer toutes les tables d'événements et KPI manquantes dans les DBs per-user existantes
-        # Ces tables sont essentielles pour les KPIs et la gamification (prospect_events, candidate_events, etc.)
+        # Migration : créer toutes les tables d'événements et KPI manquantes dans les DBs per-user existantes.
+        # Ces tables sont essentielles pour les KPIs et la gamification (prospect_events, candidate_events, etc.).
         try:
             conn.executescript('''
                 CREATE TABLE IF NOT EXISTS company_events (
@@ -4510,13 +4501,7 @@ def _auto_snapshot_if_needed() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────
-# Redirects legacy → v30 (v31.7+) : v29 archivée dans archives/v29/.
-# Les routes ci-dessous restent pour préserver bookmarks, partages
-# externes et PWA shortcuts. Toute URL sans équivalent v30 → 404.
-# ─────────────────────────────────────────────────────────────────
-
-# ─────────────────────────────────────────────────────────────────
-# Routes de rendu HTML (legacy redirects + v30 pages) → routes/pages.py
+# Routes de rendu HTML (pages v30) → routes/pages.py
 # ─────────────────────────────────────────────────────────────────
 
 
@@ -6253,31 +6238,7 @@ def api_metiers_batch_confirm_tags():
     return jsonify(ok=True, saved=saved, skipped=skipped)
 
 
-# ────────────────────────────────────────────────────────────────────
-# Calendar – vue calendrier des actions
-# ────────────────────────────────────────────────────────────────────
-
-@app.get("/calendrier")
-def page_calendar():
-    return redirect("/v30/calendrier", code=302)
-
-
-@app.get("/collab")
-@login_required
-def page_collab():
-    return redirect("/v30/collab", code=302)
-
-
 # Routes /api/calendar_events* + _parse_ics_to_events — voir routes/calendar.py
-
-
-# ────────────────────────────────────────────────────────────────────
-# Dashboard – activité quotidienne / hebdo
-# ────────────────────────────────────────────────────────────────────
-
-@app.get("/dashboard")
-def page_dashboard():
-    return redirect("/v30/dashboard", code=302)
 
 
 # Gamified goals helpers are extracted in services/dashboard_goals.py.

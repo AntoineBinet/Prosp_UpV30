@@ -719,7 +719,7 @@
       : '/api/data';
     return fetchJSON(url).then(function (res) {
       var all = (res && res.prospects) || [];
-      // Ignore les prospects archivés côté client (comme v29)
+      // Ignore les prospects archivés côté client
       all = all.filter(function (p) { return !p.is_archived && !p.deleted_at; });
       STATE.companies = {};
       ((res && res.companies) || []).forEach(function (c) { STATE.companies[c.id] = c.groupe || c.name || ''; });
@@ -844,7 +844,7 @@
     }).length.toLocaleString('fr-FR');
   }
 
-  // KPI cards : Total / Appelables / RDV / Prospectes (parite v29)
+  // KPI cards : Total / Appelables / RDV / Prospectés
   function isCallable(p) {
     var tel = p && p.telephone ? String(p.telephone) : '';
     return !!tel && /\d/.test(tel);
@@ -1253,7 +1253,7 @@
     if (apply) apply.addEventListener('click', runBulkAction);
   }
 
-  // ─── VCF / vCard export (parité V29) ──────────────────────
+  // ─── VCF / vCard export ──────────────────────
   function vcfEscape(s) {
     if (s == null) return '';
     return String(s)
@@ -1545,7 +1545,7 @@
         .then(function () {
           done++;
           setProgress();
-          // Pause 300ms pour éviter rate limit (parité V29)
+          // Pause 300 ms pour éviter le rate limit
           setTimeout(function () { step(i + 1); }, ENRICH_CTX.cancelled ? 0 : 300);
         });
     }

@@ -100,7 +100,7 @@
     host.innerHTML = items.join('');
   }
 
-  // ─── Bloc Tâches (parité v29 : CRUD complet via modale) ────
+  // ─── Bloc Tâches (CRUD complet via modale) ────
   var TASKS = { showDone: false, items: [], prospects: [], candidates: [] };
 
   function postJSON(url, body) {
@@ -381,7 +381,7 @@
     });
   }
 
-  // ─── Bloc Relances filtrables (parité v29) ────────────────
+  // ─── Bloc Relances filtrables ────────────────
   var RELANCES = { items: [], period: 'today' };
   function _relanceGroup(iso) {
     if (!iso) return 'later';

@@ -83,7 +83,7 @@
     document.title = (c.name || 'Candidat') + " — Prosp'Up v30";
   }
 
-  // ─── Bloc Informations (parite v29 : STATUT/RÔLE/LOCALISATION/etc.) ──
+  // ─── Bloc Informations (STATUT / RÔLE / LOCALISATION / etc.) ──
   function renderInfo(c) {
     var host = $('[data-v30-fc-info]');
     if (!host || !c) return;

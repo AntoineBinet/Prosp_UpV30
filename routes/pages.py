@@ -1,16 +1,14 @@
 """ProspUp — Blueprint Pages (rendu HTML serveur).
 
-Toutes les routes qui rendent un template HTML ou redirigent vers une URL
-v30. Aucune logique métier ici — les pages servent une coque, et les
-données dynamiques sont chargées côté client via les API JSON.
-
-Phase B — extraction du gros bloc lignes 4273-5068 d'app.py.
+Toutes les routes qui rendent un template HTML v30. Aucune logique métier
+ici — les pages servent une coque, et les données dynamiques sont chargées
+côté client via les API JSON.
 """
 from __future__ import annotations
 
 import json
 
-from flask import Blueprint, redirect, render_template, request, session
+from flask import Blueprint, redirect, render_template, session
 
 from app import _audit_log, _static_hashes, log_activity
 from config import APP_DIR, APP_VERSION
@@ -25,90 +23,11 @@ def home():
     return redirect("/v30/dashboard", code=302)
 
 
-@pages_bp.get("/entreprises")
-def page_entreprises():
-    return redirect("/v30/entreprises", code=302)
-
-@pages_bp.get("/company")
-def page_company():
-    return redirect("/v30/entreprises", code=302)
-
-
-@pages_bp.get("/parametres")
-def page_parametres():
-    return redirect("/v30/parametres", code=302)
-
-
-@pages_bp.get("/sourcing")
-def page_sourcing():
-    return redirect("/v30/sourcing", code=302)
-
-
-@pages_bp.get("/candidat")
-def page_candidat():
-    """Fiche candidat (détail). Migre ?id=X → /v30/candidat/<X>."""
-    cid = (request.args.get("id") or "").strip()
-    if cid.isdigit():
-        return redirect(f"/v30/candidat/{cid}", code=302)
-    return redirect("/v30/sourcing", code=302)
-
-
-@pages_bp.get("/push")
-def page_push():
-    return redirect("/v30/push", code=302)
-
-@pages_bp.get("/stats")
-def page_stats():
-    return redirect("/v30/stats", code=302)
-
-
-@pages_bp.get("/duplicates")
-def page_duplicates():
-    return redirect("/v30/duplicates", code=302)
-
-
-@pages_bp.get("/focus")
-def page_focus():
-    return redirect("/v30/focus", code=302)
-
-
-@pages_bp.get("/snapshots")
-def page_snapshots():
-    return redirect("/v30/snapshots", code=302)
-
-
-@pages_bp.get("/activity")
-@login_required
-@role_required('admin')
-def page_activity():
-    return redirect("/v30/activity", code=302)
-
-
-@pages_bp.get("/help")
-def page_help():
-    return redirect("/v30/help", code=302)
-
-
-@pages_bp.get("/aide")
-def page_aide():
-    return redirect("/v30/help", code=302)
-
-
-@pages_bp.get("/metiers")
-def page_metiers():
-    return redirect("/v30/metiers", code=302)
-
-
-@pages_bp.get("/prospects/mode-prosp")
-def page_mode_prosp():
-    return redirect("/v30/mode-prosp", code=302)
-
-
 @pages_bp.get("/v30/mode-prosp")
 def page_v30_mode_prosp():
     """v30 : Mode Prosp (deck 3D), layout plein écran sans sidebar.
 
-    Réutilise les APIs /api/mode-prosp/* (start/data/save) et le CSS legacy
+    Réutilise les APIs /api/mode-prosp/* (start/data/save) et le CSS
     `/static/css/mode-prosp.css` (autonome, pas de dépendance à base.html)."""
     return render_template("v30/mode_prosp.html", static_hashes=_static_hashes)
 
@@ -230,8 +149,7 @@ def page_v30_candidate_detail(cid):
 @pages_bp.get("/v30/stats")
 def page_v30_stats():
     """Stats & Rapport v30 (SPEC §3.9). Topbar + 4 KPI + Top entreprises
-    hydratés. Les 8 charts Chart.js et l'éditeur rapport WYSIWYG restent
-    sur les routes legacy /stats et /rapport (liens dans les panels)."""
+    hydratés."""
     uid = _uid()
     user_initials = "AB"
     if uid:
@@ -254,7 +172,7 @@ def page_v30_stats():
 @pages_bp.get("/v30/collab")
 @login_required
 def page_v30_collab():
-    """Collaboration v30 — hub cartes vers /collab."""
+    """Collaboration v30 — hub cartes."""
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
     parts = [p for p in dn.split() if p]
@@ -272,7 +190,7 @@ def page_v30_collab():
 @pages_bp.get("/v30/duplicates")
 @login_required
 def page_v30_duplicates():
-    """Doublons v30 — hub cartes vers /duplicates."""
+    """Doublons v30 — hub cartes."""
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
     parts = [p for p in dn.split() if p]
@@ -291,7 +209,7 @@ def page_v30_duplicates():
 @pages_bp.get("/v30/dc/<int:cid>")
 @login_required
 def page_v30_dc(cid: int | None = None):
-    """Générateur DC v30 — hub cartes + lien vers /dc_generator."""
+    """Générateur DC v30 — hub cartes."""
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
     parts = [p for p in dn.split() if p]
@@ -349,7 +267,7 @@ def page_v30_help():
 @login_required
 @role_required('admin')
 def page_v30_snapshots():
-    """Snapshots DB v30 — admin only, miroir /snapshots."""
+    """Snapshots DB v30 — admin only."""
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
     parts = [p for p in dn.split() if p]
@@ -369,7 +287,7 @@ def page_v30_snapshots():
 @login_required
 @role_required('admin')
 def page_v30_activity():
-    """Journal d'activité v30 — admin only, miroir /activity."""
+    """Journal d'activité v30 — admin only."""
     uid = _uid()
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
@@ -389,7 +307,7 @@ def page_v30_activity():
 @pages_bp.get("/v30/parametres")
 @login_required
 def page_v30_parametres():
-    """Paramètres v30 — hub cards + liens vers /parametres#section legacy."""
+    """Paramètres v30 — hub cards + sections (mise à jour, IA, objectifs, …)."""
     uid = _uid()
     current_user = _get_current_user() or {}
     user_initials = "AB"
@@ -415,7 +333,7 @@ def page_v30_parametres():
 @login_required
 @role_required('admin')
 def page_v30_users():
-    """Gestion utilisateurs v30 — admin only, miroir /users."""
+    """Gestion utilisateurs v30 — admin only."""
     uid = _uid()
     user_initials = "AB"
     if uid:

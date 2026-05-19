@@ -179,7 +179,7 @@
     <p>La page que vous cherchez n'existe pas ou a été déplacée.<br>
     Si ce problème survient après une mise à jour, utilisez les boutons ci-dessous.</p>
     <div class="actions">
-      <a href="/dashboard" class="btn btn-accent">Retour au Dashboard</a>
+      <a href="/v30/dashboard" class="btn btn-accent">Retour au Dashboard</a>
       <button id="btnUpdate" class="btn" onclick="triggerUpdate()">MAJ + Redémarrage</button>
       <button id="btnRollback" class="btn btn-danger" onclick="triggerRollback()">Rollback</button>
     </div>
@@ -207,7 +207,7 @@
         if (remaining <= 0) {
           clearInterval(iv);
           info.textContent = 'Rechargement…';
-          window.location.href = '/dashboard';
+          window.location.href = '/v30/dashboard';
         } else {
           info.textContent = 'Rechargement dans ' + remaining + 's…';
         }

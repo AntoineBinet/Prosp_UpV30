@@ -455,7 +455,7 @@
       });
   }
 
-  // ─── Performance (v30.6 — reprise v29 dv2) ────────────────────────
+  // ─── Performance ────────────────────────
   var PERF_COLORS = {
     contacts: '#f59e0b',
     notes:    '#3b82f6',

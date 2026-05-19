@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('PWA', () => {
   test('service worker is registered', async ({ page }) => {
-    await page.goto('/dashboard');
+    await page.goto('/v30/dashboard');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
@@ -16,7 +16,7 @@ test.describe('PWA', () => {
   });
 
   test('manifest is valid with shortcuts', async ({ page }) => {
-    await page.goto('/dashboard');
+    await page.goto('/v30/dashboard');
 
     const manifest = await page.evaluate(async () => {
       const link = document.querySelector('link[rel="manifest"]');
@@ -27,14 +27,14 @@ test.describe('PWA', () => {
 
     expect(manifest).toBeTruthy();
     expect(manifest.name).toContain("Prosp'Up");
-    expect(manifest.start_url).toBe('/dashboard');
+    expect(manifest.start_url).toBe('/v30/dashboard');
     expect(manifest.display).toBe('standalone');
     expect(manifest.shortcuts).toBeDefined();
     expect(manifest.shortcuts.length).toBeGreaterThanOrEqual(3);
   });
 
   test('sw caches shell assets', async ({ page }) => {
-    await page.goto('/dashboard');
+    await page.goto('/v30/dashboard');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 

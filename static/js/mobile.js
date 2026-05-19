@@ -12,10 +12,10 @@
 
   // ── Constants ───────────────────────────────────────────────────
   var PAGE_ORDER = {
-    '/dashboard': 0,
-    '/': 1,
-    '/focus': 2,
-    '/calendrier': 3
+    '/v30/dashboard': 0,
+    '/v30/prospects': 1,
+    '/v30/focus': 2,
+    '/v30/calendrier': 3
   };
   var EXIT_DURATION = 180;
 
@@ -48,11 +48,11 @@
     // 2026 — 5 tabs matching the iOS 26 prototype. The center tab (Prosp)
     // uses a bolt icon and a slightly larger size via the --primary modifier.
     var tabs = [
-      { page: 'dashboard', href: '/dashboard',           icon: window.icon ? window.icon('home',     {size: 22}) : '', label: 'Dashboard' },
-      { page: 'prospects', href: '/',                    icon: window.icon ? window.icon('users',    {size: 22}) : '', label: 'Prospects' },
-      { page: 'mode-prosp',href: '/prospects/mode-prosp',icon: window.icon ? window.icon('zap',      {size: 24}) : '', label: 'Prosp', primary: true },
-      { page: 'companies', href: '/entreprises',         icon: window.icon ? window.icon('building', {size: 22}) : '', label: 'Sociétés' },
-      { page: 'stats',     href: '/stats',               icon: window.icon ? window.icon('chart',    {size: 22}) : '', label: 'Stats' }
+      { page: 'dashboard', href: '/v30/dashboard',         icon: window.icon ? window.icon('home',     {size: 22}) : '', label: 'Dashboard' },
+      { page: 'prospects', href: '/v30/prospects',         icon: window.icon ? window.icon('users',    {size: 22}) : '', label: 'Prospects' },
+      { page: 'mode-prosp',href: '/v30/mode-prosp',        icon: window.icon ? window.icon('zap',      {size: 24}) : '', label: 'Prosp', primary: true },
+      { page: 'companies', href: '/v30/entreprises',       icon: window.icon ? window.icon('building', {size: 22}) : '', label: 'Sociétés' },
+      { page: 'stats',     href: '/v30/stats',             icon: window.icon ? window.icon('chart',    {size: 22}) : '', label: 'Stats' }
     ];
 
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
@@ -201,7 +201,7 @@
         else window.location.href = '/?add=1';
         break;
       case 'add-candidate':
-        window.location.href = '/sourcing';
+        window.location.href = '/v30/sourcing';
         break;
       case 'assistant-ia':
         if (typeof window.toggleAssistantChat === 'function') window.toggleAssistantChat();
