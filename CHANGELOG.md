@@ -2,6 +2,49 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.75] — 2026-05-19 · Fiche entretien EC1 export Excel + pièces jointes candidat
+
+- **Fiche entretien EC1 — export Excel pré-rempli** : nouveau bouton
+  *Télécharger Excel* sur la fiche candidat quand le statut est `EC1`
+  (ou « En entretien »). Le template situé dans
+  `exemples/Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx` est
+  ouvert via `openpyxl`, les cellules clés (identité, téléphone, mail,
+  diplômes/expérience, source CV, EC1 trigramme/date, permis,
+  disponibilité, mobilité, fonctions, motivations, rémunération,
+  évaluations, langues, références) sont remplies à partir des champs du
+  candidat et de la checklist EC1 enregistrée. Téléchargement direct
+  avec un nom de fichier formaté `Fiche_entretien_<Nom>_EC1_<Trig>_<DDMMYYYY>.xlsx`.
+- **Transcription EC1 → IA** : nouvelle modale sur la même carte (bouton
+  *Coller transcription*) qui envoie la transcription brute de
+  l'entretien à l'IA locale (Ollama via `_call_ollama_direct`). Le
+  modèle renvoie un JSON contenant les champs candidat (mobilité,
+  motivations, évaluations, salaire, langues, références, avis perso,
+  notes d'entretien) et la checklist EC1. L'utilisateur peut prévisualiser,
+  puis *Appliquer* (mise à jour de la fiche + checklist) ou
+  *Appliquer & télécharger Excel* pour enchaîner directement avec la
+  génération de la fiche.
+- **Pièces jointes candidat (hors DC)** : nouvelle carte *Pièces jointes*
+  sur chaque fiche candidat. Permet d'uploader CV, Excel de suivi,
+  fiche entretien remplie, et tout autre document
+  (`pdf, doc(x), xls(x), pptx, ppt, odt, ods, txt, png, jpg, webp` — 50 Mo).
+  Stockage isolé par utilisateur dans
+  `data/user_<uid>/candidate_attachments/candidate_<cid>/`. CRUD complet :
+  upload, liste, téléchargement, renommage du titre, suppression.
+  Le champ `kind` (CV / Fiche EC1 / Suivi / Autre) est détecté
+  automatiquement à partir de l'extension.
+- **Backend** : nouvelles routes dans `routes/candidates.py` :
+  `POST/GET /api/candidates/<id>/attachments`,
+  `GET /api/candidate-attachments/<aid>/file`,
+  `PATCH/DELETE /api/candidate-attachments/<aid>`,
+  `GET /api/candidates/<id>/ec1-export.xlsx`,
+  `POST /api/candidates/<id>/ec1-from-transcript`.
+- **DB** : nouvelle table `candidate_attachments` (migration auto au
+  démarrage, isolation par `owner_id` + `candidate_id`, garde
+  anti-path-traversal).
+- **Toile d'araignée** : `routes/pages.py` mise à jour avec 3 nouvelles
+  actions sur la page Sourcing (pièces jointes, export EC1 Excel,
+  transcription IA → fiche).
+
 ## [32.74] — 2026-05-19 · Nettoyage final · Suppression complète de la v29
 
 - **Suppression du dossier `archives/v29/`** : templates legacy + JS

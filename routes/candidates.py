@@ -18,7 +18,7 @@ from utils.ai_helpers import _call_ai, _call_ollama_direct, _load_ai_config
 from utils.auth import _candidate_owned, _require_same_origin, _uid, login_required, role_required, validate_payload
 from utils.common import _now_iso, _today_iso
 from utils.db import _conn
-from utils.files import _validate_upload
+from utils.files import _candidate_attachment_dir, _validate_upload
 
 candidates_bp = Blueprint("candidates", __name__)
 
@@ -1306,3 +1306,526 @@ def api_candidate_dc_delete(cid):
         )
     logger.info("DC supprimé: user=%s cand=%s files=%s", uid, cid, deleted)
     return jsonify(ok=True, deleted=deleted)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v32.75 — Pièces jointes candidat (CV, fiche entretien, suivi…)
+# ═══════════════════════════════════════════════════════════════════
+
+_ALLOWED_ATT_KINDS = {"cv", "ec1", "suivi", "autre"}
+
+
+@candidates_bp.post("/api/candidates/<int:cid>/attachments")
+def api_candidate_attachment_upload(cid):
+    """Upload d'une pièce jointe pour un candidat (autre que le DC).
+
+    multipart/form-data : file (obligatoire), title, kind (cv|ec1|suivi|autre), description.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify(ok=False, error="Fichier manquant"), 400
+
+    ok_upload, err_upload = _validate_upload(file, "prospect_attachment")
+    if not ok_upload:
+        msg, code = err_upload
+        return jsonify(ok=False, error=msg), code
+
+    title = (request.form.get("title") or "").strip()[:120] or None
+    description = (request.form.get("description") or "").strip()[:500] or None
+    kind_raw = (request.form.get("kind") or "autre").strip().lower()
+    kind = kind_raw if kind_raw in _ALLOWED_ATT_KINDS else "autre"
+
+    import uuid as _uuid
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    safe_orig = os.path.basename(file.filename or "").strip() or "fichier"
+    stored_name = f"{_uuid.uuid4().hex}{ext}"
+
+    attach_dir = _candidate_attachment_dir(uid, cid)
+    target = attach_dir / stored_name
+    # Path traversal guard
+    try:
+        base = str((Path("data") / f"user_{uid}" / "candidate_attachments").resolve())
+        if not str(target.resolve()).startswith(base):
+            return jsonify(ok=False, error="Chemin invalide"), 403
+    except Exception:
+        return jsonify(ok=False, error="Chemin invalide"), 403
+
+    data = file.read()
+    target.write_bytes(data)
+
+    now = _now_iso()
+    mime = file.mimetype or ""
+
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO candidate_attachments
+               (candidate_id, owner_id, filename, original_name, size, mime_type,
+                description, title, kind, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (cid, uid, stored_name, safe_orig, len(data), mime, description, title, kind, now),
+        )
+        att_id = cur.lastrowid
+
+    logger.info("Pièce jointe candidat: user=%s cand=%s kind=%s file=%s", uid, cid, kind, safe_orig)
+    return jsonify(ok=True, id=att_id, original_name=safe_orig, size=len(data),
+                   createdAt=now, kind=kind, title=title)
+
+
+@candidates_bp.get("/api/candidates/<int:cid>/attachments")
+def api_candidate_attachment_list(cid):
+    """Liste des pièces jointes (hors DC) d'un candidat."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, filename, original_name, size, mime_type, description, title, kind, createdAt "
+            "FROM candidate_attachments WHERE candidate_id=? AND owner_id=? ORDER BY createdAt DESC;",
+            (cid, uid),
+        ).fetchall()
+    out = [dict(r) for r in rows]
+    return jsonify(ok=True, attachments=out)
+
+
+@candidates_bp.get("/api/candidate-attachments/<int:att_id>/file")
+def api_candidate_attachment_file(att_id):
+    """Sert le fichier d'une pièce jointe candidat (download)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM candidate_attachments WHERE id=? AND owner_id=?;",
+            (att_id, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+
+    attach_dir = _candidate_attachment_dir(uid, row["candidate_id"])
+    file_path = attach_dir / row["filename"]
+    if not file_path.exists():
+        return jsonify(ok=False, error="Fichier introuvable"), 404
+
+    inline_mimes = {"application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"}
+    disposition = "inline" if row["mime_type"] in inline_mimes else "attachment"
+    return send_file(
+        str(file_path),
+        mimetype=row["mime_type"] or "application/octet-stream",
+        as_attachment=(disposition == "attachment"),
+        download_name=row["original_name"],
+    )
+
+
+@candidates_bp.patch("/api/candidate-attachments/<int:att_id>")
+def api_candidate_attachment_update(att_id):
+    """Met à jour les métadonnées d'une pièce jointe candidat (title, description, kind)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    body = request.get_json(force=True, silent=True) or {}
+    sets, vals = [], []
+    if "title" in body:
+        v = (body.get("title") or "").strip()[:120] or None
+        sets.append("title=?"); vals.append(v)
+    if "description" in body:
+        v = (body.get("description") or "").strip()[:500] or None
+        sets.append("description=?"); vals.append(v)
+    if "kind" in body:
+        v = (body.get("kind") or "autre").strip().lower()
+        if v not in _ALLOWED_ATT_KINDS:
+            v = "autre"
+        sets.append("kind=?"); vals.append(v)
+    if not sets:
+        return jsonify(ok=False, error="Aucun champ à modifier"), 400
+    vals.extend([att_id, uid])
+    with _conn() as conn:
+        cur = conn.execute(
+            f"UPDATE candidate_attachments SET {', '.join(sets)} WHERE id=? AND owner_id=?;",
+            vals,
+        )
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+    return jsonify(ok=True)
+
+
+@candidates_bp.delete("/api/candidate-attachments/<int:att_id>")
+def api_candidate_attachment_delete(att_id):
+    """Supprime une pièce jointe candidat (fichier + DB)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT candidate_id, filename FROM candidate_attachments WHERE id=? AND owner_id=?;",
+            (att_id, uid),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+        attach_dir = _candidate_attachment_dir(uid, row["candidate_id"])
+        file_path = attach_dir / row["filename"]
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            logger.warning("[candidate-attachment] delete file error att=%s: %s", att_id, e)
+        conn.execute("DELETE FROM candidate_attachments WHERE id=? AND owner_id=?;", (att_id, uid))
+    return jsonify(ok=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v32.75 — Fiche entretien EC1 — export Excel pré-rempli
+# ═══════════════════════════════════════════════════════════════════
+
+def _ec1_template_path() -> Path | None:
+    """Localise le template Excel de fiche entretien EC1."""
+    for p in (
+        APP_DIR / "exemples" / "Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx",
+        APP_DIR / "sample" / "fiche_entretien.xlsx",
+        APP_DIR / "docs" / "Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx",
+    ):
+        if p.exists():
+            return p
+    return None
+
+
+def _slugify_for_filename(s: str) -> str:
+    """Convertit une chaîne en nom de fichier Excel safe."""
+    s = re.sub(r"[^A-Za-z0-9_\-\. ]+", "", s or "").strip()
+    return re.sub(r"\s+", "_", s) or "candidat"
+
+
+def _ec1_apply_to_cell(ws, cell_ref: str, value):
+    """Écrit `value` dans `cell_ref` en respectant les merges (on cible
+    toujours la cellule top-left de la plage)."""
+    try:
+        from openpyxl.utils import range_boundaries  # type: ignore
+    except Exception:
+        ws[cell_ref] = value
+        return
+    target = cell_ref
+    for rng in list(ws.merged_cells.ranges):
+        try:
+            min_col, min_row, max_col, max_row = range_boundaries(str(rng))
+            tl = ws.cell(row=min_row, column=min_col).coordinate
+            cell = ws[cell_ref]
+            if (cell.row >= min_row and cell.row <= max_row
+                    and cell.column >= min_col and cell.column <= max_col):
+                target = tl
+                break
+        except Exception:
+            continue
+    try:
+        ws[target] = value
+    except Exception as e:
+        logger.warning("[ec1] write cell %s failed: %s", target, e)
+
+
+@candidates_bp.get("/api/candidates/<int:cid>/ec1-export.xlsx")
+def api_candidate_ec1_export(cid):
+    """Génère et télécharge la fiche entretien EC1 pré-remplie pour ce candidat."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    with _conn() as conn:
+        cand = conn.execute(
+            "SELECT * FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid, uid),
+        ).fetchone()
+        if not cand:
+            return jsonify(ok=False, error="Candidat introuvable"), 404
+        ec1_row = conn.execute(
+            "SELECT interviewAt, data FROM candidate_ec1_checklists WHERE candidate_id=?;",
+            (cid,),
+        ).fetchone()
+
+    from utils.db import _auth_conn
+    try:
+        with _auth_conn() as aconn:
+            user = aconn.execute(
+                "SELECT username, display_name FROM users WHERE id=?;", (uid,),
+            ).fetchone()
+    except Exception:
+        user = None
+
+    c = dict(cand)
+    ec1_data = {}
+    if ec1_row and ec1_row["data"]:
+        try:
+            ec1_data = json.loads(ec1_row["data"]) or {}
+        except Exception:
+            ec1_data = {}
+    interview_at = ec1_row["interviewAt"] if ec1_row else None
+
+    template = _ec1_template_path()
+    if not template:
+        return jsonify(ok=False, error="Template Excel introuvable"), 500
+
+    try:
+        import openpyxl  # type: ignore
+    except ImportError:
+        return jsonify(ok=False, error="openpyxl non installé"), 500
+
+    try:
+        wb = openpyxl.load_workbook(str(template))
+        ws = wb["Dossier candidat"] if "Dossier candidat" in wb.sheetnames else wb.active
+
+        # Recruteur — trigramme déduit du username ou des initiales du nom
+        recruteur_user = (user["username"] if user else "") or ""
+        trigramme = recruteur_user[:3].upper() if recruteur_user else "XXX"
+        ec1_date_fmt = ""
+        if interview_at:
+            try:
+                d = datetime.datetime.fromisoformat(interview_at)
+                ec1_date_fmt = d.strftime("%d/%m/%Y")
+            except Exception:
+                ec1_date_fmt = interview_at[:10]
+        elif c.get("entretien_date"):
+            try:
+                d = datetime.datetime.fromisoformat(c["entretien_date"])
+                ec1_date_fmt = d.strftime("%d/%m/%Y")
+            except Exception:
+                ec1_date_fmt = (c.get("entretien_date") or "")[:10]
+
+        nom_complet = c.get("name") or ""
+        if c.get("prenom") and c.get("prenom") not in nom_complet:
+            nom_complet = f"{c['prenom']} {nom_complet}".strip()
+
+        # Identité — page 1
+        _ec1_apply_to_cell(ws, "A3", "Prénom Nom : " + nom_complet)
+        _ec1_apply_to_cell(ws, "A4", "Téléphone : " + (c.get("phone") or ""))
+        _ec1_apply_to_cell(ws, "A5", "Mail : " + (c.get("email") or ""))
+
+        diplomes = c.get("titre") or c.get("role") or ""
+        annees = c.get("annees_experience") or c.get("years_experience") or c.get("seniority") or ""
+        ligne_dip = "Dîplomes et expérience : " + str(diplomes)
+        if annees:
+            ligne_dip += f" — {annees} ans"
+        _ec1_apply_to_cell(ws, "A6", ligne_dip)
+
+        _ec1_apply_to_cell(ws, "C7", c.get("source") or "")
+        _ec1_apply_to_cell(ws, "G6", trigramme)
+        _ec1_apply_to_cell(ws, "H6", "OK" if (interview_at or c.get("entretien_date")) else "")
+        _ec1_apply_to_cell(ws, "J6", ec1_date_fmt)
+
+        # Permis / disponibilité / mobilité
+        _ec1_apply_to_cell(ws, "B9", "Oui" if c.get("permis_conduire") else "Non")
+        _ec1_apply_to_cell(ws, "D9", "Oui" if c.get("vehicule") else "Non")
+        _ec1_apply_to_cell(ws, "G9", c.get("disponibilite") or "")
+        _ec1_apply_to_cell(ws, "B10", c.get("permis_travail") or "")
+        _ec1_apply_to_cell(ws, "B11", c.get("notes") or "")
+        _ec1_apply_to_cell(ws, "I11", c.get("mobilite") or "")
+
+        # Fonctions recherchées
+        _ec1_apply_to_cell(ws, "A15", c.get("fonctions_recherchees") or "")
+
+        # Motivations
+        _ec1_apply_to_cell(ws, "A18", c.get("motif_recherche") or "")
+
+        # Rémunération
+        _ec1_apply_to_cell(ws, "B20", c.get("remuneration_actuelle") or "")
+        _ec1_apply_to_cell(ws, "B21", c.get("pretentions_salariales") or "")
+        _ec1_apply_to_cell(ws, "B22", c.get("propal_a") or "")
+        _ec1_apply_to_cell(ws, "F20", c.get("avancement_recherches") or "")
+
+        # Évaluation
+        _ec1_apply_to_cell(ws, "B26", c.get("eval_technique") or "")
+        _ec1_apply_to_cell(ws, "B27", c.get("eval_personnalite") or "")
+        _ec1_apply_to_cell(ws, "B28", c.get("eval_communication") or "")
+        _ec1_apply_to_cell(ws, "B29", c.get("status") or "")
+        # Détails / commentaire libre = avis_perso
+        if c.get("avis_perso"):
+            _ec1_apply_to_cell(ws, "D25", c.get("avis_perso"))
+
+        # Langues
+        _ec1_apply_to_cell(ws, "B36", c.get("langues") or "")
+
+        # Références
+        _ec1_apply_to_cell(ws, "A45", c.get("references_candidat") or "")
+
+        # Checklist EC1 (cases A48-A51) — annoter avec ✓ si coché
+        ec1_items = [
+            ("A48", "mobilite_dispo_souhaits"),
+            ("A49", "fourchette_salaire"),
+            ("A50", None),  # "Check dossier de compétences" — info de présence DC
+            ("A51", None),  # "Prise de références"
+        ]
+        for cell_ref, key in ec1_items:
+            checked = False
+            note = ""
+            if key and isinstance(ec1_data.get(key), dict):
+                checked = bool(ec1_data[key].get("checked"))
+                note = str(ec1_data[key].get("note") or "")
+            cell_val = ws[cell_ref].value or ""
+            prefix = "[X] " if checked else "[ ] "
+            new_val = prefix + str(cell_val).lstrip(" ✓✗-")
+            if note:
+                new_val += f"  — {note}"
+            _ec1_apply_to_cell(ws, cell_ref, new_val)
+
+        # Note libre EC1 globale → ajoutée dans A52 si vide
+        free_note = (ec1_data.get("__note") if isinstance(ec1_data, dict) else "") or (c.get("entretien_notes") or "")
+        if free_note:
+            _ec1_apply_to_cell(ws, "A52", "Notes : " + free_note[:400])
+
+        from io import BytesIO
+        bio = BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+
+        safe_name = _slugify_for_filename(c.get("name") or "candidat")
+        today = datetime.datetime.now().strftime("%d%m%Y")
+        download_name = f"Fiche_entretien_{safe_name}_EC1_{trigramme}_{today}.xlsx"
+
+        return send_file(
+            bio,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        logger.error("EC1 export failed: %s", e)
+        return jsonify(ok=False, error=f"Erreur génération Excel : {e}"), 500
+
+
+@candidates_bp.post("/api/candidates/<int:cid>/ec1-from-transcript")
+def api_candidate_ec1_from_transcript(cid):
+    """Analyse une transcription d'entretien EC1 via IA pour pré-remplir la
+    fiche candidat + cocher les cases de la checklist EC1.
+
+    Body JSON : { transcript: "...", apply: bool (false par défaut) }
+    Retour : { ok, fields: { eval_technique, eval_personnalite, ... }, checklist: {...}, notes: "..." }
+    Si apply=true, applique directement les champs en DB.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    body = request.get_json(force=True, silent=True) or {}
+    transcript = (body.get("transcript") or "").strip()
+    apply_now = bool(body.get("apply"))
+    if not transcript:
+        return jsonify(ok=False, error="Transcription vide"), 400
+    if len(transcript) > 40000:
+        transcript = transcript[:40000]
+
+    prompt = f"""Tu es un assistant RH expert. Voici la transcription d'un entretien EC1 (entretien de qualification candidat) chez Up Technologies.
+
+---
+{transcript}
+---
+
+Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
+{{
+  "fields": {{
+    "disponibilite": "date ou délai de disponibilité (ex: Immédiate, 3 mois)",
+    "mobilite": "zones géographiques (ex: Lyon, Paris, Nationale)",
+    "fonctions_recherchees": "postes et secteurs visés",
+    "motif_recherche": "motif de départ / motivations principales",
+    "remuneration_actuelle": "rémunération actuelle (fixe + variable + avantages)",
+    "pretentions_salariales": "prétentions salariales",
+    "avancement_recherches": "avancement des autres pistes (ED/EP/Std By/discret)",
+    "eval_technique": "évaluation technique (1-2 phrases)",
+    "eval_personnalite": "évaluation personnalité (1-2 phrases)",
+    "eval_communication": "évaluation communication (1-2 phrases)",
+    "langues": "langues et niveaux (ex: Anglais B2 testé)",
+    "references_candidat": "références transmises (nom, fonction, société, contact)",
+    "avis_perso": "synthèse personnelle / avis du recruteur (3-4 phrases)",
+    "entretien_notes": "compte-rendu structuré (notes EC1 : points clés, prochaines étapes)"
+  }},
+  "checklist": {{
+    "mobilite_dispo_souhaits": {{"checked": true|false, "note": ""}},
+    "impression_generale": {{"checked": true|false, "note": ""}},
+    "evaluation_technique": {{"checked": true|false, "note": ""}},
+    "evaluation_personnalite": {{"checked": true|false, "note": ""}},
+    "evaluation_communication": {{"checked": true|false, "note": ""}},
+    "rappel_valeurs_up": {{"checked": true|false, "note": ""}},
+    "fourchette_salaire": {{"checked": true|false, "note": ""}},
+    "reponse_questions_craintes": {{"checked": true|false, "note": ""}},
+    "process_prochaines_etapes": {{"checked": true|false, "note": ""}}
+  }}
+}}
+
+Mets les champs absents à la chaîne vide. Pour la checklist, mets `checked` à true si le sujet a été abordé pendant l'entretien."""
+
+    try:
+        config = _load_ai_config()
+        timeout = int(config.get("ollama_timeout", 120))
+        raw = _call_ollama_direct(prompt, config, timeout)
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = re.sub(r'^```[^\n]*\n?', '', clean)
+            clean = re.sub(r'\n?```$', '', clean)
+        json_match = re.search(r'\{[\s\S]*\}', clean)
+        if not json_match:
+            return jsonify(ok=False, error="L'IA n'a pas retourné de JSON valide", raw=raw[:500]), 422
+        parsed = json.loads(json_match.group(0))
+        fields = parsed.get("fields") or {}
+        checklist = parsed.get("checklist") or {}
+    except json.JSONDecodeError as e:
+        return jsonify(ok=False, error=f"JSON invalide : {e}"), 422
+    except Exception as e:
+        logger.warning("EC1 from-transcript IA error: %s", e)
+        return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
+
+    if apply_now:
+        # Met à jour les champs candidat (fusion non destructive : ignore si vide)
+        sets, vals = [], []
+        for k in ("disponibilite", "mobilite", "fonctions_recherchees", "motif_recherche",
+                  "remuneration_actuelle", "pretentions_salariales", "avancement_recherches",
+                  "eval_technique", "eval_personnalite", "eval_communication", "langues",
+                  "references_candidat", "avis_perso", "entretien_notes"):
+            v = fields.get(k)
+            if v not in (None, ""):
+                sets.append(f"{k}=?"); vals.append(str(v).strip())
+        if sets:
+            vals.extend([_now_iso(), cid, uid])
+            with _conn() as conn:
+                conn.execute(
+                    f"UPDATE candidates SET {', '.join(sets)}, updatedAt=? WHERE id=? AND owner_id=?;",
+                    vals,
+                )
+
+        # Sauvegarde la checklist EC1
+        if isinstance(checklist, dict) and checklist:
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ec1_keys = {
+                "mobilite_dispo_souhaits", "impression_generale", "evaluation_technique",
+                "evaluation_personnalite", "evaluation_communication", "rappel_valeurs_up",
+                "fourchette_salaire", "reponse_questions_craintes", "process_prochaines_etapes",
+            }
+            merged = {k: {"checked": False, "note": ""} for k in ec1_keys}
+            merged["__note"] = ""
+            for k, v in checklist.items():
+                if k in ec1_keys and isinstance(v, dict):
+                    merged[k] = {
+                        "checked": bool(v.get("checked", False)),
+                        "note": str(v.get("note") or "").strip(),
+                    }
+            with _conn() as conn:
+                row = conn.execute(
+                    "SELECT interviewAt FROM candidate_ec1_checklists WHERE candidate_id=?;",
+                    (cid,),
+                ).fetchone()
+                interview_at = (row["interviewAt"] if row else None) or _today_iso()
+                conn.execute(
+                    """INSERT INTO candidate_ec1_checklists (candidate_id, interviewAt, data, updatedAt)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(candidate_id)
+                       DO UPDATE SET data=excluded.data, updatedAt=excluded.updatedAt""",
+                    (cid, interview_at, json.dumps(merged, ensure_ascii=False), now),
+                )
+
+    return jsonify(ok=True, fields=fields, checklist=checklist, applied=apply_now)

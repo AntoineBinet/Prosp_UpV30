@@ -126,6 +126,13 @@ def _thumb_dir(owner_id: int, prospect_id: int) -> Path:
     return p
 
 
+def _candidate_attachment_dir(owner_id: int, candidate_id: int) -> Path:
+    """Retourne (et crée) le dossier de pièces jointes isolé par user et candidat."""
+    p = Path("data") / f"user_{owner_id}" / "candidate_attachments" / f"candidate_{candidate_id}"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def _generate_thumbnail(src_path: Path, mime_type: str, target_path: Path) -> bool:
     """Génère une miniature 320x240 PNG. Retourne True si succès.
 
