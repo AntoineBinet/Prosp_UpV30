@@ -2,6 +2,40 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.67] — 2026-05-19 · Productivité Phase 3 · Funnel cumulatif + Score IA
+
+- **Funnel cumulatif 5 étapes** dans `/v30/stats` : *Total → Contactés
+  → RDV pris → RDV tenus → Signés*. Chaque étape est un sous-ensemble
+  de la précédente, le taux de conversion entre étapes est affiché en
+  pourcentage. Remplace l'ancien funnel qui affichait simplement la
+  distribution par statut.
+- **Drill-down** : clic sur une étape ouvre la liste des prospects qui
+  s'y trouvent (jusqu'à 200), avec lien direct vers la fiche. Bouton
+  *Fermer* pour replier.
+- **Score IA déterministe** (0-100, sans appel Ollama) : pondération
+  Engagement push (35%) + Recency (35%) + Volume / récurrence (30%).
+  - Engagement = (opened×1 + clicked×2 + replied×4) sur 90j, saturé à 10.
+  - Recency = paliers selon ancienneté lastContact (1.0 / 0.5 / 0.2 / 0.05).
+  - Volume = log10 normalisé du nb total d'actions sur 180j (push + call + events).
+- **Colonne Score IA** dans la table `/v30/prospects` : barre colorée
+  + valeur numérique, tooltip avec breakdown des 3 composantes,
+  tri ascendant/descendant cliquable. Toggle via le sélecteur de colonnes.
+- **Mode Prosp trié par score** : les fiches les plus chaudes (score
+  décroissant) apparaissent en premier par défaut. Fallback gracieux si
+  l'endpoint scores échoue (ordre du backend conservé).
+- **API** :
+  - `GET /api/prospects/scores` — scores 0-100 avec breakdown.
+    Paramètre optionnel `?ids=1,2,3`.
+  - `GET /api/stats/funnel` — funnel cumulatif. Paramètre `?with_ids=1`
+    pour le drill-down (inclut les IDs par étape).
+- **Définition des étapes** (cumulatives) :
+  - Total : prospects actifs (non archivés, non supprimés).
+  - Contactés : ≥ 1 push, 1 call_log, ou lastContact rempli.
+  - RDV pris : rdvDate rempli OU statut Rendez-vous/Prospecté OU rdv_outcome existant.
+  - RDV tenus : rdv_outcome = `tenu` OU ≥ 1 meeting OU statut Prospecté.
+  - Signés : event `contrat_signe` enregistré.
+- **Toile** : 4 nouvelles actions sous *Stats* et *Prospects*.
+
 ## [32.66] — 2026-05-19 · Productivité Phase 2 · IA Next Action (badge passif)
 
 - **Carte « Prochaine action recommandée »** en tête de l'onglet *Aperçu*

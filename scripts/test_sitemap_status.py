@@ -146,6 +146,8 @@ API_GETS: list[str] = [
     "/api/rdv/no-show-stats",
     "/api/ai/next-action/today",
     "/api/ai/next-action/1",
+    "/api/prospects/scores",
+    "/api/stats/funnel",
     "/api/ec1-checklist?candidate_id=1",
     "/api/export/day",
     "/api/export/xlsx",

@@ -8829,6 +8829,7 @@ from routes.bug_reports import bug_reports_bp  # noqa: E402
 from routes.actus import actus_bp  # noqa: E402
 from routes.rdv_review import rdv_review_bp  # noqa: E402
 from routes.next_action_ai import next_action_ai_bp  # noqa: E402
+from routes.prospect_score import prospect_score_bp  # noqa: E402
 from services import actus as _actus_svc  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
@@ -8857,6 +8858,7 @@ app.register_blueprint(bug_reports_bp)
 app.register_blueprint(actus_bp)
 app.register_blueprint(rdv_review_bp)
 app.register_blueprint(next_action_ai_bp)
+app.register_blueprint(prospect_score_bp)
 
 
 if __name__ == "__main__":

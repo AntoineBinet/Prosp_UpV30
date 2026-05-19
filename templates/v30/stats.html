@@ -285,7 +285,7 @@
         <div class="row-sb v30-stats-card__head">
           <div>
             <div class="card-title">Funnel · Conversion</div>
-            <div class="card-sub">Du premier contact jusqu'au RDV</div>
+            <div class="card-sub">Du premier contact à la signature — cliquez une étape pour la lister</div>
           </div>
           <span class="muted num" style="font-size:12px;" data-field="rate">—</span>
         </div>
@@ -297,6 +297,14 @@
             <span class="skel" style="width:48px;height:11px;"></span>
           </div>
           {% endfor %}
+        </div>
+        <div data-v30-funnel-drill hidden style="padding:8px 0 0;border-top:1px solid var(--border);margin-top:6px;">
+          <div class="row-sb" style="margin-bottom:8px;">
+            <div class="card-title" style="font-size:12.5px;" data-field="drill-title">—</div>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-funnel-drill-close
+                    aria-label="Fermer le drill-down">Fermer</button>
+          </div>
+          <div data-field="drill-list" style="max-height:240px;overflow:auto;font-size:12px;"></div>
         </div>
       </section>
 
