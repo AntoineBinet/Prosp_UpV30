@@ -886,6 +886,37 @@ CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prosp
 CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
 
+-- v32.x Phase 4 : séquences push (cadences + adaptation, suggestions guidées)
+CREATE TABLE IF NOT EXISTS push_sequences (
+    id          INTEGER PRIMARY KEY,
+    owner_id    INTEGER,
+    name        TEXT NOT NULL,
+    description TEXT,
+    steps_json  TEXT NOT NULL,
+    is_active   INTEGER DEFAULT 1,
+    is_default  INTEGER DEFAULT 0,
+    createdAt   TEXT,
+    updatedAt   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+
+CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+    id                    INTEGER PRIMARY KEY,
+    sequence_id           INTEGER NOT NULL,
+    prospect_id           INTEGER NOT NULL,
+    owner_id              INTEGER NOT NULL,
+    started_at            TEXT NOT NULL,
+    status                TEXT DEFAULT 'active',
+    completed_steps_json  TEXT DEFAULT '[]',
+    paused_at             TEXT,
+    paused_reason         TEXT,
+    last_check_at         TEXT,
+    FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+
 CREATE TABLE IF NOT EXISTS prospect_attachments (
     id            INTEGER PRIMARY KEY,
     prospect_id   INTEGER NOT NULL,
@@ -1186,6 +1217,16 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("prospects", "fixedMetier", "TEXT")
         if "rdvDate" not in cols:
             _add_col("prospects", "rdvDate", "TEXT")
+        # v32.x Phase 1 : workflow no-show / revue de RDV
+        if "rdv_reviewed_at" not in cols:
+            _add_col("prospects", "rdv_reviewed_at", "TEXT")
+        if "rdv_outcome" not in cols:
+            _add_col("prospects", "rdv_outcome", "TEXT")
+        # v32.x Phase 2 : IA Next Action (badge passif par prospect)
+        if "next_action_ai" not in cols:
+            _add_col("prospects", "next_action_ai", "TEXT")
+        if "next_action_ai_at" not in cols:
+            _add_col("prospects", "next_action_ai_at", "TEXT")
         # Migration: renommer is_contact en is_archived
         if "is_contact" in cols and "is_archived" not in cols:
             conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
@@ -1962,6 +2003,52 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "is_contact" in pros_cols and "is_archived" in pros_cols:
                 conn.execute("UPDATE prospects SET is_archived = is_contact WHERE is_contact = 1 AND (is_archived IS NULL OR is_archived = 0);")
                 conn.commit()
+            # v32.x Phase 1 : workflow no-show / revue de RDV (per-user DBs)
+            if "rdv_reviewed_at" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN rdv_reviewed_at TEXT;")
+                conn.commit()
+            if "rdv_outcome" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN rdv_outcome TEXT;")
+                conn.commit()
+            # v32.x Phase 2 : IA Next Action (per-user DBs)
+            if "next_action_ai" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN next_action_ai TEXT;")
+                conn.commit()
+            if "next_action_ai_at" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN next_action_ai_at TEXT;")
+                conn.commit()
+            # v32.x Phase 4 : séquences push (per-user DBs) — création idempotente
+            conn.executescript('''
+                CREATE TABLE IF NOT EXISTS push_sequences (
+                    id          INTEGER PRIMARY KEY,
+                    owner_id    INTEGER,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    steps_json  TEXT NOT NULL,
+                    is_active   INTEGER DEFAULT 1,
+                    is_default  INTEGER DEFAULT 0,
+                    createdAt   TEXT,
+                    updatedAt   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+                CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+                    id                    INTEGER PRIMARY KEY,
+                    sequence_id           INTEGER NOT NULL,
+                    prospect_id           INTEGER NOT NULL,
+                    owner_id              INTEGER NOT NULL,
+                    started_at            TEXT NOT NULL,
+                    status                TEXT DEFAULT 'active',
+                    completed_steps_json  TEXT DEFAULT '[]',
+                    paused_at             TEXT,
+                    paused_reason         TEXT,
+                    last_check_at         TEXT,
+                    FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+                CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+            ''')
+            conn.commit()
         except Exception as e:
             print(f"[WARN] Migration is_archived prospects ({db_path}): {e}")
         # Migration: ajouter colonnes candidates (schéma complet aligné sur la main DB)
@@ -2800,6 +2887,10 @@ def _init_user_db(user_id: int) -> Path:
                 push_category_id INTEGER,
                 fixedMetier   TEXT,
                 rdvDate       TEXT,
+                rdv_reviewed_at TEXT,
+                rdv_outcome   TEXT,
+                next_action_ai TEXT,
+                next_action_ai_at TEXT,
                 is_archived   INTEGER,
                 owner_id      INTEGER,
                 deleted_at    TEXT,
@@ -3144,6 +3235,38 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
+
+            -- v32.x Phase 4 : séquences push (per-user DB)
+            CREATE TABLE IF NOT EXISTS push_sequences (
+                id          INTEGER PRIMARY KEY,
+                owner_id    INTEGER,
+                name        TEXT NOT NULL,
+                description TEXT,
+                steps_json  TEXT NOT NULL,
+                is_active   INTEGER DEFAULT 1,
+                is_default  INTEGER DEFAULT 0,
+                createdAt   TEXT,
+                updatedAt   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+
+            CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+                id                    INTEGER PRIMARY KEY,
+                sequence_id           INTEGER NOT NULL,
+                prospect_id           INTEGER NOT NULL,
+                owner_id              INTEGER NOT NULL,
+                started_at            TEXT NOT NULL,
+                status                TEXT DEFAULT 'active',
+                completed_steps_json  TEXT DEFAULT '[]',
+                paused_at             TEXT,
+                paused_reason         TEXT,
+                last_check_at         TEXT,
+                FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+            CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+
             CREATE INDEX IF NOT EXISTS idx_candidate_events_candidate ON candidate_events(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_events_date ON candidate_events(date);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_events(candidate_id, type, date);
@@ -6884,6 +7007,14 @@ def api_dashboard():
             "overdue": len(overdue),
             "due_today": len(due_today),
             "statuts": statuts,
+            # v32.x Phase 1 : compteur RDV passés non statués (pour badge notif)
+            "rdv_to_review": sum(
+                1 for p in prospects_list
+                if (p.get("rdvDate") or "").strip()[:10]
+                and (p.get("rdvDate") or "").strip()[:10] < today
+                and (p.get("statut") or "") == "Rendez-vous"
+                and not (p.get("rdv_reviewed_at") or "").strip()
+            ),
         },
         "feed": {
             "notes": [{
@@ -6932,6 +7063,23 @@ def api_dashboard():
             [p for p in prospects_list if (p.get("rdvDate") or "").strip()[:10] > today],
             key=lambda x: x.get("rdvDate", "")
         )[:5]],
+        # v32.x Phase 1 : RDV passés non statués (workflow no-show)
+        "rdv_to_review": [{
+            "id": p["id"],
+            "name": p["name"],
+            "rdvDate": p.get("rdvDate", ""),
+            "statut": p.get("statut", ""),
+            "company_name": p.get("company_groupe") or p.get("company_site") or "",
+            "fonction": p.get("fonction", ""),
+        } for p in sorted(
+            [p for p in prospects_list
+             if (p.get("rdvDate") or "").strip()[:10]
+             and (p.get("rdvDate") or "").strip()[:10] < today
+             and (p.get("statut") or "") == "Rendez-vous"
+             and not (p.get("rdv_reviewed_at") or "").strip()],
+            key=lambda x: x.get("rdvDate", ""),
+            reverse=True,
+        )],
         # Quick access — besoins ouverts (statut ouvert/en_cours) pour
         # accéder vite à la priorité métier la plus haute depuis le dashboard.
         "besoins": {
@@ -8792,6 +8940,10 @@ from routes.dc import dc_bp  # noqa: E402
 from routes.collab import collab_bp  # noqa: E402
 from routes.bug_reports import bug_reports_bp  # noqa: E402
 from routes.actus import actus_bp  # noqa: E402
+from routes.rdv_review import rdv_review_bp  # noqa: E402
+from routes.next_action_ai import next_action_ai_bp  # noqa: E402
+from routes.prospect_score import prospect_score_bp  # noqa: E402
+from routes.push_sequences import push_sequences_bp  # noqa: E402
 from services import actus as _actus_svc  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
@@ -8818,6 +8970,10 @@ app.register_blueprint(dc_bp)
 app.register_blueprint(collab_bp)
 app.register_blueprint(bug_reports_bp)
 app.register_blueprint(actus_bp)
+app.register_blueprint(rdv_review_bp)
+app.register_blueprint(next_action_ai_bp)
+app.register_blueprint(prospect_score_bp)
+app.register_blueprint(push_sequences_bp)
 
 
 if __name__ == "__main__":

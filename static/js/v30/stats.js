@@ -802,56 +802,132 @@
     });
   }
 
-  // ─── Funnel de conversion (custom SVG, design Prosp_Up) ──
+  // ─── Funnel de conversion cumulatif (Phase 3 productivité v32.x) ──
+  // 5 étapes : Total → Contactés → RDV pris → RDV tenus → Signés.
+  // Source : GET /api/stats/funnel (services/prospect_score.py:compute_funnel).
+  // Clic sur une étape → drill-down (liste des prospects de l'étape).
+  var FUNNEL_STAGE_COLORS = {
+    total:     '#94a3b8',
+    contacted: '#3b82f6',
+    rdv_pris:  '#22c55e',
+    rdv_tenus: '#10b981',
+    signes:    '#a855f7'
+  };
+
   function renderFunnel() {
     var host = $('[data-v30-stats-funnel] [data-field="rows"]');
     if (!host) return;
-    var c = STATE.statsCharts || {};
-    var dist = c.statusDistribution || {};
 
-    // Ordre logique du funnel (du plus large au plus engagé)
-    var STAGES = [
-      { key: "Pas d'actions", label: 'À contacter',  color: '#94a3b8' },
-      { key: 'Appelé',        label: 'Appelé',       color: '#3b82f6' },
-      { key: 'À rappeler',    label: 'À rappeler',   color: '#f59e0b' },
-      { key: 'Messagerie',    label: 'Messagerie',   color: '#8b5cf6' },
-      { key: 'Rendez-vous',   label: 'Rendez-vous',  color: '#22c55e' }
-    ];
-    // 'Prospecté' est l'étape post-RDV, on la cumule pour le calcul de conversion.
-    var prospecte = dist['Prospecté'] || 0;
-    var rows = STAGES.map(function (s) { return { label: s.label, value: dist[s.key] || 0, color: s.color }; });
+    fetchJSON('/api/stats/funnel').then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'HTTP error');
+      var stages = res.stages || [];
+      var rates = res.rates || {};
 
-    var maxValue = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.value; })));
-    var totalProspects = rows.reduce(function (s, r) { return s + r.value; }, 0) + prospecte;
-    var rdv = dist['Rendez-vous'] || 0;
-    var convPct = totalProspects > 0 ? Math.round(((rdv + prospecte) / totalProspects) * 1000) / 10 : 0;
+      var maxValue = Math.max(1, Math.max.apply(null, stages.map(function (s) { return s.count; })));
+      var total = (stages[0] && stages[0].count) || 0;
 
-    var rateEl = $('[data-v30-stats-funnel] [data-field="rate"]');
-    if (rateEl) rateEl.textContent = convPct.toFixed(1).replace('.', ',') + '% conversion';
-
-    if (totalProspects === 0) {
-      host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Aucun prospect.</div>';
-      return;
-    }
-
-    host.innerHTML = rows.map(function (r, i) {
-      var pct = totalProspects > 0 ? Math.round((r.value / totalProspects) * 1000) / 10 : 0;
-      var fillW = Math.round((r.value / maxValue) * 100);
-      var prev = i > 0 ? rows[i - 1].value : null;
-      var dropTxt = '';
-      if (prev != null && prev > 0 && r.value < prev) {
-        var drop = Math.round(((prev - r.value) / prev) * 100);
-        dropTxt = '<span class="v30-stats-funnel__drop" title="Perte vs étape précédente">−' + drop + '%</span>';
+      var rateEl = $('[data-v30-stats-funnel] [data-field="rate"]');
+      if (rateEl) {
+        var g = Number(rates.global_conversion || 0);
+        rateEl.textContent = g.toFixed(1).replace('.', ',') + '% Total → Signés';
       }
-      return '<div class="v30-stats-funnel__row" style="--stage-color:' + r.color + ';">' +
-        '<span class="v30-stats-funnel__label">' + esc(r.label) + dropTxt + '</span>' +
-        '<div class="v30-stats-funnel__bar">' +
-          '<div class="v30-stats-funnel__fill" style="width:' + fillW + '%;"></div>' +
-          '<span class="v30-stats-funnel__value num">' + fmt(r.value) + '</span>' +
-        '</div>' +
-        '<span class="v30-stats-funnel__pct num">' + pct.toFixed(1).replace('.', ',') + '%</span>' +
-      '</div>';
-    }).join('');
+
+      if (total === 0) {
+        host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Aucun prospect.</div>';
+        return;
+      }
+
+      host.innerHTML = stages.map(function (s, i) {
+        var color = FUNNEL_STAGE_COLORS[s.key] || '#94a3b8';
+        var pct = total > 0 ? Math.round((s.count / total) * 1000) / 10 : 0;
+        var fillW = Math.round((s.count / maxValue) * 100);
+        var prev = i > 0 ? stages[i - 1].count : null;
+        var dropTxt = '';
+        if (prev != null && prev > 0 && s.count < prev) {
+          var drop = Math.round(((prev - s.count) / prev) * 100);
+          dropTxt = '<span class="v30-stats-funnel__drop" title="Perte vs étape précédente">−' + drop + '%</span>';
+        }
+        return '<div class="v30-stats-funnel__row" style="--stage-color:' + color + ';cursor:pointer;" ' +
+          'data-v30-funnel-stage="' + esc(s.key) + '" data-v30-funnel-label="' + esc(s.label) + '" ' +
+          'title="Cliquer pour lister les prospects à cette étape">' +
+          '<span class="v30-stats-funnel__label">' + esc(s.label) + dropTxt + '</span>' +
+          '<div class="v30-stats-funnel__bar">' +
+            '<div class="v30-stats-funnel__fill" style="width:' + fillW + '%;"></div>' +
+            '<span class="v30-stats-funnel__value num">' + fmt(s.count) + '</span>' +
+          '</div>' +
+          '<span class="v30-stats-funnel__pct num">' + pct.toFixed(1).replace('.', ',') + '%</span>' +
+        '</div>';
+      }).join('');
+    }).catch(function (err) {
+      console.error('[stats funnel] /api/stats/funnel failed:', err);
+      host.innerHTML = '<div class="empty" style="padding:18px 0;font-size:12px;color:var(--text-3);">Erreur de chargement du funnel.</div>';
+    });
+  }
+
+  // ─── Drill-down funnel : clic sur une étape liste ses prospects ──
+  function bindFunnelDrill() {
+    var section = $('[data-v30-stats-funnel]');
+    if (!section) return;
+    var drill = section.querySelector('[data-v30-funnel-drill]');
+    var titleEl = drill && drill.querySelector('[data-field="drill-title"]');
+    var listEl = drill && drill.querySelector('[data-field="drill-list"]');
+    var closeBtn = drill && drill.querySelector('[data-v30-funnel-drill-close]');
+
+    section.addEventListener('click', function (e) {
+      var row = e.target.closest('[data-v30-funnel-stage]');
+      if (!row) return;
+      var stageKey = row.dataset.v30FunnelStage;
+      var stageLabel = row.dataset.v30FunnelLabel || stageKey;
+      openDrill(stageKey, stageLabel);
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', function () {
+      drill.hidden = true;
+    });
+
+    function openDrill(stageKey, stageLabel) {
+      if (!drill || !titleEl || !listEl) return;
+      drill.hidden = false;
+      titleEl.textContent = stageLabel + ' — chargement…';
+      listEl.innerHTML = '<div class="empty" style="padding:8px;">Chargement…</div>';
+
+      Promise.all([
+        fetchJSON('/api/stats/funnel?with_ids=1'),
+        fetchJSON('/api/data')
+      ]).then(function (r) {
+        var stage = (r[0].stages || []).find(function (s) { return s.key === stageKey; });
+        var prospects = (r[1] && r[1].prospects) || [];
+        if (!stage) {
+          listEl.innerHTML = '<div class="empty">Étape introuvable.</div>';
+          return;
+        }
+        var ids = new Set(stage.ids || []);
+        var rows = prospects.filter(function (p) { return ids.has(p.id); });
+        titleEl.textContent = stageLabel + ' · ' + rows.length + ' prospect' + (rows.length > 1 ? 's' : '');
+
+        if (rows.length === 0) {
+          listEl.innerHTML = '<div class="empty" style="padding:8px;">Aucun prospect à cette étape.</div>';
+          return;
+        }
+        // Tri : nom asc
+        rows.sort(function (a, b) {
+          return String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' });
+        });
+        listEl.innerHTML = rows.slice(0, 200).map(function (p) {
+          var company = p.company_groupe || p.company_site || '';
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border-bottom:1px solid var(--border);">' +
+            '<a href="/v30/prospect/' + p.id + '" style="text-decoration:none;color:inherit;min-width:0;flex:1;">' +
+              '<span style="font-weight:600;">' + esc(p.name || '—') + '</span>' +
+              (company ? ' <span class="muted">· ' + esc(company) + '</span>' : '') +
+            '</a>' +
+            '<span class="muted" style="font-size:11px;white-space:nowrap;">' + esc(p.statut || '') + '</span>' +
+          '</div>';
+        }).join('') +
+        (rows.length > 200 ? '<div class="muted" style="padding:8px;font-size:11px;">+ ' + (rows.length - 200) + ' autres…</div>' : '');
+      }).catch(function () {
+        listEl.innerHTML = '<div class="empty" style="padding:8px;">Erreur de chargement.</div>';
+      });
+    }
   }
 
   // ─── Top compétences / tags (SVG bars) ────────────────
@@ -1092,6 +1168,7 @@
     bindRangeModal();
     bindFilters();
     bindExport();
+    bindFunnelDrill();
     updateMonthLabel();
     reloadAll();
   }

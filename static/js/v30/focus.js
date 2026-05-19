@@ -436,6 +436,182 @@
     });
   }
 
+  // ─── Bloc RDV à statuer (Phase 1 productivité v32.x) ─────────
+  var RDV_REVIEW = { items: [] };
+
+  function fmtDateShort(iso) {
+    if (!iso) return '—';
+    var s = String(iso);
+    var d = new Date(s.length === 10 ? (s + 'T00:00:00') : s);
+    if (isNaN(d.getTime())) return s.slice(0, 10);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) +
+           (s.length > 10 ? ' à ' + s.slice(11, 16) : '');
+  }
+
+  function renderRdvReview() {
+    var section = document.querySelector('[data-v30-rdv-review]');
+    var host = document.querySelector('[data-v30-rdv-review-list]');
+    var countEl = document.querySelector('[data-v30-rdv-review] [data-field="rr-count"]');
+    if (!section || !host) return;
+    var items = RDV_REVIEW.items;
+    if (countEl) countEl.textContent = items.length;
+    if (items.length === 0) {
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+    host.innerHTML = items.map(function (p) {
+      var meta = (p.company_name ? esc(p.company_name) + ' · ' : '') +
+                 (p.fonction ? esc(p.fonction) + ' · ' : '') +
+                 'RDV ' + esc(fmtDateShort(p.rdvDate));
+      return '<div class="v30-rdv-review-row" data-pid="' + p.id + '">' +
+        '<a class="v30-rdv-review-row__main" href="/v30/prospect/' + p.id + '">' +
+          '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
+          '<div class="v30-rdv-review-row__info">' +
+            '<div class="v30-rdv-review-row__name">' + esc(p.name || '—') + '</div>' +
+            '<div class="v30-rdv-review-row__meta">' + meta + '</div>' +
+          '</div>' +
+        '</a>' +
+        '<div class="v30-rdv-review-row__actions">' +
+          '<button type="button" class="btn btn-sm btn--tenu" data-v30-rdv-outcome="tenu" title="Le RDV a eu lieu, lance le compte-rendu IA">Tenu</button>' +
+          '<button type="button" class="btn btn-sm btn--noshow" data-v30-rdv-outcome="no-show" title="Le prospect n\'est pas venu">No-show</button>' +
+          '<button type="button" class="btn btn-sm btn--annule" data-v30-rdv-outcome="annule" title="Le RDV a été annulé">Annulé</button>' +
+          '<button type="button" class="btn btn-sm btn--reprog" data-v30-rdv-outcome="reprogramme" title="Choisir un nouveau créneau">Reprogrammé</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadRdvReview() {
+    return fetchJSON('/api/rdv/pending-review').then(function (res) {
+      RDV_REVIEW.items = (res && res.ok && res.items) || [];
+      renderRdvReview();
+    }).catch(function (err) {
+      console.error('[v30 focus rdv-review] /api/rdv/pending-review failed:', err);
+      RDV_REVIEW.items = [];
+      renderRdvReview();
+    });
+  }
+
+  function _openRelanceModal(prospect, outcome, ai, creneaux) {
+    var m = document.querySelector('[data-v30-rdv-relance-modal]');
+    if (!m) return;
+    var meta = m.querySelector('[data-v30-rdv-relance-meta]');
+    var subjEl = m.querySelector('[data-v30-rdv-relance-subject]');
+    var bodyEl = m.querySelector('[data-v30-rdv-relance-body]');
+    var crenEl = m.querySelector('[data-v30-rdv-relance-creneaux]');
+    var titleEl = m.querySelector('#v30-rdv-relance-title');
+    if (titleEl) titleEl.textContent = outcome === 'no-show'
+      ? 'Relance après no-show'
+      : 'Relance après annulation';
+    if (meta) {
+      var origin = ai && ai.success ? 'Générée par IA' : 'Modèle de secours (IA indisponible)';
+      meta.textContent = prospect.name + ' · ' + (prospect.company_name || '—') + ' · ' + origin;
+    }
+    if (subjEl) subjEl.value = (ai && ai.subject) || '';
+    if (bodyEl) bodyEl.value = (ai && ai.body) || '';
+    if (crenEl) {
+      crenEl.innerHTML = (creneaux || []).map(function (c) {
+        return '<div>· ' + esc(c.replace('T', ' à ')) + '</div>';
+      }).join('');
+    }
+    var wrap = m.querySelector('[data-v30-rdv-relance-creneaux-wrap]');
+    if (wrap) wrap.hidden = !(creneaux && creneaux.length);
+
+    // Bind boutons (idempotent : on remplace via cloneNode pour éviter double-bind)
+    var copyBtn = m.querySelector('[data-v30-rdv-relance-copy]');
+    var openBtn = m.querySelector('[data-v30-rdv-relance-open]');
+    if (copyBtn) {
+      var fresh = copyBtn.cloneNode(true);
+      copyBtn.parentNode.replaceChild(fresh, copyBtn);
+      fresh.addEventListener('click', function () {
+        var txt = (subjEl ? 'Objet : ' + subjEl.value + '\n\n' : '') + (bodyEl ? bodyEl.value : '');
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(txt).then(function () {
+            toast('Email copié dans le presse-papiers', 'success');
+          }).catch(function () { toast('Erreur copie', 'error'); });
+        } else {
+          toast('Presse-papiers non disponible', 'warning');
+        }
+      });
+    }
+    if (openBtn) {
+      var fresh2 = openBtn.cloneNode(true);
+      openBtn.parentNode.replaceChild(fresh2, openBtn);
+      fresh2.addEventListener('click', function () {
+        var to = encodeURIComponent(prospect.email || '');
+        var su = encodeURIComponent((subjEl ? subjEl.value : '') || '');
+        var bo = encodeURIComponent((bodyEl ? bodyEl.value : '') || '');
+        window.location.href = 'mailto:' + to + '?subject=' + su + '&body=' + bo;
+      });
+    }
+
+    m.hidden = false;
+    void m.offsetWidth;
+    m.classList.add('is-open');
+  }
+
+  function _closeRelanceModal() {
+    var m = document.querySelector('[data-v30-rdv-relance-modal]');
+    if (!m) return;
+    m.classList.remove('is-open');
+    setTimeout(function () { m.hidden = true; }, 160);
+  }
+
+  function bindRdvReview() {
+    var host = document.querySelector('[data-v30-rdv-review-list]');
+    if (!host) return;
+    host.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-rdv-outcome]');
+      if (!btn) return;
+      var row = btn.closest('.v30-rdv-review-row');
+      if (!row) return;
+      var pid = Number(row.dataset.pid);
+      var outcome = btn.dataset.v30RdvOutcome;
+      if (!pid || !outcome) return;
+      var prospect = RDV_REVIEW.items.find(function (p) { return p.id === pid; });
+      if (!prospect) return;
+
+      row.dataset.busy = '1';
+      postJSON('/api/rdv/' + pid + '/review', { outcome: outcome })
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+          // Toast + retire la ligne de la liste
+          var msg = {
+            'tenu': 'RDV marqué tenu — lance l\'IA Après RDV depuis la fiche',
+            'no-show': 'No-show enregistré — relance générée',
+            'annule': 'Annulation enregistrée — relance générée',
+            'reprogramme': 'À reprogrammer — créneau effacé, ouvre le calendrier'
+          }[outcome] || 'RDV statué';
+          toast(msg, outcome === 'tenu' || outcome === 'reprogramme' ? 'success' : 'info');
+          // Si IA a retourné un email → ouvre le modal
+          if (res.ai_relance && (outcome === 'no-show' || outcome === 'annule')) {
+            _openRelanceModal(prospect, outcome, res.ai_relance, res.creneaux);
+          }
+          // Rafraîchit la liste + le dashboard (compteurs) + le badge notif
+          loadRdvReview();
+          load();
+          try { document.dispatchEvent(new CustomEvent('v30:notif:reload')); } catch (_) {}
+        })
+        .catch(function (err) {
+          row.dataset.busy = '';
+          toast('Erreur : ' + (err && err.message || 'inconnue'), 'error');
+        });
+    });
+
+    // Wiring close du modal relance
+    var m = document.querySelector('[data-v30-rdv-relance-modal]');
+    if (m) {
+      m.addEventListener('click', function (e) {
+        if (e.target === m) { _closeRelanceModal(); return; }
+        if (e.target.closest('[data-v30-modal-close]')) { _closeRelanceModal(); }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && m && !m.hidden) _closeRelanceModal();
+      });
+    }
+  }
+
   // ─── Bloc Relances Push (pushs envoyés 7+ jours sans suivi) ────
   var PUSH_RELANCES = { items: [] };
 
@@ -539,6 +715,8 @@
     bindFocusRowActions();
     bindRelancesFilter();
     bindPushRelances();
+    bindRdvReview();
+    loadRdvReview();
     loadRelances();
     loadPushRelances();
     load();
@@ -551,6 +729,7 @@
       lastRefresh = now;
       load();
       loadTasks();
+      loadRdvReview();
       loadRelances();
       loadPushRelances();
     }

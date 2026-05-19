@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 from io import BytesIO
 from pathlib import Path
 

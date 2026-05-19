@@ -8,13 +8,14 @@
     { key: 'company', label: 'Entreprise' },
     { key: 'statut', label: 'Statut' },
     { key: 'pertinence', label: 'Pertinence' },
+    { key: 'score', label: 'Score IA' },
     { key: 'push', label: 'Push' },
     { key: 'lastContact', label: 'Dernière action' },
     { key: 'relance', label: 'Relance' },
     { key: 'tags', label: 'Tags' },
     { key: 'actions', label: 'Actions', fixed: true }
   ];
-  var SORTABLE_COLS = ['name', 'company', 'statut', 'pertinence', 'lastContact', 'relance'];
+  var SORTABLE_COLS = ['name', 'company', 'statut', 'pertinence', 'score', 'lastContact', 'relance'];
   var DEFAULT_COLS = ALL_COLS.map(function (c) { return c.key; });
   var STATUS_OPTIONS = ["Pas d'actions", 'Appelé', 'À rappeler', 'Rendez-vous', 'Prospecté', 'Messagerie', 'Pas intéressé'];
 
@@ -72,7 +73,8 @@
       companyId: null
     },
     sort: { key: '', dir: 'asc' },
-    bulkAction: null
+    bulkAction: null,
+    scores: {}
   };
 
   var SPLIT_STATE = { selectedId: null };
@@ -201,6 +203,10 @@
         case 'company':     va = String(a.company_groupe || STATE.companies[a.company_id] || '').toLowerCase(); vb = String(b.company_groupe || STATE.companies[b.company_id] || '').toLowerCase(); break;
         case 'statut':      va = String(a.statut || '').toLowerCase();      vb = String(b.statut || '').toLowerCase(); break;
         case 'pertinence':  va = parseInt(a.pertinence, 10) || 0;           vb = parseInt(b.pertinence, 10) || 0;   break;
+        case 'score':
+          va = (STATE.scores && STATE.scores[a.id]) ? STATE.scores[a.id].score : -1;
+          vb = (STATE.scores && STATE.scores[b.id]) ? STATE.scores[b.id].score : -1;
+          break;
         case 'lastContact': va = a.lastContact ? String(a.lastContact).slice(0, 10) : '';   vb = b.lastContact ? String(b.lastContact).slice(0, 10) : '';   break;
         case 'relance':     va = a.nextFollowUp ? String(a.nextFollowUp).slice(0, 10) : ''; vb = b.nextFollowUp ? String(b.nextFollowUp).slice(0, 10) : ''; break;
         default: return 0;
@@ -308,6 +314,21 @@
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + renderStatusBadge(p) + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
+      case 'score': {
+        var s = (STATE.scores && STATE.scores[p.id]) ? STATE.scores[p.id] : null;
+        if (s == null) return '<td class="muted" style="font-size:11px;">—</td>';
+        var value = s.score;
+        var color = value >= 75 ? '#22c55e' : value >= 50 ? '#3b82f6' : value >= 25 ? '#f59e0b' : '#94a3b8';
+        var tip = 'Engagement ' + s.engagement + '% · Recency ' + s.recency + '% · Volume ' + s.volume + '%';
+        return '<td title="' + esc(tip) + '">' +
+          '<div class="v30-pp-score">' +
+            '<div class="v30-pp-score__bar" style="background:' + color + '20;">' +
+              '<div class="v30-pp-score__fill" style="width:' + value + '%;background:' + color + ';"></div>' +
+            '</div>' +
+            '<span class="v30-pp-score__val num" style="color:' + color + ';">' + value + '</span>' +
+          '</div>' +
+        '</td>';
+      }
       case 'push':       return '<td>' + renderPushBadges(p) + '</td>';
       case 'lastContact': return '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>';
       case 'relance':    return '<td class="num mono" style="color:var(--text-2);">' + esc(shortDate(p.nextFollowUp)) + '</td>';
@@ -355,7 +376,7 @@
 
   var COL_WIDTHS = {
     select: 32, name: 200, company: 115, statut: 128, pertinence: 70,
-    push: 52, lastContact: 92, relance: 82, tags: 110, actions: 90
+    score: 90, push: 52, lastContact: 92, relance: 82, tags: 110, actions: 90
   };
 
   function renderTableHead() {
@@ -752,8 +773,32 @@
       updatePagination();
       updateCounts();
       updateKpis();
+      // Phase 3 : score IA — fetch lazy, ne bloque pas le render initial
+      loadScores();
     }).catch(function (err) {
       console.error('[v30 prospects] fetch failed:', err);
+    });
+  }
+
+  function loadScores() {
+    // Phase 3 productivité : enrichit STATE.scores et re-render la table/kanban
+    // pour afficher la colonne Score IA. Ne bloque jamais le 1er render.
+    if (STATE.cols && STATE.cols.indexOf('score') < 0) return; // colonne désactivée → skip
+    fetchJSON('/api/prospects/scores').then(function (res) {
+      if (!res || !res.ok) return;
+      STATE.scores = res.scores || {};
+      // Re-render uniquement la table : kanban/split/bulk n'utilisent pas le score
+      renderTable();
+      // Si tri par score actif, re-sort et re-render
+      if (STATE.sort && STATE.sort.key === 'score') {
+        STATE.filteredAll = sortArray(STATE.filteredAll || [], 'score', STATE.sort.dir);
+        var start2 = STATE.offset || 0;
+        var end2 = start2 + (STATE.limit || 50);
+        STATE.prospects = STATE.filteredAll.slice(start2, end2);
+        renderTable();
+      }
+    }).catch(function (err) {
+      console.warn('[v30 prospects] scores fetch failed:', err);
     });
   }
 

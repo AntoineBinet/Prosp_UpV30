@@ -1821,3 +1821,76 @@ a.btn[aria-disabled="true"] {
   .v30-fp-header__actions { justify-content: flex-start; flex-wrap: wrap; }
   .v30-drawer { width: 100vw; }
 }
+
+/* ─── Carte Next Action IA (Phase 2 productivité) ─────────────────── */
+.v30-fp-na-ai {
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 4%, transparent),
+    transparent 60%);
+}
+.v30-fp-na-ai .v30-na-sparkle {
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1;
+}
+.v30-fp-na-ai .v30-na-empty {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 8px 0;
+}
+.v30-fp-na-ai .v30-na-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.v30-fp-na-ai .v30-na-main { flex: 1; min-width: 0; }
+.v30-fp-na-ai .v30-na-action {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.v30-fp-na-ai .v30-na-why {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.v30-fp-na-ai .v30-na-meta {
+  font-size: 11px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.v30-fp-na-ai .v30-na-stale {
+  display: inline-block;
+  background: var(--warning, #c47);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.v30-fp-na-ai .v30-na-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: var(--font-mono, monospace);
+  flex: 0 0 auto;
+  color: white;
+  margin-top: 2px;
+}
+.v30-fp-na-ai .v30-na-type.na-type--email    { background: #4a86e8; }
+.v30-fp-na-ai .v30-na-type.na-type--call     { background: #16a34a; }
+.v30-fp-na-ai .v30-na-type.na-type--linkedin { background: #0a66c2; }
+.v30-fp-na-ai .v30-na-type.na-type--rdv      { background: #a855f7; }
+.v30-fp-na-ai .v30-na-type.na-type--wait     { background: #6b7280; }
+.v30-fp-na-ai .v30-na-type.na-type--other    { background: #94a3b8; }

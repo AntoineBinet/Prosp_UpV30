@@ -2,6 +2,160 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.70] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
+
+- **Séquences push** : cadences guidées avec adaptation multi-canal.
+  Chaque étape suggère un canal (email / appel / LinkedIn / attendre)
+  à J+N depuis l'enrollment, avec une condition optionnelle
+  (`always` / `if_not_opened` / `if_not_replied`).
+- **Aucun envoi automatique** : conformément à la consigne « rien hors
+  app pour l'instant ». L'utilisateur exécute chaque étape en 1 clic
+  (ouvre la modale push, le lien `tel:`, le profil LinkedIn) ou la
+  marque fait sans exécuter.
+- **3 séquences seedées par défaut** créées au premier accès :
+  - *Découverte cadencée* : email J0, relance courte J+3 si non-ouvert,
+    appel J+7 si silence.
+  - *Relance après RDV* : merci J0, rappel J+5 si non-ouvert,
+    LinkedIn J+10 si pas de réponse.
+  - *Multi-touch large* : email J0, LinkedIn J+2, appel J+5,
+    email final J+10.
+- **Auto-pause sur réponse** : si `push_logs.replied_at` est rempli
+  après le démarrage, l'enrollment passe en `paused` avec la raison
+  *Réponse reçue*. Évite les relances inutiles après un succès.
+- **Bouton « Séquence »** ajouté aux actions de la fiche prospect
+  (à côté de *Pousser* / *Planifier*) : ouvre une modale avec la
+  liste des séquences disponibles + bouton *Démarrer*.
+- **Section « Séquences push »** dans `/v30/focus` : liste les étapes
+  dues pour tous les enrollments actifs, triées par retard décroissant.
+  Trois boutons par ligne :
+  - *Canal* (Email / Appel / LinkedIn) : exécute l'action ET marque fait
+    (ouvre push modal, `tel:`, ou nouvel onglet LinkedIn).
+  - *✓* : marque l'étape comme faite sans rien exécuter.
+  - *⏸* : pause la séquence avec une raison.
+- **Schéma** : 2 nouvelles tables :
+  - `push_sequences` (templates de séquences, seedées par user).
+  - `push_sequence_enrollments` (instances actives par prospect).
+  Migrations DB principale + user.
+- **API** (10 endpoints) :
+  - `GET    /api/push/sequences`
+  - `POST   /api/push/sequences`
+  - `PUT    /api/push/sequences/<id>`
+  - `DELETE /api/push/sequences/<id>`     (refuse si `is_default`)
+  - `POST   /api/push/sequences/<id>/enroll`
+  - `POST   /api/push/sequences/seed-defaults`
+  - `GET    /api/push/sequences/due`
+  - `GET    /api/push/sequences/enrollments`
+  - `POST   /api/push/sequences/enrollments/<id>/complete-step`
+  - `POST   /api/push/sequences/enrollments/<id>/pause`
+  - `POST   /api/push/sequences/enrollments/<id>/cancel`
+- **Toile** : 4 nouvelles actions sous *Focus* et *Prospects*.
+
+## [32.69] — 2026-05-19 · Productivité Phase 3 · Funnel cumulatif + Score IA
+
+- **Funnel cumulatif 5 étapes** dans `/v30/stats` : *Total → Contactés
+  → RDV pris → RDV tenus → Signés*. Chaque étape est un sous-ensemble
+  de la précédente, le taux de conversion entre étapes est affiché en
+  pourcentage. Remplace l'ancien funnel qui affichait simplement la
+  distribution par statut.
+- **Drill-down** : clic sur une étape ouvre la liste des prospects qui
+  s'y trouvent (jusqu'à 200), avec lien direct vers la fiche. Bouton
+  *Fermer* pour replier.
+- **Score IA déterministe** (0-100, sans appel Ollama) : pondération
+  Engagement push (35%) + Recency (35%) + Volume / récurrence (30%).
+  - Engagement = (opened×1 + clicked×2 + replied×4) sur 90j, saturé à 10.
+  - Recency = paliers selon ancienneté lastContact (1.0 / 0.5 / 0.2 / 0.05).
+  - Volume = log10 normalisé du nb total d'actions sur 180j (push + call + events).
+- **Colonne Score IA** dans la table `/v30/prospects` : barre colorée
+  + valeur numérique, tooltip avec breakdown des 3 composantes,
+  tri ascendant/descendant cliquable. Toggle via le sélecteur de colonnes.
+- **Mode Prosp trié par score** : les fiches les plus chaudes (score
+  décroissant) apparaissent en premier par défaut. Fallback gracieux si
+  l'endpoint scores échoue (ordre du backend conservé).
+- **API** :
+  - `GET /api/prospects/scores` — scores 0-100 avec breakdown.
+    Paramètre optionnel `?ids=1,2,3`.
+  - `GET /api/stats/funnel` — funnel cumulatif. Paramètre `?with_ids=1`
+    pour le drill-down (inclut les IDs par étape).
+- **Définition des étapes** (cumulatives) :
+  - Total : prospects actifs (non archivés, non supprimés).
+  - Contactés : ≥ 1 push, 1 call_log, ou lastContact rempli.
+  - RDV pris : rdvDate rempli OU statut Rendez-vous/Prospecté OU rdv_outcome existant.
+  - RDV tenus : rdv_outcome = `tenu` OU ≥ 1 meeting OU statut Prospecté.
+  - Signés : event `contrat_signe` enregistré.
+- **Toile** : 4 nouvelles actions sous *Stats* et *Prospects*.
+
+## [32.68] — 2026-05-19 · Productivité Phase 2 · IA Next Action (badge passif)
+
+- **Carte « Prochaine action recommandée »** en tête de l'onglet *Aperçu*
+  sur chaque fiche prospect : une suggestion IA concrète (action, canal,
+  date, justification, score de confiance 0-100) générée par Ollama.
+  Bouton *Actualiser* pour régénérer, bouton *Appliquer · Email/Appel/...*
+  pour passer à l'action en 1 clic.
+- **Section « Prochaines actions IA »** dans `/v30/focus` : top 10 des
+  suggestions actives, triées par date d'action puis confiance. Bouton
+  *Actualiser le batch* pour régénérer en masse les suggestions périmées.
+- **Suggestion passive** (décision UX validée en planning) : aucune
+  notification, aucun envoi auto, aucune pré-rédaction. L'utilisateur
+  reste maître de la décision.
+- **6 types d'action** : `email` / `call` / `linkedin` / `rdv` / `wait`
+  / `other` — chacun avec son icône, sa couleur, et son comportement
+  d'application :
+  - `email` → ouvre la modale Push v30 sur le bon canal (fallback `mailto:`),
+  - `call` → `tel:` (mobile) ou affichage du numéro,
+  - `linkedin` → ouvre le profil dans un nouvel onglet,
+  - `rdv` → ouvre `/v30/calendrier?prospect_id=...`,
+  - `wait` / `other` → ouvre la fiche prospect.
+- **Cache + TTL** : suggestion stockée dans `prospects.next_action_ai`
+  (JSON) avec timestamp `next_action_ai_at`. TTL = 7 jours : au-delà,
+  badge *Périmé* affiché et la suggestion peut être rafraîchie.
+- **Sélection des prospects actifs** : statut hors *Pas intéressé*, au
+  moins une activité (lastContact / push / event) dans les 60 derniers
+  jours. Le job batch ne touche pas les prospects froids.
+- **Mode dégradé** : si Ollama est indisponible, l'endpoint retourne
+  *502 IA indisponible* sans bloquer la page. Les suggestions en cache
+  restent affichées.
+- **Schéma** : 2 nouvelles colonnes sur `prospects` :
+  - `next_action_ai` (TEXT, JSON sérialisé de la suggestion),
+  - `next_action_ai_at` (TEXT, timestamp ISO de la dernière génération).
+  Migration appliquée à la DB principale et aux DB user.
+- **API** :
+  - `GET /api/ai/next-action/<id>` — lit le cache (rapide, jamais d'appel IA).
+  - `POST /api/ai/next-action/<id>/refresh` — force regen (1 appel Ollama).
+  - `GET /api/ai/next-action/today` — top suggestions actives (Focus).
+  - `POST /api/ai/next-action/refresh-batch` — regen N prospects actifs.
+- **Toile** : 5 nouvelles actions sous *Focus* et *Prospects* dans
+  `_build_sitemap_data()`.
+
+## [32.67] — 2026-05-19 · Productivité Phase 1 · Workflow RDV no-show
+
+- **Nouvelle section « RDV à statuer »** dans `/v30/focus` : les RDV passés
+  au statut "Rendez-vous" qui n'ont pas encore été revus apparaissent en
+  tête, avec quatre actions inline — *Tenu* / *No-show* / *Annulé* /
+  *Reprogrammé*. Aucun modal bloquant : la section disparaît dès qu'il n'y
+  a plus rien à statuer.
+- **Outcome no-show / annulé** : statut auto basculé en *À rappeler*,
+  `nextFollowUp` repositionnée à J+3 (no-show) ou J+7 (annulé) jours
+  ouvrés, et l'IA locale rédige un email de relance (sujet + corps) avec
+  3 créneaux suggérés (J+5 / J+8 / J+12 ouvrés à 10:00). Aperçu dans une
+  modale : copier ou ouvrir dans le client mail. Pas d'envoi auto.
+- **Outcome reprogrammé** : statut maintenu *Rendez-vous*, `rdvDate`
+  effacée — l'utilisateur choisit un nouveau créneau dans le calendrier.
+- **Outcome tenu** : pas de bascule de statut, simple marquage *revu*.
+  L'utilisateur lance ensuite l'IA Après RDV depuis la fiche prospect.
+- **Badge notif topbar** : `RDV à statuer` ajouté au panneau cloche, le
+  compteur global ajoute la file de revue à `overdue + due_today + extras`.
+- **Schéma** : deux nouvelles colonnes sur `prospects` :
+  - `rdv_reviewed_at` (timestamp ISO de la revue, NULL = non revu),
+  - `rdv_outcome` (`tenu` / `no-show` / `annule` / `reprogramme`).
+  Migration appliquée à la DB principale et aux DB user.
+- **API** :
+  - `GET /api/rdv/pending-review` — liste les RDV à statuer.
+  - `POST /api/rdv/<id>/review` — applique l'outcome, retourne l'IA
+    relance + créneaux pour no-show / annulé.
+  - `GET /api/rdv/no-show-stats` — stats 30j (count par outcome,
+    distribution par jour de la semaine, taux no-show). Utilisé Phase 3.
+- **Toile** : 3 nouvelles actions sous *Focus* dans `_build_sitemap_data()`.
+
 ## [32.66] — 2026-05-19 · Entreprises · Scrapping IA en file d'attente (validation différée)
 
 - **Nouveau mode bulk : « Mettre en file d'attente »** sur la modale
