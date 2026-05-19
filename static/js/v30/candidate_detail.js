@@ -1248,28 +1248,41 @@
     } catch (_) { return ''; }
   }
 
+  function attDropzoneHtml() {
+    return '<div class="v30-fc-att-dropzone" data-v30-fc-att-dropzone>' +
+      '<div class="v30-fc-att-dropzone__icon">' +
+        '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+          '<polyline points="17 8 12 3 7 8"/>' +
+          '<line x1="12" y1="3" x2="12" y2="15"/>' +
+        '</svg>' +
+      '</div>' +
+      '<div>' +
+        '<div class="v30-fc-att-dropzone__label">Glisser un fichier ici</div>' +
+        '<div class="v30-fc-att-dropzone__sub">CV, fiche entretien Excel, fichier de suivi… (pdf, docx, xlsx, pptx, jpg, png — 50 Mo max)</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   function renderAttachments() {
     var host = document.querySelector('[data-v30-fc-att-list]');
     if (!host) return;
     var items = STATE.attachments || [];
     if (!items.length) {
-      host.innerHTML =
-        '<div class="empty" style="padding:10px 0;font-size:12px;color:var(--text-3);">' +
-          'Aucun fichier. Ajoutez un CV, la fiche entretien Excel, ou tout autre document.' +
-        '</div>';
+      host.innerHTML = attDropzoneHtml();
       return;
     }
-    host.innerHTML = items.map(function (a) {
+    var rows = items.map(function (a) {
       var name = a.title || a.original_name || 'Fichier';
       var kindLbl = ATT_KIND_LABELS[a.kind] || 'Autre';
       var fileUrl = '/api/candidate-attachments/' + a.id + '/file';
-      return '<div class="v30-fc-att-row" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border, rgba(255,255,255,0.06));">' +
+      return '<div class="v30-fc-att-row">' +
         '<span class="badge" style="font-size:10.5px;">' + esc(kindLbl) + '</span>' +
-        '<div style="flex:1;min-width:0;">' +
+        '<div class="v30-fc-att-row__name">' +
           '<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(a.original_name) + '">' + esc(name) + '</div>' +
-          '<div style="font-size:10.5px;color:var(--text-3);">' + esc(a.original_name) + ' · ' + fmtSize(a.size) + ' · ' + esc(fmtAttDate(a.createdAt)) + '</div>' +
+          '<div class="v30-fc-att-row__meta">' + esc(a.original_name) + ' · ' + fmtSize(a.size) + ' · ' + esc(fmtAttDate(a.createdAt)) + '</div>' +
         '</div>' +
-        '<div style="display:flex;gap:4px;">' +
+        '<div class="v30-fc-att-row__actions">' +
           '<a class="btn btn-ghost btn-sm" href="' + esc(fileUrl) + '" target="_blank" rel="noopener" title="Télécharger">' +
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
               '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
@@ -1279,6 +1292,8 @@
         '</div>' +
       '</div>';
     }).join('');
+    // Toujours afficher la dropzone en bas pour pouvoir glisser un nouveau fichier
+    host.innerHTML = rows + attDropzoneHtml();
   }
 
   function loadAttachments() {
@@ -1363,13 +1378,21 @@
     });
   }
 
+  function _detectAttKind(file) {
+    var ext = ((file && file.name || '').match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    if (/^\.(pdf|docx?|odt)$/.test(ext)) return 'cv';
+    if (/^\.(xlsx?|ods|csv)$/.test(ext)) return 'suivi';
+    return 'autre';
+  }
+
   function bindAttachmentsCard() {
     var card = document.querySelector('[data-v30-fc-att-card]');
     if (!card) return;
     var fileInput = card.querySelector('[data-v30-fc-att-input]');
 
     card.addEventListener('click', function (e) {
-      if (e.target.closest('[data-v30-fc-att-upload-btn]')) {
+      if (e.target.closest('[data-v30-fc-att-upload-btn]') ||
+          e.target.closest('[data-v30-fc-att-dropzone]')) {
         if (fileInput) fileInput.click();
         return;
       }
@@ -1379,29 +1402,53 @@
       if (delBtn) { deleteAttachment(delBtn.dataset.v30FcAttDelete); return; }
     });
 
+    // Drag & drop sur toute la carte (pas seulement la dropzone)
+    card.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      var dz = card.querySelector('[data-v30-fc-att-dropzone]');
+      if (dz) dz.classList.add('is-over');
+    });
+    card.addEventListener('dragleave', function (e) {
+      if (card.contains(e.relatedTarget)) return;
+      var dz = card.querySelector('[data-v30-fc-att-dropzone]');
+      if (dz) dz.classList.remove('is-over');
+    });
+    card.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var dz = card.querySelector('[data-v30-fc-att-dropzone]');
+      if (dz) dz.classList.remove('is-over');
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadAttachment(f, _detectAttKind(f));
+    });
+
     if (fileInput) {
       fileInput.addEventListener('change', function () {
         var f = fileInput.files && fileInput.files[0];
         if (!f) return;
-        // Détection grossière du kind via extension
-        var ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
-        var kind = 'autre';
-        if (/^\.(pdf|docx?|odt)$/.test(ext)) kind = 'cv';
-        if (/^\.(xlsx?|ods|csv)$/.test(ext)) kind = 'suivi';
-        uploadAttachment(f, kind).then(function () { fileInput.value = ''; });
+        uploadAttachment(f, _detectAttKind(f)).then(function () { fileInput.value = ''; });
       });
     }
   }
 
   // ─── EC1 (Excel + transcription IA) ──────────────────────
   function updateEc1CardVisibility() {
-    var card = document.querySelector('[data-v30-fc-ec1-card]');
-    if (!card) return;
+    // EC1 actions sont intégrées dans la carte Entretien (slot [data-v30-fc-ec1-actions])
+    var slot = document.querySelector('[data-v30-fc-ec1-actions]');
+    if (!slot) return;
     var status = (STATE.candidate && (STATE.candidate.status || '')) || '';
     var s = String(status).toLowerCase();
-    // visible si statut indique EC1 ou "En entretien"
-    var show = s === 'ec1' || s === 'en entretien' || /ec1/.test(s);
-    card.style.display = show ? '' : 'none';
+    // Visible quand statut indique un entretien EC1 :
+    //   - 'entretien' (valeur post-migration v30 — défaut pour ec1/ec2/en_cours)
+    //   - 'ec1', 'ec2', 'en entretien' (legacy)
+    //   - tout statut contenant 'ec1' ou 'ec2'
+    var show = (
+      s === 'entretien' ||
+      s === 'en entretien' ||
+      s === 'ec1' || s === 'ec2' ||
+      /ec[12]/.test(s)
+    );
+    slot.style.display = show ? '' : 'none';
   }
 
   function downloadEc1Excel() {
@@ -1572,14 +1619,11 @@
   }
 
   function bindEc1Card() {
-    var card = document.querySelector('[data-v30-fc-ec1-card]');
-    if (card) {
-      card.addEventListener('click', function (e) {
-        if (e.target.closest('[data-v30-fc-ec1-download]')) { downloadEc1Excel(); return; }
-        if (e.target.closest('[data-v30-fc-ec1-transcript]')) { openEc1Modal(); return; }
-      });
-    }
+    // Délégation globale : capture les clics sur les actions EC1 où qu'elles soient
+    // (carte Entretien, ou autre slot futur).
     document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-ec1-download]')) { downloadEc1Excel(); return; }
+      if (e.target.closest('[data-v30-fc-ec1-transcript]')) { openEc1Modal(); return; }
       if (e.target.closest('[data-v30-fc-ec1-close]')) { closeEc1Modal(); return; }
       if (e.target.closest('[data-v30-fc-ec1-analyze]')) { analyzeEc1Transcript(); return; }
       if (e.target.closest('[data-v30-fc-ec1-apply-download]')) { applyEc1Transcript(true); return; }
