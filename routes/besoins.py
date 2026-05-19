@@ -799,11 +799,13 @@ _STATUT_PILL = {
 
 
 _CAND_STATUS_PILL = {
-    "dispo": {"label": "Disponible",    "bg": "#E6F7EE", "fg": "#15803D"},
-    "msg":   {"label": "Messagerie",    "bg": "#E5F0FE", "fg": "#1E40AF"},
-    "":      {"label": "Pas contacté",  "bg": "#F2F3F5", "fg": "#52596B"},
-    "rt":    {"label": "RT",            "bg": "#FEF3DC", "fg": "#B45309"},
-    "nope":  {"label": "Non disponible", "bg": "#FCE8E8", "fg": "#B91C1C"},
+    "dispo": {"label": "Disponible",            "bg": "#E6F7EE", "fg": "#15803D"},
+    "msg":   {"label": "Messagerie",            "bg": "#E5F0FE", "fg": "#1E40AF"},
+    "":      {"label": "Pas contacté",          "bg": "#F2F3F5", "fg": "#52596B"},
+    "rt":    {"label": "RT",                    "bg": "#FEF3DC", "fg": "#B45309"},
+    "pres":  {"label": "Présenté au client",    "bg": "#EDE9FE", "fg": "#6D28D9"},
+    "start": {"label": "Démarré sur la mission","bg": "#D1FAE5", "fg": "#047857"},
+    "nope":  {"label": "Non disponible",        "bg": "#FCE8E8", "fg": "#B91C1C"},
 }
 
 
