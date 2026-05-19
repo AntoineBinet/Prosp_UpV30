@@ -1011,15 +1011,16 @@
       pushedKeys.push(k);
     });
     if (els.apply) els.apply.disabled = true;
+    var reviewingJobId = PENDING_CTX.jobId;
     fetchPost('/api/company/update', payload)
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'mise à jour impossible');
-        // Mettre à jour les champs visibles de la modale edit
+        // Mettre à jour les champs visibles de la modale edit (si elle est ouverte)
         pushedKeys.forEach(function (k) {
           var el = document.getElementById(htmlIdFor('edit', k));
           if (el) el.value = payload[k];
         });
-        // Refresh quick-actions liens
+        // Refresh quick-actions liens (si la modale edit est ouverte)
         var m = getModal('ent-edit');
         if (m && res.company) {
           ['phone', 'website', 'linkedin'].forEach(function (kind) {
@@ -1041,10 +1042,21 @@
         }
         toast(pushedKeys.length + ' champ(s) mis à jour', 'success');
         closeModal(getModal('ent-enrich'));
+        // Si on était en train de valider un job en file, on le supprime maintenant
+        if (reviewingJobId) {
+          PENDING_CTX.jobId = null;
+          return fetchJSON('/api/companies/enrich-queue/' + encodeURIComponent(reviewingJobId), {
+            method: 'DELETE'
+          }).catch(function () { /* tolérant */ })
+            .then(refreshPendingBadge);
+        }
         reload();
       })
       .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
-      .then(function () { if (els.apply) els.apply.disabled = false; });
+      .then(function () {
+        if (els.apply) els.apply.disabled = false;
+        PENDING_CTX.jobId = null;
+      });
   }
 
   function bindEnrich() {
@@ -1256,6 +1268,232 @@
         stop.disabled = true;
         stop.textContent = 'Arrêt…';
       }
+      var queue = e.target.closest('[data-v30-ent-enrich-bulk-queue]');
+      if (queue) {
+        if (!BULK_ENRICH.ids.length) { toast('Aucune entreprise à enrichir', 'warning'); return; }
+        if (BULK_ENRICH.running) { toast('Un traitement est déjà en cours dans cette modale', 'warning'); return; }
+        queue.disabled = true;
+        var ids = BULK_ENRICH.ids.slice();
+        fetchPost('/api/companies/enrich-queue', { ids: ids })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Mise en file impossible');
+            var msg = res.enqueued + ' entreprise(s) en file d\'attente';
+            if (res.duplicates) msg += ' · ' + res.duplicates + ' déjà en cours';
+            if (res.skipped) msg += ' · ' + res.skipped + ' ignorée(s)';
+            toast(msg, res.enqueued ? 'success' : 'warning');
+            closeModal(getModal('ent-enrich-bulk'));
+            refreshPendingBadge();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
+          .then(function () { queue.disabled = false; });
+        return;
+      }
+    });
+  }
+
+  // ─── File d'attente IA (scrapping différé + validation plus tard) ─────────
+  var PENDING_STATE = { items: [], counts: { pending: 0, running: 0, done: 0, error: 0, total: 0 }, pollTimer: null };
+  var PENDING_CTX = { jobId: null };  // job en cours de revue dans la modale enrich
+
+  function refreshPendingBadge() {
+    return fetchJSON('/api/companies/enrich-queue').then(function (res) {
+      if (!res || !res.ok) return;
+      PENDING_STATE.items = res.items || [];
+      PENDING_STATE.counts = res.counts || { pending: 0, running: 0, done: 0, error: 0, total: 0 };
+      var btn = $('[data-v30-ent-enrich-pending]');
+      var lbl = $('[data-v30-ent-enrich-pending-label]');
+      if (!btn || !lbl) return;
+      var c = PENDING_STATE.counts;
+      var totalVisible = c.pending + c.running + c.done + c.error;
+      if (!totalVisible) { btn.hidden = true; return; }
+      btn.hidden = false;
+      // Priorité d'affichage : done (à valider) en premier
+      if (c.done > 0) {
+        lbl.textContent = c.done + ' à valider' + (c.pending + c.running ? ' (+' + (c.pending + c.running) + ' en cours)' : '');
+        btn.classList.add('btn-primary'); btn.classList.remove('btn-ghost');
+      } else if (c.pending + c.running > 0) {
+        lbl.textContent = (c.pending + c.running) + ' scrapping(s) en cours';
+        btn.classList.add('btn-ghost'); btn.classList.remove('btn-primary');
+      } else if (c.error > 0) {
+        lbl.textContent = c.error + ' échec(s) IA';
+        btn.classList.add('btn-ghost'); btn.classList.remove('btn-primary');
+      } else {
+        btn.hidden = true;
+      }
+      // Si la modale pending est ouverte, on rafraîchit son contenu
+      var m = getModal('ent-enrich-pending');
+      if (m && m.classList.contains('is-open')) renderPendingList();
+    }).catch(function () { /* silent — réseau */ });
+  }
+
+  function startPendingPolling() {
+    if (PENDING_STATE.pollTimer) return;
+    refreshPendingBadge();
+    PENDING_STATE.pollTimer = setInterval(refreshPendingBadge, 15000);
+  }
+
+  function renderPendingList() {
+    var host = $('[data-v30-ent-pending-list]');
+    var empty = $('[data-v30-ent-pending-empty]');
+    var summary = $('[data-v30-ent-pending-summary]');
+    if (!host || !empty || !summary) return;
+    var c = PENDING_STATE.counts;
+    summary.textContent =
+      c.done + ' à valider · ' +
+      (c.pending + c.running) + ' en cours · ' +
+      c.error + ' en erreur';
+    if (!PENDING_STATE.items.length) {
+      host.innerHTML = '';
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    // Tri : done en premier, puis running, pending, error
+    var order = { done: 0, running: 1, pending: 2, error: 3 };
+    var items = PENDING_STATE.items.slice().sort(function (a, b) {
+      var oa = order[a.status] != null ? order[a.status] : 9;
+      var ob = order[b.status] != null ? order[b.status] : 9;
+      if (oa !== ob) return oa - ob;
+      return (b.created_at || '').localeCompare(a.created_at || '');
+    });
+    host.innerHTML = items.map(function (it) {
+      var groupe = esc(it.groupe || ('Entreprise #' + it.company_id));
+      var site = it.site ? ' · ' + esc(it.site) : '';
+      var statusPill = '';
+      var actionBtns = '';
+      if (it.status === 'done') {
+        var nFields = 0;
+        if (it.fields) {
+          Object.keys(it.fields).forEach(function (k) {
+            var v = it.fields[k];
+            if (v != null && String(v).trim()) nFields++;
+          });
+        }
+        statusPill = '<span class="badge" style="background:rgba(14,138,79,.12);color:#0e8a4f;">' + nFields + ' champ(s) suggéré(s)</span>';
+        actionBtns =
+          '<button type="button" class="btn btn-primary btn-sm" data-v30-ent-pending-review="' + it.id + '">Vérifier &amp; appliquer</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-ent-pending-discard="' + it.id + '" title="Ignorer cette suggestion">Ignorer</button>';
+      } else if (it.status === 'running') {
+        statusPill = '<span class="badge" style="background:rgba(14,108,184,.12);color:#0e6cb8;">en cours…</span>';
+      } else if (it.status === 'pending') {
+        statusPill = '<span class="badge muted">en file d\'attente</span>';
+        actionBtns = '<button type="button" class="btn btn-ghost btn-sm" data-v30-ent-pending-discard="' + it.id + '" title="Retirer de la file">Retirer</button>';
+      } else if (it.status === 'error') {
+        var errTxt = it.error ? ' · ' + esc(String(it.error).slice(0, 120)) : '';
+        statusPill = '<span class="badge" style="background:rgba(220,38,38,.12);color:#dc2626;" title="' + esc(it.error || '') + '">échec</span>';
+        actionBtns = '<button type="button" class="btn btn-ghost btn-sm" data-v30-ent-pending-discard="' + it.id + '" title="Retirer">Retirer</button>';
+        site += errTxt;
+      }
+      return '' +
+        '<div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+          '<div style="flex:1;min-width:200px;">' +
+            '<div style="font-weight:500;">' + groupe + '</div>' +
+            '<div class="muted" style="font-size:11.5px;">' + site + '</div>' +
+          '</div>' +
+          '<div>' + statusPill + '</div>' +
+          '<div style="display:flex;gap:6px;">' + actionBtns + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function openPendingModal() {
+    var m = getModal('ent-enrich-pending');
+    if (!m) return;
+    openModal(m);
+    refreshPendingBadge().then(renderPendingList);
+  }
+
+  // Ouvre la modale enrich existante pré-remplie avec les champs stockés du job.
+  // Réutilise renderEnrichDiff/applyEnrich — applyEnrich détecte PENDING_CTX.jobId et DELETE le job après succès.
+  function reviewPendingJob(jobId) {
+    var job = PENDING_STATE.items.filter(function (i) { return i.id === jobId; })[0];
+    if (!job) { toast('Job introuvable', 'warning'); return; }
+    if (job.status !== 'done') { toast('Scrapping pas encore terminé', 'warning'); return; }
+    var company = STATE.companies.filter(function (c) { return c.id === job.company_id; })[0];
+    if (!company) { toast('Entreprise introuvable (supprimée ?)', 'warning'); return; }
+    var els = getEnrichModalEls();
+    if (!els) return;
+    // Construit un snapshot depuis l'objet company (et non depuis la modale edit qui n'est pas ouverte)
+    var snap = {};
+    ENT_FIELDS_BASIC.concat(ENT_FIELDS_EXTRA).forEach(function (f) {
+      var v = company[f];
+      snap[f] = v == null ? '' : String(v);
+    });
+    ENRICH_CTX.companyId = company.id;
+    ENRICH_CTX.snapshot = snap;
+    ENRICH_CTX.fields = job.fields || {};
+    PENDING_CTX.jobId = job.id;
+    if (els.name) {
+      var groupe = snap.groupe || ('Entreprise #' + company.id);
+      var site = snap.site || '';
+      els.name.textContent = groupe + (site ? ' · ' + site : '');
+    }
+    if (els.loading) els.loading.hidden = true;
+    if (els.error) { els.error.hidden = true; els.error.textContent = ''; }
+    if (els.diff) { els.diff.innerHTML = ''; }
+    if (els.diffWrap) els.diffWrap.hidden = false;
+    if (els.retry) els.retry.hidden = true; // pas de relance pour un job déjà calculé
+    if (els.apply) els.apply.hidden = false;
+    renderEnrichDiff(els.diff, snap, ENRICH_CTX.fields);
+    if (job.sources && els.sources && els.sourcesWrap) {
+      els.sources.textContent = job.sources;
+      els.sourcesWrap.hidden = false;
+    } else if (els.sourcesWrap) {
+      els.sourcesWrap.hidden = true;
+    }
+    closeModal(getModal('ent-enrich-pending'));
+    openModal(els.modal);
+  }
+
+  function discardPendingJob(jobId) {
+    return fetchJSON('/api/companies/enrich-queue/' + encodeURIComponent(jobId) + '/discard', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Suppression impossible');
+        toast('Suggestion ignorée', 'info');
+        refreshPendingBadge();
+      })
+      .catch(function (e) { toast('Erreur : ' + e.message, 'error'); });
+  }
+
+  function clearDonePendingJobs() {
+    if (!confirm('Retirer tous les scrappings terminés et en erreur (sans appliquer) ?')) return;
+    fetchPost('/api/companies/enrich-queue/clear-done', {})
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Suppression impossible');
+        toast(res.deleted + ' job(s) retiré(s)', 'success');
+        refreshPendingBadge();
+      })
+      .catch(function (e) { toast('Erreur : ' + e.message, 'error'); });
+  }
+
+  function bindPending() {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-ent-enrich-pending]')) {
+        openPendingModal();
+        return;
+      }
+      if (e.target.closest('[data-v30-ent-pending-refresh]')) {
+        refreshPendingBadge().then(renderPendingList);
+        return;
+      }
+      if (e.target.closest('[data-v30-ent-pending-clear-done]')) {
+        clearDonePendingJobs();
+        return;
+      }
+      var review = e.target.closest('[data-v30-ent-pending-review]');
+      if (review) {
+        reviewPendingJob(Number(review.dataset.v30EntPendingReview));
+        return;
+      }
+      var discard = e.target.closest('[data-v30-ent-pending-discard]');
+      if (discard) {
+        discardPendingJob(Number(discard.dataset.v30EntPendingDiscard));
+        return;
+      }
     });
   }
 
@@ -1422,6 +1660,7 @@
     bindEdit();
     bindEnrich();
     bindBulkEnrich();
+    bindPending();
     bindFillMap();
     bindFilters();
     bindExport();
@@ -1429,6 +1668,7 @@
     bindOpen();
     bindSplit();
     reload();
+    startPendingPolling();
   }
 
   if (document.readyState === 'loading') {
