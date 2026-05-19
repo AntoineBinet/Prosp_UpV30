@@ -91,6 +91,48 @@
         <input type="file" data-v30-fc-dc-input style="display:none;" accept="application/pdf,.pdf">
       </div>
 
+      {# ─── Fiche entretien EC1 (visible uniquement quand statut = ec1) ─── #}
+      <div class="card v30-fc-ec1-card" style="margin-bottom:12px;display:none;" data-v30-fc-ec1-card>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('report', 14) }} Fiche entretien EC1</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-ec1-transcript
+                    title="Coller la transcription de l'entretien pour pré-remplir la fiche via IA">
+              {{ ui.icon('sparkles', 12) }} Coller transcription
+            </button>
+            <button type="button" class="btn btn-accent btn-sm" data-v30-fc-ec1-download
+                    title="Générer le fichier Excel rempli avec les données du candidat">
+              {{ ui.icon('report', 12) }} Télécharger Excel
+            </button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);line-height:1.5;">
+          Génère la fiche d'entretien EC1 au format Excel à partir des informations renseignées
+          dans la fiche (identité, évaluation, mobilité, salaire, références…) et de la checklist EC1.
+          Vous pouvez aussi coller la transcription de l'entretien pour que l'IA pré-remplisse automatiquement les champs.
+        </div>
+      </div>
+
+      {# ─── Pièces jointes (CV, Excel de suivi, etc.) ─── #}
+      <div class="card v30-fc-att-card" style="margin-bottom:12px;" data-v30-fc-att-card>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('paperclip', 14) }} Pièces jointes</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-att-upload-btn
+                    title="Ajouter une pièce jointe (CV, Excel de suivi, etc.)">
+              {{ ui.icon('upload', 12) }} Ajouter un fichier
+            </button>
+          </div>
+        </div>
+        <div data-v30-fc-att-list>
+          <div class="empty" style="padding:8px 0;font-size:12px;color:var(--text-3);">
+            Chargement…
+          </div>
+        </div>
+        <input type="file" data-v30-fc-att-input style="display:none;"
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp,.pptx,.ppt,.odt,.ods">
+      </div>
+
       {# ─── Entretien ─── #}
       <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="entretien">
         <div class="row-sb" style="margin-bottom:10px;">
@@ -312,6 +354,43 @@
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-enrich-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-dc-enrich-apply>Appliquer la sélection</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modal Transcription EC1 → IA ─── #}
+<div class="v30-modal-bd" data-v30-fc-ec1-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-fc-ec1-modal-title" style="max-width:720px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fc-ec1-modal-title">{{ ui.icon('sparkles', 14) }} Pré-remplir la fiche EC1 depuis une transcription</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fc-ec1-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body" style="max-height:65vh;overflow-y:auto;">
+      <div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px;line-height:1.55;">
+        Collez ci-dessous la transcription brute de l'entretien EC1. L'IA en local extrait les
+        informations clés (mobilité, motivations, évaluation, salaire…) et coche les éléments
+        traités dans la checklist EC1. Vous pourrez ensuite télécharger la fiche Excel pré-remplie.
+      </div>
+      <textarea data-v30-fc-ec1-transcript-input rows="14"
+        placeholder="Coller ici la transcription brute (texte intégral) de l'entretien EC1…"
+        style="width:100%;resize:vertical;font-size:12.5px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;line-height:1.5;"></textarea>
+      <div data-v30-fc-ec1-result style="margin-top:14px;display:none;">
+        <div style="font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">
+          Aperçu des champs extraits par l'IA
+        </div>
+        <div data-v30-fc-ec1-fields style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12.5px;background:var(--surface-2);"></div>
+      </div>
+      <div data-v30-fc-ec1-loader style="margin-top:14px;display:none;padding:14px;text-align:center;color:var(--text-3);font-size:12.5px;">
+        Analyse en cours via IA…
+        <div class="skel" style="width:75%;height:10px;margin:8px auto;"></div>
+        <div class="skel" style="width:60%;height:10px;margin:8px auto;"></div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-ec1-close>Fermer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-ec1-analyze>Analyser</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-fc-ec1-apply disabled>Appliquer à la fiche</button>
+      <button type="button" class="btn btn-accent btn-sm" data-v30-fc-ec1-apply-download disabled>Appliquer & télécharger Excel</button>
     </div>
   </div>
 </div>

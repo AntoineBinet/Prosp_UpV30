@@ -7,7 +7,7 @@
   var CID = Number(fc.dataset.candidateId || 0);
   if (!CID) return;
 
-  var STATE = { candidate: null, experiences: [], skills: [], availability: {}, dc: null, events: [] };
+  var STATE = { candidate: null, experiences: [], skills: [], availability: {}, dc: null, events: [], attachments: [], ec1Preview: null };
 
   function $(s) { return document.querySelector(s); }
   function esc(s) {
@@ -693,6 +693,7 @@
       if (_editSection === 'informations') {
         renderHeader(STATE.candidate);
         renderInfo(STATE.candidate);
+        if (typeof updateEc1CardVisibility === 'function') updateEc1CardVisibility();
       }
       closeSectionModal();
       flashSaved();
@@ -1224,6 +1225,376 @@
     });
   }
 
+  // ─── Pièces jointes candidat ─────────────────────────────
+  //   GET    /api/candidates/:id/attachments
+  //   POST   /api/candidates/:id/attachments       (multipart)
+  //   GET    /api/candidate-attachments/:aid/file
+  //   PATCH  /api/candidate-attachments/:aid       { title, description, kind }
+  //   DELETE /api/candidate-attachments/:aid
+  var ATT_KIND_LABELS = { cv: 'CV', ec1: 'Fiche EC1', suivi: 'Suivi', autre: 'Autre' };
+
+  function fmtSize(n) {
+    n = Number(n || 0);
+    if (n < 1024) return n + ' o';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' Ko';
+    return (n / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+  function fmtAttDate(raw) {
+    if (!raw) return '';
+    try {
+      var d = new Date(raw);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' });
+    } catch (_) { return ''; }
+  }
+
+  function renderAttachments() {
+    var host = document.querySelector('[data-v30-fc-att-list]');
+    if (!host) return;
+    var items = STATE.attachments || [];
+    if (!items.length) {
+      host.innerHTML =
+        '<div class="empty" style="padding:10px 0;font-size:12px;color:var(--text-3);">' +
+          'Aucun fichier. Ajoutez un CV, la fiche entretien Excel, ou tout autre document.' +
+        '</div>';
+      return;
+    }
+    host.innerHTML = items.map(function (a) {
+      var name = a.title || a.original_name || 'Fichier';
+      var kindLbl = ATT_KIND_LABELS[a.kind] || 'Autre';
+      var fileUrl = '/api/candidate-attachments/' + a.id + '/file';
+      return '<div class="v30-fc-att-row" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border, rgba(255,255,255,0.06));">' +
+        '<span class="badge" style="font-size:10.5px;">' + esc(kindLbl) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(a.original_name) + '">' + esc(name) + '</div>' +
+          '<div style="font-size:10.5px;color:var(--text-3);">' + esc(a.original_name) + ' · ' + fmtSize(a.size) + ' · ' + esc(fmtAttDate(a.createdAt)) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+          '<a class="btn btn-ghost btn-sm" href="' + esc(fileUrl) + '" target="_blank" rel="noopener" title="Télécharger">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+          '</a>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-att-rename="' + a.id + '" title="Renommer">Renommer</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-att-delete="' + a.id + '" title="Supprimer" style="color:var(--danger);">×</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadAttachments() {
+    return fetchJSON('/api/candidates/' + CID + '/attachments')
+      .then(function (res) {
+        STATE.attachments = (res && res.attachments) || [];
+        renderAttachments();
+      })
+      .catch(function () { STATE.attachments = []; renderAttachments(); });
+  }
+
+  function uploadAttachment(file, kind) {
+    if (!file) return Promise.resolve();
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('kind', kind || 'autre');
+    if (window.showToast) window.showToast('Upload en cours…', 'info', 1500);
+    return fetch('/api/candidates/' + CID + '/attachments', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' },
+      body: fd
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur upload');
+      if (window.showToast) window.showToast('Fichier ajouté : ' + (res.original_name || ''), 'success', 2000);
+      flashSaved();
+      return loadAttachments();
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur upload : ' + err.message, 'error', 3000);
+      else alert('Erreur upload : ' + err.message);
+    });
+  }
+
+  function renameAttachment(aId) {
+    var att = (STATE.attachments || []).find(function (a) { return String(a.id) === String(aId); });
+    if (!att) return;
+    var current = att.title || att.original_name || '';
+    var next = prompt('Titre du fichier (visible dans la liste) :', current);
+    if (next == null) return;
+    next = String(next).trim();
+    if (!next || next === current) return;
+    fetch('/api/candidate-attachments/' + aId, {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: next })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+      flashSaved();
+      return loadAttachments();
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 2500);
+      else alert('Erreur : ' + err.message);
+    });
+  }
+
+  function deleteAttachment(aId) {
+    var att = (STATE.attachments || []).find(function (a) { return String(a.id) === String(aId); });
+    var label = att ? (att.title || att.original_name || 'ce fichier') : 'ce fichier';
+    if (!confirm('Supprimer ' + label + ' ?\n\nCette action est définitive.')) return;
+    fetch('/api/candidate-attachments/' + aId, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+      if (window.showToast) window.showToast('Fichier supprimé', 'success', 1800);
+      flashSaved();
+      return loadAttachments();
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 2500);
+      else alert('Erreur : ' + err.message);
+    });
+  }
+
+  function bindAttachmentsCard() {
+    var card = document.querySelector('[data-v30-fc-att-card]');
+    if (!card) return;
+    var fileInput = card.querySelector('[data-v30-fc-att-input]');
+
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-att-upload-btn]')) {
+        if (fileInput) fileInput.click();
+        return;
+      }
+      var renameBtn = e.target.closest('[data-v30-fc-att-rename]');
+      if (renameBtn) { renameAttachment(renameBtn.dataset.v30FcAttRename); return; }
+      var delBtn = e.target.closest('[data-v30-fc-att-delete]');
+      if (delBtn) { deleteAttachment(delBtn.dataset.v30FcAttDelete); return; }
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function () {
+        var f = fileInput.files && fileInput.files[0];
+        if (!f) return;
+        // Détection grossière du kind via extension
+        var ext = (f.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+        var kind = 'autre';
+        if (/^\.(pdf|docx?|odt)$/.test(ext)) kind = 'cv';
+        if (/^\.(xlsx?|ods|csv)$/.test(ext)) kind = 'suivi';
+        uploadAttachment(f, kind).then(function () { fileInput.value = ''; });
+      });
+    }
+  }
+
+  // ─── EC1 (Excel + transcription IA) ──────────────────────
+  function updateEc1CardVisibility() {
+    var card = document.querySelector('[data-v30-fc-ec1-card]');
+    if (!card) return;
+    var status = (STATE.candidate && (STATE.candidate.status || '')) || '';
+    var s = String(status).toLowerCase();
+    // visible si statut indique EC1 ou "En entretien"
+    var show = s === 'ec1' || s === 'en entretien' || /ec1/.test(s);
+    card.style.display = show ? '' : 'none';
+  }
+
+  function downloadEc1Excel() {
+    var url = '/api/candidates/' + CID + '/ec1-export.xlsx';
+    if (window.showToast) window.showToast('Génération de la fiche Excel…', 'info', 1500);
+    // Téléchargement via lien direct
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); }, 100);
+  }
+
+  var EC1_FIELD_LABELS = {
+    disponibilite: 'Disponibilité',
+    mobilite: 'Mobilité',
+    fonctions_recherchees: 'Fonctions recherchées',
+    motif_recherche: 'Motif / motivations',
+    remuneration_actuelle: 'Rémunération actuelle',
+    pretentions_salariales: 'Prétentions',
+    avancement_recherches: 'Avancement des recherches',
+    eval_technique: 'Éval. technique',
+    eval_personnalite: 'Éval. personnalité',
+    eval_communication: 'Éval. communication',
+    langues: 'Langues',
+    references_candidat: 'Références',
+    avis_perso: 'Avis perso',
+    entretien_notes: 'Notes entretien'
+  };
+
+  function renderEc1Fields(fields, checklist) {
+    var host = document.querySelector('[data-v30-fc-ec1-fields]');
+    if (!host) return;
+    var rows = '';
+    Object.keys(EC1_FIELD_LABELS).forEach(function (k) {
+      var v = (fields && fields[k]) || '';
+      if (!v) return;
+      rows += '<div style="margin-bottom:8px;">' +
+        '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">' + esc(EC1_FIELD_LABELS[k]) + '</div>' +
+        '<div style="font-size:12.5px;white-space:pre-wrap;">' + esc(String(v)) + '</div>' +
+      '</div>';
+    });
+    if (!rows) rows = '<div style="font-size:12.5px;color:var(--text-3);">L\'IA n\'a pas extrait de champs exploitables.</div>';
+    var chk = '';
+    if (checklist && typeof checklist === 'object') {
+      var checked = Object.keys(checklist).filter(function (k) { return checklist[k] && checklist[k].checked; });
+      if (checked.length) {
+        chk = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-2);">' +
+          'Checklist EC1 : ' + checked.length + ' point(s) cochés' +
+        '</div>';
+      }
+    }
+    host.innerHTML = rows + chk;
+  }
+
+  function analyzeEc1Transcript() {
+    var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+    if (!modal) return;
+    var textarea = modal.querySelector('[data-v30-fc-ec1-transcript-input]');
+    var transcript = (textarea && textarea.value || '').trim();
+    if (!transcript) {
+      if (window.showToast) window.showToast('Veuillez coller la transcription', 'warning', 2000);
+      else alert('Transcription vide');
+      return;
+    }
+    var loader = modal.querySelector('[data-v30-fc-ec1-loader]');
+    var result = modal.querySelector('[data-v30-fc-ec1-result]');
+    var applyBtn = modal.querySelector('[data-v30-fc-ec1-apply]');
+    var applyDlBtn = modal.querySelector('[data-v30-fc-ec1-apply-download]');
+    if (loader) loader.style.display = '';
+    if (result) result.style.display = 'none';
+    if (applyBtn) applyBtn.disabled = true;
+    if (applyDlBtn) applyDlBtn.disabled = true;
+
+    fetch('/api/candidates/' + CID + '/ec1-from-transcript', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: transcript, apply: false })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (loader) loader.style.display = 'none';
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur IA');
+      STATE.ec1Preview = res;
+      renderEc1Fields(res.fields, res.checklist);
+      if (result) result.style.display = '';
+      if (applyBtn) applyBtn.disabled = false;
+      if (applyDlBtn) applyDlBtn.disabled = false;
+    }).catch(function (err) {
+      if (loader) loader.style.display = 'none';
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
+      else alert('Erreur : ' + err.message);
+    });
+  }
+
+  function applyEc1Transcript(doDownload) {
+    var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+    if (!modal) return;
+    var textarea = modal.querySelector('[data-v30-fc-ec1-transcript-input]');
+    var transcript = (textarea && textarea.value || '').trim();
+    if (!transcript) {
+      if (window.showToast) window.showToast('Transcription vide', 'warning', 2000);
+      return;
+    }
+    var applyBtn = modal.querySelector('[data-v30-fc-ec1-apply]');
+    var applyDlBtn = modal.querySelector('[data-v30-fc-ec1-apply-download]');
+    if (applyBtn) applyBtn.disabled = true;
+    if (applyDlBtn) applyDlBtn.disabled = true;
+    fetch('/api/candidates/' + CID + '/ec1-from-transcript', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: transcript, apply: true })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur IA');
+      if (window.showToast) window.showToast('Fiche EC1 mise à jour', 'success', 2500);
+      flashSaved();
+      closeEc1Modal();
+      // Reload candidate data to display new fields
+      return fetchJSON('/api/candidates/' + CID).then(function (data) {
+        var cand = data && (data.candidate || data);
+        if (cand) {
+          STATE.candidate = cand;
+          renderHeader(STATE.candidate);
+          renderInfo(STATE.candidate);
+          renderSectionFields(STATE.candidate);
+          updateEc1CardVisibility();
+        }
+        if (doDownload) downloadEc1Excel();
+      });
+    }).catch(function (err) {
+      if (applyBtn) applyBtn.disabled = false;
+      if (applyDlBtn) applyDlBtn.disabled = false;
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
+      else alert('Erreur : ' + err.message);
+    });
+  }
+
+  function openEc1Modal() {
+    var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+    if (!modal) return;
+    var textarea = modal.querySelector('[data-v30-fc-ec1-transcript-input]');
+    if (textarea) textarea.value = '';
+    var loader = modal.querySelector('[data-v30-fc-ec1-loader]');
+    if (loader) loader.style.display = 'none';
+    var result = modal.querySelector('[data-v30-fc-ec1-result]');
+    if (result) result.style.display = 'none';
+    var applyBtn = modal.querySelector('[data-v30-fc-ec1-apply]');
+    var applyDlBtn = modal.querySelector('[data-v30-fc-ec1-apply-download]');
+    if (applyBtn) applyBtn.disabled = true;
+    if (applyDlBtn) applyDlBtn.disabled = true;
+    modal.hidden = false;
+    requestAnimationFrame(function () { modal.classList.add('is-open'); });
+    if (textarea) textarea.focus();
+  }
+
+  function closeEc1Modal() {
+    var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    setTimeout(function () { modal.hidden = true; }, 160);
+  }
+
+  function bindEc1Card() {
+    var card = document.querySelector('[data-v30-fc-ec1-card]');
+    if (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('[data-v30-fc-ec1-download]')) { downloadEc1Excel(); return; }
+        if (e.target.closest('[data-v30-fc-ec1-transcript]')) { openEc1Modal(); return; }
+      });
+    }
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-ec1-close]')) { closeEc1Modal(); return; }
+      if (e.target.closest('[data-v30-fc-ec1-analyze]')) { analyzeEc1Transcript(); return; }
+      if (e.target.closest('[data-v30-fc-ec1-apply-download]')) { applyEc1Transcript(true); return; }
+      if (e.target.closest('[data-v30-fc-ec1-apply]')) { applyEc1Transcript(false); return; }
+      var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+      if (modal && !modal.hidden && e.target === modal) closeEc1Modal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+        if (modal && !modal.hidden) { closeEc1Modal(); e.stopPropagation(); }
+      }
+    });
+  }
+
   // ─── Init ────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
@@ -1232,6 +1603,8 @@
     bindDcActions();
     bindDcEnrichModal();
     bindNoteForm();
+    bindAttachmentsCard();
+    bindEc1Card();
 
     Promise.all([
       fetchJSON('/api/candidates/' + CID).catch(function () { return null; }),
@@ -1251,6 +1624,8 @@
       loadPushHistory();
       loadDc();
       loadEvents();
+      loadAttachments();
+      updateEc1CardVisibility();
     }).catch(function (err) {
       console.error('[v30 fiche candidat] load failed:', err);
     });

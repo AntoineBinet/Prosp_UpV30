@@ -1020,6 +1020,12 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadBestCandidates"], "endpoints": ["GET /api/prospect/<id>/best-candidates"], "backend": ["app.py:api_best_candidates"]}},
                 {"label": "Description IA candidat", "href": "/v30/candidat/<id>",
                  "tools": {"handlers": ["generateDescription"], "endpoints": ["POST /api/candidates/<id>/generate-description", "POST /api/candidates/<id>/save-description"], "backend": ["routes/push.py:api_candidate_description"]}},
+                {"label": "Pièces jointes candidat (CV, Excel suivi…)", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["loadAttachments", "uploadAttachment", "renameAttachment", "deleteAttachment"], "endpoints": ["GET /api/candidates/<id>/attachments", "POST /api/candidates/<id>/attachments", "PATCH /api/candidate-attachments/<aid>", "DELETE /api/candidate-attachments/<aid>", "GET /api/candidate-attachments/<aid>/file"], "backend": ["routes/candidates.py:api_candidate_attachment_upload", "routes/candidates.py:api_candidate_attachment_list", "routes/candidates.py:api_candidate_attachment_file", "routes/candidates.py:api_candidate_attachment_update", "routes/candidates.py:api_candidate_attachment_delete"]}},
+                {"label": "Fiche entretien EC1 — export Excel", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["downloadEc1Excel"], "endpoints": ["GET /api/candidates/<id>/ec1-export.xlsx"], "backend": ["routes/candidates.py:api_candidate_ec1_export"]}},
+                {"label": "Transcription EC1 → IA pré-remplit fiche", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["analyzeEc1Transcript", "applyEc1Transcript"], "endpoints": ["POST /api/candidates/<id>/ec1-from-transcript"], "backend": ["routes/candidates.py:api_candidate_ec1_from_transcript"]}},
             ],
         },
 

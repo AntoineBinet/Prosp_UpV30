@@ -1023,6 +1023,24 @@ CREATE TABLE IF NOT EXISTS prospect_attachments (
 CREATE INDEX IF NOT EXISTS idx_prospect_attachments_prospect ON prospect_attachments(prospect_id);
 CREATE INDEX IF NOT EXISTS idx_prospect_attachments_owner ON prospect_attachments(owner_id);
 
+CREATE TABLE IF NOT EXISTS candidate_attachments (
+    id            INTEGER PRIMARY KEY,
+    candidate_id  INTEGER NOT NULL,
+    owner_id      INTEGER NOT NULL,
+    filename      TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    size          INTEGER,
+    mime_type     TEXT,
+    description   TEXT,
+    title         TEXT,
+    kind          TEXT,
+    tags          TEXT,
+    createdAt     TEXT NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_attachments_candidate ON candidate_attachments(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_attachments_owner ON candidate_attachments(owner_id);
+
 CREATE TABLE IF NOT EXISTS prospect_summaries (
     prospect_id INTEGER PRIMARY KEY,
     owner_id    INTEGER NOT NULL,
@@ -1907,6 +1925,30 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 _add_col("prospect_attachments", "extracted_text", "TEXT")
             if "title" not in acols:
                 _add_col("prospect_attachments", "title", "TEXT")
+        except Exception:
+            pass
+
+        # candidate_attachments (v32.75) — pièces jointes par candidat (CV, fiche entretien…)
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS candidate_attachments (
+                    id            INTEGER PRIMARY KEY,
+                    candidate_id  INTEGER NOT NULL,
+                    owner_id      INTEGER NOT NULL,
+                    filename      TEXT NOT NULL,
+                    original_name TEXT NOT NULL,
+                    size          INTEGER,
+                    mime_type     TEXT,
+                    description   TEXT,
+                    title         TEXT,
+                    kind          TEXT,
+                    tags          TEXT,
+                    createdAt     TEXT NOT NULL,
+                    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_candidate_attachments_candidate ON candidate_attachments(candidate_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_candidate_attachments_owner ON candidate_attachments(owner_id);")
         except Exception:
             pass
 
