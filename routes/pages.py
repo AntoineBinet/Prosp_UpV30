@@ -919,6 +919,10 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["mountFocusSection"], "endpoints": ["POST /api/ai/next-action/refresh-batch"], "backend": ["routes/next_action_ai.py:api_next_action_refresh_batch", "services/next_action_ai.py:generate_for_prospect"]}},
                 {"label": "Appliquer suggestion IA (email/appel/LinkedIn/RDV)", "href": "/v30/focus",
                  "tools": {"handlers": ["applySuggestion"], "endpoints": ["GET /api/prospect/timeline"], "backend": ["app.py:api_prospect_timeline"]}},
+                {"label": "Séquences push dues (cadences guidées)", "href": "/v30/focus",
+                 "tools": {"handlers": ["mountFocusSection"], "endpoints": ["GET /api/push/sequences/due"], "backend": ["routes/push_sequences.py:api_sequences_due", "services/push_sequences.py:evaluate_due_steps", "services/push_sequences.py:auto_pause_replied"]}},
+                {"label": "Exécuter / marquer fait une étape de séquence", "href": "/v30/focus",
+                 "tools": {"handlers": ["mountFocusSection"], "endpoints": ["POST /api/push/sequences/enrollments/<id>/complete-step", "POST /api/push/sequences/enrollments/<id>/pause"], "backend": ["routes/push_sequences.py:api_sequences_complete_step"]}},
             ],
         },
         {
@@ -1018,6 +1022,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["mountProspectCard"], "endpoints": ["GET /api/ai/next-action/<id>"], "backend": ["routes/next_action_ai.py:api_next_action_get", "services/next_action_ai.py:get_cached"]}},
                 {"label": "Régénérer suggestion IA (fiche)", "href": "/v30/prospect/<id>",
                  "tools": {"handlers": ["mountProspectCard"], "endpoints": ["POST /api/ai/next-action/<id>/refresh"], "backend": ["routes/next_action_ai.py:api_next_action_refresh", "services/next_action_ai.py:generate_for_prospect"]}},
+                {"label": "Démarrer une séquence push (modal)", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["openEnrollModal", "mountProspectButton"], "endpoints": ["GET /api/push/sequences", "POST /api/push/sequences/<id>/enroll"], "backend": ["routes/push_sequences.py:api_sequences_enroll", "services/push_sequences.py:enroll"]}},
             ],
         },
         {

@@ -886,6 +886,37 @@ CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prosp
 CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
 
+-- v32.x Phase 4 : séquences push (cadences + adaptation, suggestions guidées)
+CREATE TABLE IF NOT EXISTS push_sequences (
+    id          INTEGER PRIMARY KEY,
+    owner_id    INTEGER,
+    name        TEXT NOT NULL,
+    description TEXT,
+    steps_json  TEXT NOT NULL,
+    is_active   INTEGER DEFAULT 1,
+    is_default  INTEGER DEFAULT 0,
+    createdAt   TEXT,
+    updatedAt   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+
+CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+    id                    INTEGER PRIMARY KEY,
+    sequence_id           INTEGER NOT NULL,
+    prospect_id           INTEGER NOT NULL,
+    owner_id              INTEGER NOT NULL,
+    started_at            TEXT NOT NULL,
+    status                TEXT DEFAULT 'active',
+    completed_steps_json  TEXT DEFAULT '[]',
+    paused_at             TEXT,
+    paused_reason         TEXT,
+    last_check_at         TEXT,
+    FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+
 CREATE TABLE IF NOT EXISTS prospect_attachments (
     id            INTEGER PRIMARY KEY,
     prospect_id   INTEGER NOT NULL,
@@ -1968,6 +1999,38 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "next_action_ai_at" not in pros_cols:
                 conn.execute("ALTER TABLE prospects ADD COLUMN next_action_ai_at TEXT;")
                 conn.commit()
+            # v32.x Phase 4 : séquences push (per-user DBs) — création idempotente
+            conn.executescript('''
+                CREATE TABLE IF NOT EXISTS push_sequences (
+                    id          INTEGER PRIMARY KEY,
+                    owner_id    INTEGER,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    steps_json  TEXT NOT NULL,
+                    is_active   INTEGER DEFAULT 1,
+                    is_default  INTEGER DEFAULT 0,
+                    createdAt   TEXT,
+                    updatedAt   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+                CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+                    id                    INTEGER PRIMARY KEY,
+                    sequence_id           INTEGER NOT NULL,
+                    prospect_id           INTEGER NOT NULL,
+                    owner_id              INTEGER NOT NULL,
+                    started_at            TEXT NOT NULL,
+                    status                TEXT DEFAULT 'active',
+                    completed_steps_json  TEXT DEFAULT '[]',
+                    paused_at             TEXT,
+                    paused_reason         TEXT,
+                    last_check_at         TEXT,
+                    FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+                CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+            ''')
+            conn.commit()
         except Exception as e:
             print(f"[WARN] Migration is_archived prospects ({db_path}): {e}")
         # Migration: ajouter colonnes candidates (schéma complet aligné sur la main DB)
@@ -3154,6 +3217,38 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
+
+            -- v32.x Phase 4 : séquences push (per-user DB)
+            CREATE TABLE IF NOT EXISTS push_sequences (
+                id          INTEGER PRIMARY KEY,
+                owner_id    INTEGER,
+                name        TEXT NOT NULL,
+                description TEXT,
+                steps_json  TEXT NOT NULL,
+                is_active   INTEGER DEFAULT 1,
+                is_default  INTEGER DEFAULT 0,
+                createdAt   TEXT,
+                updatedAt   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_sequences_owner ON push_sequences(owner_id);
+
+            CREATE TABLE IF NOT EXISTS push_sequence_enrollments (
+                id                    INTEGER PRIMARY KEY,
+                sequence_id           INTEGER NOT NULL,
+                prospect_id           INTEGER NOT NULL,
+                owner_id              INTEGER NOT NULL,
+                started_at            TEXT NOT NULL,
+                status                TEXT DEFAULT 'active',
+                completed_steps_json  TEXT DEFAULT '[]',
+                paused_at             TEXT,
+                paused_reason         TEXT,
+                last_check_at         TEXT,
+                FOREIGN KEY(sequence_id) REFERENCES push_sequences(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_pse_owner_status ON push_sequence_enrollments(owner_id, status);
+            CREATE INDEX IF NOT EXISTS idx_pse_prospect ON push_sequence_enrollments(prospect_id);
+
             CREATE INDEX IF NOT EXISTS idx_candidate_events_candidate ON candidate_events(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_events_date ON candidate_events(date);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_events(candidate_id, type, date);
@@ -8830,6 +8925,7 @@ from routes.actus import actus_bp  # noqa: E402
 from routes.rdv_review import rdv_review_bp  # noqa: E402
 from routes.next_action_ai import next_action_ai_bp  # noqa: E402
 from routes.prospect_score import prospect_score_bp  # noqa: E402
+from routes.push_sequences import push_sequences_bp  # noqa: E402
 from services import actus as _actus_svc  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
@@ -8859,6 +8955,7 @@ app.register_blueprint(actus_bp)
 app.register_blueprint(rdv_review_bp)
 app.register_blueprint(next_action_ai_bp)
 app.register_blueprint(prospect_score_bp)
+app.register_blueprint(push_sequences_bp)
 
 
 if __name__ == "__main__":

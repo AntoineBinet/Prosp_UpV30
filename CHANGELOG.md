@@ -2,6 +2,54 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.68] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
+
+- **Séquences push** : cadences guidées avec adaptation multi-canal.
+  Chaque étape suggère un canal (email / appel / LinkedIn / attendre)
+  à J+N depuis l'enrollment, avec une condition optionnelle
+  (`always` / `if_not_opened` / `if_not_replied`).
+- **Aucun envoi automatique** : conformément à la consigne « rien hors
+  app pour l'instant ». L'utilisateur exécute chaque étape en 1 clic
+  (ouvre la modale push, le lien `tel:`, le profil LinkedIn) ou la
+  marque fait sans exécuter.
+- **3 séquences seedées par défaut** créées au premier accès :
+  - *Découverte cadencée* : email J0, relance courte J+3 si non-ouvert,
+    appel J+7 si silence.
+  - *Relance après RDV* : merci J0, rappel J+5 si non-ouvert,
+    LinkedIn J+10 si pas de réponse.
+  - *Multi-touch large* : email J0, LinkedIn J+2, appel J+5,
+    email final J+10.
+- **Auto-pause sur réponse** : si `push_logs.replied_at` est rempli
+  après le démarrage, l'enrollment passe en `paused` avec la raison
+  *Réponse reçue*. Évite les relances inutiles après un succès.
+- **Bouton « Séquence »** ajouté aux actions de la fiche prospect
+  (à côté de *Pousser* / *Planifier*) : ouvre une modale avec la
+  liste des séquences disponibles + bouton *Démarrer*.
+- **Section « Séquences push »** dans `/v30/focus` : liste les étapes
+  dues pour tous les enrollments actifs, triées par retard décroissant.
+  Trois boutons par ligne :
+  - *Canal* (Email / Appel / LinkedIn) : exécute l'action ET marque fait
+    (ouvre push modal, `tel:`, ou nouvel onglet LinkedIn).
+  - *✓* : marque l'étape comme faite sans rien exécuter.
+  - *⏸* : pause la séquence avec une raison.
+- **Schéma** : 2 nouvelles tables :
+  - `push_sequences` (templates de séquences, seedées par user).
+  - `push_sequence_enrollments` (instances actives par prospect).
+  Migrations DB principale + user.
+- **API** (10 endpoints) :
+  - `GET    /api/push/sequences`
+  - `POST   /api/push/sequences`
+  - `PUT    /api/push/sequences/<id>`
+  - `DELETE /api/push/sequences/<id>`     (refuse si `is_default`)
+  - `POST   /api/push/sequences/<id>/enroll`
+  - `POST   /api/push/sequences/seed-defaults`
+  - `GET    /api/push/sequences/due`
+  - `GET    /api/push/sequences/enrollments`
+  - `POST   /api/push/sequences/enrollments/<id>/complete-step`
+  - `POST   /api/push/sequences/enrollments/<id>/pause`
+  - `POST   /api/push/sequences/enrollments/<id>/cancel`
+- **Toile** : 4 nouvelles actions sous *Focus* et *Prospects*.
+
 ## [32.67] — 2026-05-19 · Productivité Phase 3 · Funnel cumulatif + Score IA
 
 - **Funnel cumulatif 5 étapes** dans `/v30/stats` : *Total → Contactés

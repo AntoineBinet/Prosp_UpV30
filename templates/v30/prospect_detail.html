@@ -539,4 +539,25 @@
 <script defer src="/static/js/v30/prospect_detail_render.js?v={{ static_hash('js/v30/prospect_detail_render.js') }}"></script>
 <script defer src="/static/js/v30/prospect_detail_ui.js?v={{ static_hash('js/v30/prospect_detail_ui.js') }}"></script>
 <script defer src="/static/js/v30/next_action_ai.js?v={{ static_hash('js/v30/next_action_ai.js') }}"></script>
+<script defer src="/static/js/v30/push_sequences.js?v={{ static_hash('js/v30/push_sequences.js') }}"></script>
+
+{# ─── Modale "Démarrer une séquence push" (Phase 4 productivité v32.x) ─── #}
+<div class="v30-modal-bd" data-v30-pseq-enroll-modal hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-pseq-modal-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-pseq-modal-title">Démarrer une séquence push</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">
+        Une séquence guide la cadence : à chaque étape, vous décidez d'exécuter ou de marquer fait.
+        Aucun envoi automatique — vous gardez le contrôle.
+      </p>
+      <div data-v30-pseq-list></div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
+    </div>
+  </div>
+</div>
 {% endblock %}

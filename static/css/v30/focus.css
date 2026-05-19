@@ -258,6 +258,77 @@
   .v30-na-list-row { grid-template-columns: 1fr; }
 }
 
+/* ─── Bloc Séquences push (Phase 4 productivité) ──────────────────── */
+.v30-focus-pseq { border-left: 3px solid var(--info, #0ea5e9); }
+.pseq-due-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+.pseq-due-row:first-child { border-top: none; }
+.pseq-due-row__main {
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.pseq-due-row__name { font-weight: 600; font-size: 13px; }
+.pseq-due-row__hint {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pseq-due-row__meta { font-size: 10.5px; margin-top: 2px; }
+.pseq-due-row__actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.pseq-due-row__actions .btn { font-size: 11.5px; padding: 4px 8px; }
+
+.pseq-channel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  color: white;
+}
+.pseq-channel--email    { background: #4a86e8; }
+.pseq-channel--call     { background: #16a34a; }
+.pseq-channel--linkedin { background: #0a66c2; }
+.pseq-channel--wait     { background: #6b7280; }
+
+/* Modal d'enroll séquence */
+.pseq-list-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.pseq-list-row__name { font-weight: 600; font-size: 13px; }
+.pseq-list-row__desc { font-size: 12px; margin-top: 2px; }
+.pseq-list-row__steps { font-size: 11px; margin-top: 4px; font-family: var(--font-mono, monospace); }
+
+@media (max-width: 720px) {
+  .pseq-due-row {
+    grid-template-columns: 32px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .pseq-due-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 /* ─── Modale choix numéro (phone picker) ─── */
 .v30-phone-picker__list {
   display: flex;
