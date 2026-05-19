@@ -53,6 +53,60 @@
     </div>
   </section>
 
+  {# ─── Bloc RDV à statuer (Phase 1 productivité v32.x) ─── #}
+  {# RDV passés au statut "Rendez-vous" qui attendent une revue (tenu / no-show / annulé / reprogrammé). #}
+  <section class="card card-flush v30-focus-rdv-review"
+           data-v30-rdv-review hidden style="margin-bottom:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        <span class="badge-dot" style="background:var(--danger);"></span>
+        RDV à statuer <span class="tab-count" data-field="rr-count">—</span>
+      </div>
+      <div class="muted" style="font-size:11px;">
+        RDV passés non revus — choisis l'issue pour chacun.
+      </div>
+    </div>
+    <div data-v30-rdv-review-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
+  {# ─── Bloc Suggestions IA (Phase 2 productivité v32.x) ─── #}
+  {# Top suggestions actives par confiance, générées à la demande depuis la fiche prospect. #}
+  <section class="card card-flush v30-focus-na-ai" data-v30-focus-na-ai style="margin-bottom:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        <span class="v30-na-sparkle" aria-hidden="true">✦</span>
+        Prochaines actions IA <span class="tab-count" data-field="na-count">—</span>
+      </div>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-focus-na-ai-batch
+              title="Régénérer 10 suggestions périmées (ou absentes) en arrière-plan">
+        Actualiser le batch
+      </button>
+    </div>
+    <div data-v30-focus-na-ai-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
+  {# ─── Bloc Séquences push dues (Phase 4 productivité v32.x) ─── #}
+  {# Étapes dues sur les enrollments actifs. Auto-pause si réponse reçue. #}
+  <section class="card card-flush v30-focus-pseq" data-v30-focus-pseq style="margin-bottom:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        <span style="color:var(--info);font-size:14px;line-height:1;">⏱</span>
+        Séquences push <span class="tab-count" data-field="pseq-count">—</span>
+      </div>
+      <div class="muted" style="font-size:11px;">
+        Étapes dues — exécutez ou marquez fait, jamais d'envoi auto.
+      </div>
+    </div>
+    <div data-v30-focus-pseq-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
   {# ─── Colonne unique 3 blocs : Overdue · Aujourd'hui · À venir ─── #}
   <div class="v30-focus-cols">
 
@@ -208,6 +262,36 @@
   </div>
 </div>
 
+{# ─── Modale preview de l'email IA généré après no-show / annulé ─── #}
+<div class="v30-modal-bd" data-v30-rdv-relance-modal hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-rdv-relance-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-rdv-relance-title">Relance suggérée par l'IA</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="muted" style="font-size:12px;margin-bottom:12px;" data-v30-rdv-relance-meta></div>
+      <div class="v30-field">
+        <label for="v30-rdv-relance-subject">Objet</label>
+        <input type="text" id="v30-rdv-relance-subject" class="input" data-v30-rdv-relance-subject>
+      </div>
+      <div class="v30-field">
+        <label for="v30-rdv-relance-body">Corps du mail</label>
+        <textarea id="v30-rdv-relance-body" class="textarea" rows="10" data-v30-rdv-relance-body></textarea>
+      </div>
+      <div class="v30-field" data-v30-rdv-relance-creneaux-wrap>
+        <label>Créneaux suggérés</label>
+        <div class="muted" style="font-size:12px;" data-v30-rdv-relance-creneaux></div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
+      <button type="button" class="btn btn-sm" data-v30-rdv-relance-copy>Copier l'email</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-rdv-relance-open>Ouvrir dans mon mail</button>
+    </div>
+  </div>
+</div>
+
 {# Réutilise les styles .v30-ac__row + .v30-task-row de dashboard.css #}
 <link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
 <link rel="stylesheet" href="/static/css/v30/focus.css?v={{ static_hash('css/v30/focus.css') }}">
@@ -215,4 +299,6 @@
 <script defer src="/static/js/v30/phone-picker.js?v={{ static_hash('js/v30/phone-picker.js') }}"></script>
 <script defer src="/static/js/v30/push-modal.js?v={{ static_hash('js/v30/push-modal.js') }}"></script>
 <script defer src="/static/js/v30/focus.js?v={{ static_hash('js/v30/focus.js') }}"></script>
+<script defer src="/static/js/v30/next_action_ai.js?v={{ static_hash('js/v30/next_action_ai.js') }}"></script>
+<script defer src="/static/js/v30/push_sequences.js?v={{ static_hash('js/v30/push_sequences.js') }}"></script>
 {% endblock %}

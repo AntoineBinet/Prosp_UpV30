@@ -114,7 +114,9 @@
       }
     }
 
-    function renderNotifItems(overdue, dueToday) {
+    var ICON_RDV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="2"/></svg>';
+
+    function renderNotifItems(overdue, dueToday, rdvToReview) {
       if (!notifBody) return;
       var items = [];
 
@@ -122,6 +124,19 @@
       (window._v30NotifExtra || []).forEach(function (ex) {
         if (ex && ex.html) items.push(ex.html);
       });
+
+      if (rdvToReview > 0) {
+        items.push(
+          '<div class="v30-notif-item">' +
+            '<div class="v30-notif-item__icon v30-notif-item__icon--warn">' + ICON_RDV + '</div>' +
+            '<div class="v30-notif-item__body">' +
+              '<div class="v30-notif-item__label">' + rdvToReview + ' RDV à statuer</div>' +
+              '<div class="v30-notif-item__sub">Tenu / no-show / annulé / reprogrammé</div>' +
+              '<div class="v30-notif-item__cta"><a class="btn btn-sm" href="/v30/focus">Voir Focus →</a></div>' +
+            '</div>' +
+          '</div>'
+        );
+      }
 
       if (overdue > 0) {
         items.push(
@@ -156,7 +171,7 @@
       }
     }
 
-    var _lastOverdue = 0, _lastDueToday = 0;
+    var _lastOverdue = 0, _lastDueToday = 0, _lastRdvToReview = 0;
 
     function loadNotifications() {
       fetch('/api/dashboard', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -165,21 +180,25 @@
           var pipeline = (res && res.data && res.data.pipeline) || {};
           _lastOverdue  = parseInt(pipeline.overdue, 10)   || 0;
           _lastDueToday = parseInt(pipeline.due_today, 10) || 0;
+          _lastRdvToReview = parseInt(pipeline.rdv_to_review, 10) || 0;
           var extrasCount = (window._v30NotifExtra || []).length;
-          updateBadge(_lastOverdue + _lastDueToday + extrasCount);
-          renderNotifItems(_lastOverdue, _lastDueToday);
+          updateBadge(_lastOverdue + _lastDueToday + _lastRdvToReview + extrasCount);
+          renderNotifItems(_lastOverdue, _lastDueToday, _lastRdvToReview);
         })
         .catch(function () {
           if (notifBody) notifBody.innerHTML = '<div class="v30-notif-empty">Impossible de charger les notifications</div>';
         });
     }
 
-    // Modules externes peuvent déclencher un re-rendu du panel
+    // Modules externes peuvent déclencher un re-rendu du panel (sans refetch)
     document.addEventListener('v30:notif:refresh', function () {
       var extrasCount = (window._v30NotifExtra || []).length;
-      updateBadge(_lastOverdue + _lastDueToday + extrasCount);
-      renderNotifItems(_lastOverdue, _lastDueToday);
+      updateBadge(_lastOverdue + _lastDueToday + _lastRdvToReview + extrasCount);
+      renderNotifItems(_lastOverdue, _lastDueToday, _lastRdvToReview);
     });
+
+    // Forçage refetch /api/dashboard (utile après une action qui change les compteurs).
+    document.addEventListener('v30:notif:reload', function () { loadNotifications(); });
 
     loadNotifications();
 
