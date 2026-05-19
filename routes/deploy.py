@@ -27,12 +27,14 @@ import time
 import urllib.error
 import urllib.request
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 
 from app import (
     APP_DIR,
     _cancel_validation_timer,
+    _check_recovery_rate_limit,
     _do_git_update_check,
+    _record_recovery_attempt,
     _require_same_origin,
     _schedule_restart,
     _start_validation_timer,
@@ -40,12 +42,26 @@ from app import (
     _uid,
     _update_check_lock,
     _update_check_state,
+    _verify_recovery_token,
     _write_pending_validation,
     create_snapshot,
     logger,
     login_required,
     role_required,
 )
+
+
+def _require_recovery_token():
+    """Exige un recovery token valide. Renvoie une tuple (jsonify, status) si refus, None si OK.
+    Combine rate-limit IP + vérification token timing-safe. Utilisé sur les routes deploy
+    accessibles sans auth (réparation depuis la page 404)."""
+    if _check_recovery_rate_limit():
+        return jsonify(ok=False, error="Trop de tentatives. Réessayez dans 1 min."), 429
+    if not _verify_recovery_token():
+        _record_recovery_attempt()
+        logger.warning("Recovery token invalide depuis %s sur %s", request.remote_addr, request.path)
+        return jsonify(ok=False, error="Token de récupération invalide ou manquant. Voir console serveur ou Paramètres > Système."), 401
+    return None
 
 deploy_bp = Blueprint("deploy", __name__)
 
@@ -54,8 +70,13 @@ deploy_bp = Blueprint("deploy", __name__)
 
 @deploy_bp.post("/api/deploy/pull-from-404")
 def api_deploy_pull_from_404():
-    """Pull Git simple depuis la page 404 (sans auth pour permettre réparation)."""
+    """Pull Git depuis la page 404. v32.66 : exige le recovery token
+    (header X-Recovery-Token ou body.recovery_token). Avant v32.66 cet
+    endpoint était public — vecteur d'exécution distante si GitHub compromis."""
     chk = _require_same_origin()
+    if chk:
+        return chk
+    chk = _require_recovery_token()
     if chk:
         return chk
 
@@ -150,8 +171,13 @@ def api_deploy_pull_from_404():
 
 @deploy_bp.post("/api/deploy/rollback")
 def api_deploy_rollback():
-    """Rollback vers le commit précédent (sans auth pour permettre réparation depuis 404)."""
+    """Rollback vers le commit précédent. v32.66 : exige le recovery token
+    (header X-Recovery-Token ou body.recovery_token). Avant v32.66 cet
+    endpoint était public — vecteur de DoS / réversion d'urgence non autorisée."""
     chk = _require_same_origin()
+    if chk:
+        return chk
+    chk = _require_recovery_token()
     if chk:
         return chk
 

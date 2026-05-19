@@ -975,16 +975,29 @@ def api_assistant_action():
             prospect_id = params.get("id")
             field = params.get("field")
             value = params.get("value")
-            
+
             if not prospect_id or not field:
                 return jsonify(ok=False, error="ID et champ requis"), 400
-            
+
+            # v32.68 — Whitelist stricte des champs modifiables (anti-SQL injection).
+            # Avant : f"UPDATE prospects SET {field}=? ..." permettait à un user
+            # de passer field="status=?,owner_id=99 WHERE 1=1;--" → exécution
+            # contrôlée. Maintenant : seuls les noms de colonnes connus passent.
+            _UPDATE_PROSPECT_ALLOWED_FIELDS = frozenset([
+                'statut', 'notes', 'lastContact', 'nextFollowUp', 'pertinence',
+                'callNotes', 'tags', 'nextAction', 'rdvDate', 'priority',
+                'is_archived', 'telephone', 'email', 'linkedin', 'fonction',
+                'name', 'prenom', 'website',
+            ])
+            if field not in _UPDATE_PROSPECT_ALLOWED_FIELDS:
+                return jsonify(ok=False, error=f"Champ '{field}' non modifiable via cette route"), 400
+
             if not _prospect_owned(prospect_id):
                 return jsonify(ok=False, error="Prospect non trouvé ou accès refusé"), 404
-            
+
             with _conn() as conn:
                 conn.execute(f"UPDATE prospects SET {field}=? WHERE id=? AND owner_id=?;", (value, prospect_id, uid))
-            
+
             return jsonify(ok=True, message="Prospect modifié avec succès")
         
         elif action_type == "ia_scrap":

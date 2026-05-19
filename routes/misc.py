@@ -1151,6 +1151,21 @@ def api_system_logs():
         return jsonify(ok=False, error=str(e)), 500
 
 
+@misc_bp.get("/api/system/recovery-token")
+def api_system_recovery_token():
+    """Retourne le token de récupération en cours (admin uniquement). v32.66.
+
+    Utilisé par l'UI pour afficher le token dans Paramètres > Système, afin que
+    l'admin puisse le copier/noter avant que l'app ne casse. Ce token sert à
+    autoriser /api/deploy/pull-from-404 et /rollback depuis la page 404 quand
+    on n'est plus authentifié."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    from app import RECOVERY_TOKEN
+    return jsonify(ok=True, token=RECOVERY_TOKEN)
+
+
 @misc_bp.post("/api/system/verify")
 def api_system_verify():
     """Exécute le script de vérification système et retourne les résultats détaillés."""

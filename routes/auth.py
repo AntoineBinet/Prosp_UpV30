@@ -34,6 +34,7 @@ from app import (
     login_required,
     validate_payload,
 )
+from utils.auth import rate_limit
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -68,6 +69,10 @@ def api_auth_login():
         if not pw_ok:
             _record_login_attempt()
             return jsonify(ok=False, error="Identifiants incorrects"), 401
+        # v32.67 : régénération de session pour prévenir session fixation.
+        # Vide toutes les valeurs (potentiellement injectées avant login) puis
+        # re-set propre. Flask régénère le cookie signé au prochain rendu.
+        session.clear()
         session.permanent = True
         session['user_id'] = user['id']
         session['user_role'] = user['role']
@@ -169,7 +174,14 @@ def api_auth_avatar_upload():
 @auth_bp.get("/api/auth/avatar/<int:user_id>")
 @login_required
 def api_auth_avatar_serve(user_id):
-    """Sert la photo de profil d'un utilisateur (v27.7)."""
+    """Sert la photo de profil d'un utilisateur (v27.7).
+
+    Note sécu (v32.67) : flaggé IDOR par l'audit du 19 mai 2026 — n'importe
+    quel user authentifié peut lire l'avatar de tous les autres users. En
+    contexte mono-tenant (1 instance = 1 entreprise), c'est volontaire : les
+    collègues doivent voir les avatars de leurs collègues (commentaires,
+    timeline, etc.). Si un jour on ouvre le SaaS multi-tenant strict, ajouter
+    ici un check `user_id == _uid() or _shares_org(user_id, _uid())`."""
     from flask import send_file as _send_file
     for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
         fpath = AVATARS_DIR / f"avatar_{user_id}{ext}"
@@ -264,6 +276,7 @@ def api_auth_revoke():
 
 
 @auth_bp.post("/api/auth/change-password")
+@rate_limit(max_per_minute=5, scope="change-password")
 def api_auth_change_password():
     uid = session.get('user_id')
     if not uid:
@@ -285,4 +298,8 @@ def api_auth_change_password():
             return jsonify(ok=False, error="Ancien mot de passe incorrect"), 401
         conn.execute("UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?;",
                      (generate_password_hash(new_pw), uid))
+        # v32.67 : invalider tous les refresh tokens du user après changement
+        # de mdp. Sinon un attaquant qui avait volé un refresh token reste actif
+        # pendant 30 j même après que la victime ait reset son mot de passe.
+        conn.execute("UPDATE refresh_tokens SET revoked=1 WHERE user_id=?;", (uid,))
     return jsonify(ok=True)

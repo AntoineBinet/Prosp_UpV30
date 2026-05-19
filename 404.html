@@ -87,6 +87,44 @@
       margin-bottom: 28px;
       line-height: 1.6;
     }
+    .recovery-box {
+      margin: 18px 0 20px;
+      padding: 12px 14px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface-2);
+      text-align: left;
+    }
+    .recovery-box label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .recovery-box input {
+      width: 100%;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      letter-spacing: 0.02em;
+      outline: none;
+    }
+    .recovery-box input:focus { border-color: var(--accent); }
+    .recovery-box small {
+      display: block;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-3);
+      line-height: 1.5;
+    }
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -178,6 +216,11 @@
     <h1>Page introuvable.</h1>
     <p>La page que vous cherchez n'existe pas ou a été déplacée.<br>
     Si ce problème survient après une mise à jour, utilisez les boutons ci-dessous.</p>
+    <div class="recovery-box">
+      <label for="recoveryToken">Token de récupération</label>
+      <input id="recoveryToken" type="password" autocomplete="off" spellcheck="false" placeholder="Coller le token de récupération">
+      <small>Requis pour MAJ + Rollback (v32.66). Affiché dans la console du serveur au démarrage, ou copiable depuis <em>Paramètres &gt; Système</em> quand connecté admin.</small>
+    </div>
     <div class="actions">
       <a href="/v30/dashboard" class="btn btn-accent">Retour au Dashboard</a>
       <button id="btnUpdate" class="btn" onclick="triggerUpdate()">MAJ + Redémarrage</button>
@@ -214,8 +257,19 @@
       }, 1000);
     }
 
+    function getRecoveryToken() {
+      const el = document.getElementById('recoveryToken');
+      return (el && el.value || '').trim();
+    }
+
     async function triggerUpdate() {
       const btn = document.getElementById('btnUpdate');
+      const token = getRecoveryToken();
+      if (!token) {
+        showStatus('error', 'Saisissez le token de récupération avant de lancer la MAJ.');
+        document.getElementById('recoveryToken').focus();
+        return;
+      }
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>MAJ en cours…';
       showStatus('info', 'Récupération des dernières modifications Git + redémarrage automatique…');
@@ -223,7 +277,8 @@
       try {
         const res = await fetch('/api/deploy/pull-from-404', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Recovery-Token': token },
+          body: JSON.stringify({ recovery_token: token })
         });
         const data = await res.json();
 
@@ -246,6 +301,12 @@
 
     async function triggerRollback() {
       const btn = document.getElementById('btnRollback');
+      const token = getRecoveryToken();
+      if (!token) {
+        showStatus('error', 'Saisissez le token de récupération avant de lancer le rollback.');
+        document.getElementById('recoveryToken').focus();
+        return;
+      }
       if (!confirm('Revenir au commit précédent ? Le serveur redémarrera.')) return;
 
       btn.disabled = true;
@@ -255,7 +316,8 @@
       try {
         const res = await fetch('/api/deploy/rollback', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Recovery-Token': token },
+          body: JSON.stringify({ recovery_token: token })
         });
         const data = await res.json();
 
