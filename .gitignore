@@ -13,6 +13,7 @@ playwright-report/
 .env
 .env.local
 .secret_key
+.recovery_token
 scripts/.agent-secret
 scripts/.cursor-api-key
 # User runtime data (avatars, photos, user DBs, AI config)

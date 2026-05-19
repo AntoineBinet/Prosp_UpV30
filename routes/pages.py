@@ -1457,6 +1457,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["checkDeps"], "endpoints": ["GET /api/deploy/check-deps", "POST /api/deploy/install-deps"], "backend": ["routes/deploy.py:api_deploy_check_deps"]}},
                 {"label": "Rollback du serveur (admin)", "href": "/v30/parametres#deploy",
                  "tools": {"handlers": ["deployRollback"], "endpoints": ["POST /api/deploy/rollback"], "backend": ["routes/deploy.py:api_deploy_rollback"]}},
+                {"label": "Token de récupération (404)", "href": "/v30/parametres#deploy",
+                 "tools": {"handlers": ["showRecoveryToken"], "endpoints": ["GET /api/system/recovery-token"], "backend": ["routes/misc.py:api_system_recovery_token", "app.py:_verify_recovery_token"]}},
                 {"label": "Toile d'araignée", "href": "/v30/sitemap",
                  "tools": {"handlers": ["openSitemap"], "endpoints": [], "backend": ["routes/pages.py:page_v30_sitemap"]}},
                 {"label": "Exporter mes données", "href": "/v30/parametres#export",
@@ -1543,9 +1545,13 @@ def page_v30_sitemap():
     current_user = _get_current_user() or {}
     is_admin = current_user.get("role") == "admin"
     data = _build_sitemap_data(is_admin=is_admin)
+    # v32.68 — Passe le dict brut au lieu d'une string JSON ; le filtre |tojson
+    # côté template fait le json.dumps avec échappement XSS-safe (< → <
+    # etc.). Avant : json.dumps + |safe = vulnérable si jamais on injectait
+    # un jour des données user-controlled dans le sitemap.
     return render_template(
         "v30/sitemap.html",
         app_version=APP_VERSION,
-        sitemap_json=json.dumps(data, ensure_ascii=False),
+        sitemap_data=data,
         is_admin=is_admin,
     )

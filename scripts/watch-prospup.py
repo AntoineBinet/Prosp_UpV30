@@ -196,16 +196,30 @@ def _kill_port(port: int, dry_run: bool = False) -> bool:
     return killed_any
 
 
+# v32.68 — Whitelist stricte
+_ALLOWED_START_COMMANDS = {
+    "python app.py --production",
+    "python app.py --prod",
+    "python app.py",
+    "py app.py --production",
+    "py app.py --prod",
+    "py app.py",
+}
+
+
 def _start_server(cmd: str, cwd: str, dry_run: bool = False) -> bool:
-    """Lance la commande de démarrage en arrière-plan. Retourne True si lancé."""
-    _log(f"Démarrage serveur: {cmd} (cwd={cwd})")
+    """Lance la commande de démarrage en arrière-plan (whitelist stricte v32.68)."""
+    safe = (cmd or "").strip()
+    if safe not in _ALLOWED_START_COMMANDS:
+        _log(f"Cmd hors whitelist ({safe!r}) — fallback sur défaut.", "WARN")
+        safe = "python app.py --prod"
+    _log(f"Démarrage serveur: {safe} (cwd={cwd})")
     if dry_run:
         _log("[DRY RUN] Aurait lancé le serveur.")
         return True
     try:
         subprocess.Popen(
-            cmd,
-            shell=True,
+            safe.split(),  # shell=False
             cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,

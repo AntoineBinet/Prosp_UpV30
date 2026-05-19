@@ -73,13 +73,27 @@ def pull(cwd: str) -> bool:
     return True
 
 
+# v32.68 — Mêmes commandes que supervise_prospup.py
+_ALLOWED_RESTART_COMMANDS = {
+    "python app.py --production",
+    "python app.py --prod",
+    "python app.py",
+    "py app.py --production",
+    "py app.py --prod",
+    "py app.py",
+}
+
+
 def run_restart(cmd: str, cwd: str) -> None:
-    """Lance la commande de relance en arrière-plan."""
-    _log(f"Relance de l'application: {cmd}")
+    """Lance la commande de relance en arrière-plan (whitelist stricte v32.68)."""
+    safe = (cmd or "").strip()
+    if safe not in _ALLOWED_RESTART_COMMANDS:
+        _log(f"PROSPUP_RESTART_CMD={safe!r} hors whitelist — fallback sur défaut.")
+        safe = "python app.py --prod"
+    _log(f"Relance de l'application: {safe}")
     try:
         subprocess.Popen(
-            cmd,
-            shell=True,
+            safe.split(),  # shell=False
             cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,

@@ -2,6 +2,111 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.73] — 2026-05-19 · Sécurité · Defense in depth (Phase 3)
+
+Troisième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).
+
+- **Anti-SSRF (E6)** — `/api/calendar_events_external` refuse maintenant
+  les URLs résolvant vers une IP privée, loopback, link-local, multicast
+  ou réservée. Empêche d'utiliser l'endpoint comme proxy interne pour
+  taper sur Ollama (127.0.0.1:11434), AWS metadata (169.254.169.254),
+  ou des services LAN. Limite de taille de réponse à 5 MB.
+- **shell=True purgé (E7)** — `scripts/supervise_prospup.py`,
+  `scripts/auto_sync_pc.py` et `scripts/watch-prospup.py` n'utilisent
+  plus `shell=True`. Les commandes serveur sont whitelistées (set fini :
+  `python app.py`, `python app.py --prod`, etc.). Une variable d'env
+  hors whitelist tombe sur le défaut au lieu d'être exécutée telle quelle.
+- **`data/ai_config.json` chmod 600 (M2)** — appliqué à chaque écriture
+  (POSIX seulement, Windows ACL gère au niveau dossier user). Le fichier
+  contient les clés API Tavily/Anthropic/HuggingFace/France Travail en clair.
+- **Whitelist auth nettoyée (M8)** — `/api/system/check-deployment` et
+  `/api/system/logs` retirés de la whitelist `before_request`. Leurs
+  handlers re-checkent admin de toute façon, donc anti-pattern fragile.
+  Désormais les routes admin passent par le check session normal.
+- **`|safe` → `|tojson` dans sitemap (M9)** — `routes/pages.py` passe le
+  dict brut, le template fait `{{ sitemap_data | tojson }}` qui échappe
+  proprement `<`, `>`, `&`. Si un jour des labels user-controlled
+  entraient dans le sitemap, plus de XSS possible.
+- **Anti-SQLi via whitelist (M11)** — `routes/collab.py` action
+  `update_prospect` n'autorise plus que des noms de colonnes d'une liste
+  fermée. Avant : `field="x=1,owner_id=99 WHERE 1=1;--"` permettait du
+  cross-tenant rewrite.
+- **Rate-limit générique (M12)** — nouveau decorator `@rate_limit(
+  max_per_minute=N, scope="...")` dans `utils/auth.py`. Appliqué à :
+  `/api/auth/change-password` (5/min), `/api/calendar_events_external`
+  (10/min), `/api/ollama/generate` (30/min), `/api/ollama/generate-stream`
+  (20/min). In-memory, mono-process, OK pour Waitress.
+
+Skip volontaire :
+- **E8 / M1** — SQLCipher / chiffrement backups : trop intrusif, mérite
+  une phase dédiée (migration de la DB, gestion de la clé maître).
+- **M10** — `MAX_CONTENT_LENGTH` 500 MB : laissé tel quel, nécessaire
+  pour les uploads audio de transcription. Le risque DoS reste à PC perso.
+- **E2** — vérification GPG des commits : attente de ton setup côté PC.
+- **M6** — MFA TOTP : phase dédiée séparée.
+
+## [32.72] — 2026-05-19 · Sécurité · Hardening auth (Phase 2)
+
+Deuxième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).
+Cible les vecteurs auth web + JWT mobile.
+
+- **CSRF strict (E3)** — `_require_same_origin()` refuse désormais les
+  requêtes sans header `Origin` valide. Fallback `Referer` autorisé si
+  même origine. Avant : pas d'`Origin` = pass (bypassable via `curl`,
+  scripts). Le check ne s'applique qu'aux mutations cookie-auth ; le
+  JWT Bearer reste exempt (le token prouve l'auth).
+- **CORS strict (E5)** — `Access-Control-Allow-Origin` ne renvoie plus
+  `*`. À la place, on écho l'`Origin` reçue *uniquement* si elle est
+  dans la whitelist web ou mobile (`capacitor://`, `ionic://`). Nouvelle
+  variable d'env `PROSPUP_MOBILE_ORIGINS` pour étendre. Apps natives sans
+  Origin continuent de fonctionner.
+- **Rotation session ID au login (M3)** — `session.clear()` avant le re-set
+  des champs après vérif mdp. Prévient la session fixation.
+- **Durée session 8h → 4h (M4)** — réduit la fenêtre d'exploitation d'un
+  cookie volé.
+- **Invalidation refresh tokens au changement de mdp (M5)** — un attaquant
+  qui avait volé un refresh token (valide 30 j) est désormais déconnecté
+  dès que la victime change son mot de passe.
+- **Header `X-Recovery-Token` ajouté à la whitelist CORS** pour permettre
+  l'usage cross-origin du token de récupération depuis la 404.
+- **Commentaire IDOR avatar (E4)** — confirmé comme volontaire en mode
+  mono-tenant (les collègues doivent voir les avatars). Note ajoutée pour
+  un éventuel pivot SaaS multi-tenant.
+
+Non livré dans cette phase :
+- **E2** — vérification GPG des commits git (besoin que tu setup ta clé
+  GPG côté PC hébergeur en premier, puis on l'active dans `git pull`).
+- **M6** — MFA TOTP (page setup, flow login, codes recovery — mérite
+  une phase dédiée).
+
+## [32.71] — 2026-05-19 · Sécurité · Recovery token sur deploy/404 (Phase 1)
+
+Première phase du plan de remédiation de l'[audit cybersécurité du
+19 mai 2026](docs/AUDIT_SECURITE_2026-05.md). Ferme le vecteur d'attaque
+le plus critique : `/api/deploy/pull-from-404` et `/api/deploy/rollback`
+étaient publics, n'importe qui pouvait déclencher un `git pull` +
+redémarrage en HTTP POST. Combiné à un éventuel compromis GitHub = code
+arbitraire exécuté sur le PC hébergeur.
+
+- **Token de récupération** généré au premier démarrage et persisté
+  dans `.recovery_token` (chmod 600 sur POSIX, gitignored). Affiché
+  en console à chaque boot.
+- **`/api/deploy/pull-from-404` et `/api/deploy/rollback`** exigent
+  désormais le token via header `X-Recovery-Token` ou champ JSON
+  `recovery_token`. Comparaison timing-safe (`hmac.compare_digest`).
+- **Rate-limit 5 tentatives / 60 s par IP** sur ces endpoints pour
+  éviter brute-force du token.
+- **`404.html`** : champ password ajouté au-dessus des boutons. UX
+  inchangée pour qui a le token, bloquée pour qui ne l'a pas.
+- **`GET /api/system/recovery-token`** (admin uniquement) : permet de
+  copier le token depuis l'UI quand on est encore connecté, pour le
+  noter avant que l'app ne casse.
+
+Non touché dans cette phase (volontairement, sur demande utilisateur) :
+- E1 admin/admin par défaut (mdp déjà changé en prod)
+- C4 fuite `cloudflare-config.yml` (révocation tunnel = blocage du
+  service prospup.work, à faire depuis le PC hébergeur).
+
 ## [32.70] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
 
 - **Séquences push** : cadences guidées avec adaptation multi-canal.

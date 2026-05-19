@@ -162,6 +162,7 @@ from utils.auth import (
     _uid,
     _verify_access_token,
     _verify_refresh_token,
+    is_cors_origin_allowed,
     login_required,
     role_required,
     validate_payload,
@@ -207,9 +208,83 @@ else:
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True   # v23.4: requires HTTPS (Cloudflare Tunnel)
-app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)  # v23.4: reduced from 30d for security
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=4)  # v32.67: reduced from 8h after audit
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # v32.1 : 500 MB pour les uploads audio
 app.json.ensure_ascii = False  # v27.12: caractères Unicode non échappés dans les réponses JSON
+
+# ═══════════════════════════════════════════════════════════════════
+# Recovery token (v32.66) — /api/deploy/pull-from-404 et /rollback
+# Avant v32.66, ces deux endpoints étaient publics (seule protection :
+# header Origin, bypassable). Un attaquant pouvait déclencher un git pull
+# + redémarrage à distance, et si GitHub était compromis, exécuter du code
+# arbitraire sur le PC hébergeur. Le token bloque ce vecteur tout en
+# gardant la possibilité de réparer l'app depuis la page 404 si on a accès
+# au token (visible en console au boot, ou via /api/system/recovery-token
+# quand connecté en admin).
+# Persisté entre restarts pour pas forcer à le re-noter à chaque reboot.
+# ═══════════════════════════════════════════════════════════════════
+_recovery_token_file = APP_DIR / ".recovery_token"
+try:
+    if _recovery_token_file.exists():
+        _tok = _recovery_token_file.read_text(encoding="utf-8").strip()
+        if not _tok or len(_tok) < 16:
+            raise ValueError("token vide ou trop court")
+        RECOVERY_TOKEN = _tok
+    else:
+        RECOVERY_TOKEN = secrets.token_urlsafe(24)
+        _recovery_token_file.write_text(RECOVERY_TOKEN, encoding="utf-8")
+except Exception:
+    RECOVERY_TOKEN = secrets.token_urlsafe(24)
+    try:
+        _recovery_token_file.write_text(RECOVERY_TOKEN, encoding="utf-8")
+    except OSError:
+        pass
+try:
+    os.chmod(_recovery_token_file, 0o600)
+except (NotImplementedError, OSError):
+    pass  # Windows : ACL géré au niveau du dossier user, chmod no-op
+print(f"[RECOVERY] Token de recuperation : {RECOVERY_TOKEN}")
+print(f"[RECOVERY] (fichier : {_recovery_token_file.name}, gitignored — a saisir sur la page 404 si l'app casse)")
+
+# Rate limit anti brute-force du token (5 tentatives / 60 s par IP)
+_recovery_attempts: Dict[str, List[float]] = {}
+_recovery_lock = threading.Lock()
+_RECOVERY_MAX_ATTEMPTS = 5
+_RECOVERY_WINDOW_SECONDS = 60
+
+
+def _check_recovery_rate_limit() -> bool:
+    """Returns True if rate limited."""
+    ip = request.remote_addr or "unknown"
+    now = time.time()
+    with _recovery_lock:
+        attempts = _recovery_attempts.get(ip, [])
+        attempts = [t for t in attempts if now - t < _RECOVERY_WINDOW_SECONDS]
+        _recovery_attempts[ip] = attempts
+        return len(attempts) >= _RECOVERY_MAX_ATTEMPTS
+
+
+def _record_recovery_attempt():
+    ip = request.remote_addr or "unknown"
+    with _recovery_lock:
+        _recovery_attempts.setdefault(ip, []).append(time.time())
+
+
+def _verify_recovery_token() -> bool:
+    """Check the request carries the correct recovery token.
+    Looks at header X-Recovery-Token then JSON body 'recovery_token'.
+    Timing-safe comparison via hmac.compare_digest.
+    """
+    provided = (request.headers.get("X-Recovery-Token") or "").strip()
+    if not provided:
+        try:
+            payload = request.get_json(silent=True) or {}
+            provided = str(payload.get("recovery_token") or "").strip()
+        except Exception:
+            provided = ""
+    if not provided:
+        return False
+    return hmac.compare_digest(provided, RECOVERY_TOKEN)
 
 # v22: Compute content hashes for static assets (auto cache busters)
 _static_hashes: Dict[str, str] = {}
@@ -261,10 +336,19 @@ def _after_request(response):
         "frame-ancestors 'self'"
     )
 
-    # ── CORS for mobile JWT auth (v24.0) ──
+    # ── CORS for mobile JWT auth (v24.0, durci v32.67) ──
+    # Avant v32.67 : Allow-Origin=* dès que Bearer JWT présent. Trop large :
+    # un JWT volé pouvait être exploité depuis n'importe quel domaine.
+    # Maintenant : on écho l'Origin uniquement si elle est dans la whitelist
+    # (web + capacitor/ionic mobile). Sinon, pas de header CORS = navigateur
+    # bloque. Les apps natives sans Origin continuent de marcher (CORS ne
+    # s'applique qu'aux contextes navigateur).
     if request.headers.get("Authorization", "").startswith("Bearer ") or request.method == "OPTIONS":
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        req_origin = request.headers.get("Origin", "")
+        if is_cors_origin_allowed(req_origin):
+            response.headers["Access-Control-Allow-Origin"] = req_origin
+            response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Recovery-Token"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
 
     # Cache headers for API GET responses (30s private cache)
@@ -302,10 +386,18 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/tick', '/api/system/check-deployment', '/api/system/logs',
-               '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
-               '/api/deploy/validation-status', '/api/deploy/confirm-validation',
-               '/prospects/mode-prosp', '/api/mode-prosp/')
+    # v32.68 — Whitelist nettoyée. Avant : /api/system/check-deployment et
+    # /api/system/logs étaient ici, alors que leurs handlers re-checkent admin.
+    # Anti-pattern : si un dev oublie le re-check, la route devient publique.
+    # Maintenant : les routes admin passent par le check session normal, et
+    # le re-check rôle dans le handler n'est plus qu'une défense en profondeur.
+    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico',
+               '/api/auth/',                                              # login flow (rate-limité)
+               '/api/app-version', '/api/tick',                           # heartbeat trivial
+               '/api/deploy/health',                                       # status pour le superviseur
+               '/api/deploy/pull-from-404', '/api/deploy/rollback',        # auth par recovery token
+               '/api/deploy/validation-status', '/api/deploy/confirm-validation',  # post-pull validation
+               '/prospects/mode-prosp', '/api/mode-prosp/')               # mode prosp autonome (auth par token URL)
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -346,10 +438,13 @@ def _require_auth():
 
 @app.route("/api/<path:path>", methods=["OPTIONS"])
 def api_cors_preflight(path):
-    """Handle CORS preflight requests for mobile app (v24.0)."""
+    """Handle CORS preflight requests for mobile app (v24.0, durci v32.67)."""
     resp = app.make_default_options_response()
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    req_origin = request.headers.get("Origin", "")
+    if is_cors_origin_allowed(req_origin):
+        resp.headers["Access-Control-Allow-Origin"] = req_origin
+        resp.headers["Vary"] = "Origin"
+    resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Recovery-Token"
     resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return resp
 
