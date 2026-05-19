@@ -211,6 +211,80 @@ app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)  # v23.4:
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # v32.1 : 500 MB pour les uploads audio
 app.json.ensure_ascii = False  # v27.12: caractères Unicode non échappés dans les réponses JSON
 
+# ═══════════════════════════════════════════════════════════════════
+# Recovery token (v32.66) — /api/deploy/pull-from-404 et /rollback
+# Avant v32.66, ces deux endpoints étaient publics (seule protection :
+# header Origin, bypassable). Un attaquant pouvait déclencher un git pull
+# + redémarrage à distance, et si GitHub était compromis, exécuter du code
+# arbitraire sur le PC hébergeur. Le token bloque ce vecteur tout en
+# gardant la possibilité de réparer l'app depuis la page 404 si on a accès
+# au token (visible en console au boot, ou via /api/system/recovery-token
+# quand connecté en admin).
+# Persisté entre restarts pour pas forcer à le re-noter à chaque reboot.
+# ═══════════════════════════════════════════════════════════════════
+_recovery_token_file = APP_DIR / ".recovery_token"
+try:
+    if _recovery_token_file.exists():
+        _tok = _recovery_token_file.read_text(encoding="utf-8").strip()
+        if not _tok or len(_tok) < 16:
+            raise ValueError("token vide ou trop court")
+        RECOVERY_TOKEN = _tok
+    else:
+        RECOVERY_TOKEN = secrets.token_urlsafe(24)
+        _recovery_token_file.write_text(RECOVERY_TOKEN, encoding="utf-8")
+except Exception:
+    RECOVERY_TOKEN = secrets.token_urlsafe(24)
+    try:
+        _recovery_token_file.write_text(RECOVERY_TOKEN, encoding="utf-8")
+    except OSError:
+        pass
+try:
+    os.chmod(_recovery_token_file, 0o600)
+except (NotImplementedError, OSError):
+    pass  # Windows : ACL géré au niveau du dossier user, chmod no-op
+print(f"[RECOVERY] Token de recuperation : {RECOVERY_TOKEN}")
+print(f"[RECOVERY] (fichier : {_recovery_token_file.name}, gitignored — a saisir sur la page 404 si l'app casse)")
+
+# Rate limit anti brute-force du token (5 tentatives / 60 s par IP)
+_recovery_attempts: Dict[str, List[float]] = {}
+_recovery_lock = threading.Lock()
+_RECOVERY_MAX_ATTEMPTS = 5
+_RECOVERY_WINDOW_SECONDS = 60
+
+
+def _check_recovery_rate_limit() -> bool:
+    """Returns True if rate limited."""
+    ip = request.remote_addr or "unknown"
+    now = time.time()
+    with _recovery_lock:
+        attempts = _recovery_attempts.get(ip, [])
+        attempts = [t for t in attempts if now - t < _RECOVERY_WINDOW_SECONDS]
+        _recovery_attempts[ip] = attempts
+        return len(attempts) >= _RECOVERY_MAX_ATTEMPTS
+
+
+def _record_recovery_attempt():
+    ip = request.remote_addr or "unknown"
+    with _recovery_lock:
+        _recovery_attempts.setdefault(ip, []).append(time.time())
+
+
+def _verify_recovery_token() -> bool:
+    """Check the request carries the correct recovery token.
+    Looks at header X-Recovery-Token then JSON body 'recovery_token'.
+    Timing-safe comparison via hmac.compare_digest.
+    """
+    provided = (request.headers.get("X-Recovery-Token") or "").strip()
+    if not provided:
+        try:
+            payload = request.get_json(silent=True) or {}
+            provided = str(payload.get("recovery_token") or "").strip()
+        except Exception:
+            provided = ""
+    if not provided:
+        return False
+    return hmac.compare_digest(provided, RECOVERY_TOKEN)
+
 # v22: Compute content hashes for static assets (auto cache busters)
 _static_hashes: Dict[str, str] = {}
 

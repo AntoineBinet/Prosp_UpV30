@@ -1427,6 +1427,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["checkDeps"], "endpoints": ["GET /api/deploy/check-deps", "POST /api/deploy/install-deps"], "backend": ["routes/deploy.py:api_deploy_check_deps"]}},
                 {"label": "Rollback du serveur (admin)", "href": "/v30/parametres#deploy",
                  "tools": {"handlers": ["deployRollback"], "endpoints": ["POST /api/deploy/rollback"], "backend": ["routes/deploy.py:api_deploy_rollback"]}},
+                {"label": "Token de récupération (404)", "href": "/v30/parametres#deploy",
+                 "tools": {"handlers": ["showRecoveryToken"], "endpoints": ["GET /api/system/recovery-token"], "backend": ["routes/misc.py:api_system_recovery_token", "app.py:_verify_recovery_token"]}},
                 {"label": "Toile d'araignée", "href": "/v30/sitemap",
                  "tools": {"handlers": ["openSitemap"], "endpoints": [], "backend": ["routes/pages.py:page_v30_sitemap"]}},
                 {"label": "Exporter mes données", "href": "/v30/parametres#export",

@@ -2,6 +2,34 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.66] — 2026-05-19 · Sécurité · Recovery token sur deploy/404 (Phase 1)
+
+Première phase du plan de remédiation de l'[audit cybersécurité du
+19 mai 2026](docs/AUDIT_SECURITE_2026-05.md). Ferme le vecteur d'attaque
+le plus critique : `/api/deploy/pull-from-404` et `/api/deploy/rollback`
+étaient publics, n'importe qui pouvait déclencher un `git pull` +
+redémarrage en HTTP POST. Combiné à un éventuel compromis GitHub = code
+arbitraire exécuté sur le PC hébergeur.
+
+- **Token de récupération** généré au premier démarrage et persisté
+  dans `.recovery_token` (chmod 600 sur POSIX, gitignored). Affiché
+  en console à chaque boot.
+- **`/api/deploy/pull-from-404` et `/api/deploy/rollback`** exigent
+  désormais le token via header `X-Recovery-Token` ou champ JSON
+  `recovery_token`. Comparaison timing-safe (`hmac.compare_digest`).
+- **Rate-limit 5 tentatives / 60 s par IP** sur ces endpoints pour
+  éviter brute-force du token.
+- **`404.html`** : champ password ajouté au-dessus des boutons. UX
+  inchangée pour qui a le token, bloquée pour qui ne l'a pas.
+- **`GET /api/system/recovery-token`** (admin uniquement) : permet de
+  copier le token depuis l'UI quand on est encore connecté, pour le
+  noter avant que l'app ne casse.
+
+Non touché dans cette phase (volontairement, sur demande utilisateur) :
+- E1 admin/admin par défaut (mdp déjà changé en prod)
+- C4 fuite `cloudflare-config.yml` (révocation tunnel = blocage du
+  service prospup.work, à faire depuis le PC hébergeur).
+
 ## [32.65] — 2026-05-19 · Carte · Géocodage en masse avec fallbacks
 
 - **Plus d'« erreur » pour les grands groupes type EDF, JTEKT…** dont
