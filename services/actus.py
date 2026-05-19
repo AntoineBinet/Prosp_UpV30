@@ -223,6 +223,11 @@ def _sources_config_defaults() -> dict:
         "jobfly_api_url": os.environ.get("JOBFLY_API_URL", ""),
         "jobfly_token": os.environ.get("JOBFLY_TOKEN", ""),
         "jobfly_enabled": bool(os.environ.get("JOBFLY_API_URL")),
+        # France Travail (ex-Pôle Emploi) — API officielle OAuth, gratuite.
+        # Inscription : https://francetravail.io/inscription
+        "france_travail_client_id": os.environ.get("FRANCE_TRAVAIL_CLIENT_ID", ""),
+        "france_travail_client_secret": os.environ.get("FRANCE_TRAVAIL_CLIENT_SECRET", ""),
+        "france_travail_enabled": bool(os.environ.get("FRANCE_TRAVAIL_CLIENT_ID")),
     }
 
 
@@ -253,7 +258,9 @@ def save_sources_config(updates: dict) -> dict:
     masqués via `mask_sources_config()` au choix de l'appelant)."""
     global _sources_config_cache
     allowed = {"adzuna_app_id", "adzuna_app_key", "adzuna_enabled",
-               "jobfly_api_url", "jobfly_token", "jobfly_enabled"}
+               "jobfly_api_url", "jobfly_token", "jobfly_enabled",
+               "france_travail_client_id", "france_travail_client_secret",
+               "france_travail_enabled"}
     current = load_sources_config().copy()
     for k, v in (updates or {}).items():
         if k in allowed:
@@ -272,7 +279,7 @@ def mask_sources_config(cfg: dict) -> dict:
     """Masque les secrets pour exposition côté UI (ne révèle que le
     dernier triplet de caractères des clés/tokens)."""
     out = dict(cfg)
-    for k in ("adzuna_app_key", "jobfly_token"):
+    for k in ("adzuna_app_key", "jobfly_token", "france_travail_client_secret"):
         v = out.get(k) or ""
         if v:
             tail = v[-3:] if len(v) > 6 else "***"
@@ -283,6 +290,7 @@ def mask_sources_config(cfg: dict) -> dict:
         out[k] = ""  # ne jamais renvoyer en clair
     out["adzuna_app_id_set"] = bool(out.get("adzuna_app_id"))
     out["jobfly_api_url_set"] = bool(out.get("jobfly_api_url"))
+    out["france_travail_client_id_set"] = bool(out.get("france_travail_client_id"))
     return out
 
 
@@ -692,56 +700,164 @@ class AdzunaSource(JobSource):
         return out
 
 
-class FranceTravailRSSSource(JobSource):
-    """Adapter France Travail (ex-Pôle Emploi) — variante RSS publique
-    qui ne requiert pas d'OAuth.
+class FranceTravailOAuthSource(JobSource):
+    """Adapter France Travail (ex-Pôle Emploi) — API officielle OAuth2
+    client_credentials, gratuite. Premier opérateur français de l'emploi
+    → volume énorme.
 
-    Les URLs ci-dessous pointent vers la page de recherche publique
-    avec export RSS désormais routé via /candidat/. Si le format change,
-    le parseur retourne simplement une liste vide — le UI dégrade
-    proprement vers les autres sources.
+    Inscription : https://francetravail.io/inscription → créer une app
+    « Offres d'emploi v2 » et récupérer Client ID + Client Secret.
+
+    Identifiants lus depuis `data/actus_config.json` (config Paramètres) ;
+    à défaut, variables d'env `FRANCE_TRAVAIL_CLIENT_ID` /
+    `FRANCE_TRAVAIL_CLIENT_SECRET`.
     """
 
     name = "France Travail"
 
-    QUERIES_URLS = {
-        # Patterns en best-effort. Si la source casse, on log et on
-        # bascule sur l'adapter suivant.
-        "robotique": "https://candidat.francetravail.fr/offres/recherche.rss?motsCles=robotique",
-        "informatique embarquee": "https://candidat.francetravail.fr/offres/recherche.rss?motsCles=informatique+embarquee",
-        "systeme embarque": "https://candidat.francetravail.fr/offres/recherche.rss?motsCles=systeme+embarque",
+    AUTH_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
+    SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+    SCOPE = "api_offresdemploiv2 o2dsoffre"
+
+    # Mapping région UI → code INSEE attendu par l'API France Travail.
+    REGION_CODES = {
+        "national": None,
+        "idf": "11",
+        "ara": "84",
+        "occitanie": "76",
+        "paca": "93",
+        "bretagne": "53",
+        "hdf": "32",
+        "ge": "44",
+        "naq": "75",
     }
 
+    def __init__(self):
+        # Cache token en mémoire : (token, expires_at_epoch). Renouvelé
+        # automatiquement quand il reste < 60s d'expiration.
+        self._token_cache: tuple[str, float] | None = None
+
+    def _creds(self) -> tuple[str, str, bool]:
+        cfg = load_sources_config()
+        return (
+            (cfg.get("france_travail_client_id") or "").strip(),
+            (cfg.get("france_travail_client_secret") or "").strip(),
+            bool(cfg.get("france_travail_enabled", True)),
+        )
+
+    @property
+    def available(self) -> bool:
+        cid, cs, enabled = self._creds()
+        return enabled and bool(cid and cs)
+
+    def _get_token(self) -> str | None:
+        """Retourne un Bearer token valide. Récupère et cache un nouveau
+        token si nécessaire."""
+        import time
+        now = time.time()
+        if self._token_cache and self._token_cache[1] > now + 60:
+            return self._token_cache[0]
+        cid, cs, enabled = self._creds()
+        if not (enabled and cid and cs):
+            return None
+        body = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": cid,
+            "client_secret": cs,
+            "scope": self.SCOPE,
+        }).encode("utf-8")
+        req = urllib.request.Request(self.AUTH_URL, data=body, headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+                data = json.loads(r.read())
+        except Exception as exc:
+            logger.warning("France Travail OAuth a échoué : %s", exc)
+            return None
+        token = data.get("access_token") or ""
+        ttl = int(data.get("expires_in", 1200))
+        if not token:
+            return None
+        self._token_cache = (token, now + ttl)
+        return token
+
     def fetch(self, queries: Iterable[str], region: str) -> list[dict]:
+        token = self._get_token()
+        if not token:
+            return []
+        region_code = self.REGION_CODES.get(region)
         out: list[dict] = []
         for q in queries:
-            url = self.QUERIES_URLS.get(_norm(q).replace("é", "e"))
-            if not url:
-                continue
+            params = {
+                "motsCles": q,
+                "range": "0-29",  # 30 résultats max par query
+            }
+            if region_code:
+                params["region"] = region_code
+            url = self.SEARCH_URL + "?" + urllib.parse.urlencode(params)
+            req = urllib.request.Request(url, headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "User-Agent": USER_AGENT,
+            })
             try:
-                raw = _http_get(url)
-            except Exception as exc:
-                logger.info("France Travail RSS indisponible (%s): %s", q, exc)
-                continue
-            for it in _rss_items(raw):
-                # Extraction best-effort : "Titre — Entreprise (Localisation)"
-                title, company, location = _split_ft_title(it["title"])
-                if region != "national" and _detect_region(location, it["title"]) != region:
+                with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+                    # API renvoie 200 (offres) ou 206 (partial content, pagination)
+                    raw = r.read()
+                if not raw:
                     continue
-                rid = hashlib.md5(it["url"].encode("utf-8")).hexdigest()[:16]
+                data = json.loads(raw)
+            except urllib.error.HTTPError as exc:
+                # 204 = pas de résultat, 400 = paramètres invalides — pas une vraie erreur
+                if exc.code in (204, 400):
+                    continue
+                logger.warning("France Travail search (%s) a échoué : %s", q, exc)
+                continue
+            except Exception as exc:
+                logger.warning("France Travail search (%s) a échoué : %s", q, exc)
+                continue
+            for r in data.get("resultats", []):
+                rid = r.get("id")
+                if not rid:
+                    continue
+                entreprise = r.get("entreprise") or {}
+                lieu = r.get("lieuTravail") or {}
+                origine = r.get("origineOffre") or {}
+                salaire = r.get("salaire") or {}
                 out.append({
                     "external_id": f"ft:{rid}",
-                    "url": it["url"],
-                    "title": title[:300],
-                    "company": company[:200],
-                    "location": location[:200],
-                    "contract_type": _infer_contract(title + " " + it["summary"]),
-                    "description": it["summary"][:1200],
-                    "salary": "",
+                    "url": origine.get("urlOrigine") or f"https://candidat.francetravail.fr/offres/recherche/detail/{rid}",
+                    "title": (r.get("intitule") or "").strip()[:300],
+                    "company": (entreprise.get("nom") or "").strip()[:200],
+                    "location": (lieu.get("libelle") or "").strip()[:200],
+                    "contract_type": _normalize_ft_contract(r.get("typeContrat") or r.get("natureContrat")),
+                    "description": _strip_html(r.get("description") or "")[:1200],
+                    "salary": (salaire.get("libelle") or "").strip()[:200],
                     "source": self.name,
-                    "posted_at": it["published"],
+                    "posted_at": _parse_rss_date(r.get("dateCreation")),
                 })
         return out
+
+
+def _normalize_ft_contract(raw: str | None) -> str:
+    """Mappe les codes contrat France Travail → labels CDI/CDD/etc."""
+    if not raw:
+        return ""
+    t = _norm(raw)
+    if "cdi" in t or "indeterminee" in t:
+        return "CDI"
+    if "cdd" in t or "determinee" in t:
+        return "CDD"
+    if "stage" in t:
+        return "STAGE"
+    if "alternance" in t or "apprenti" in t or "professionnalisation" in t:
+        return "ALTERNANCE"
+    if "freelance" in t or "independant" in t or "mission" in t:
+        return "FREELANCE"
+    return raw.upper()[:20]
 
 
 class DemoSource(JobSource):
@@ -854,18 +970,21 @@ class JobflyAdapter(JobSource):
 DEFAULT_SOURCES: list[JobSource] = [
     JobflyAdapter(),
     AdzunaSource(),
-    FranceTravailRSSSource(),
+    FranceTravailOAuthSource(),
 ]
 
 
 def has_real_source_configured() -> bool:
-    """True si Adzuna ou Jobfly est configurée et activée — donc une vraie
-    source utilisateur, par opposition à France Travail RSS (best-effort
-    public, peut renvoyer 0 sans configuration de la part de l'utilisateur).
-    Sert à piloter l'empty state de la page Actus :
+    """True si une source d'offres utilisateur (Adzuna, Jobfly ou France
+    Travail OAuth) est configurée et activée. Sert à piloter l'empty state
+    de la page Actus :
     - True  → empty state classique « Aucune offre pour ces filtres »
-    - False → CTA « Configurez Adzuna/Jobfly dans Paramètres »"""
-    return AdzunaSource().available or JobflyAdapter().available
+    - False → CTA « Configurez une source dans Paramètres »"""
+    return (
+        AdzunaSource().available
+        or JobflyAdapter().available
+        or FranceTravailOAuthSource().available
+    )
 
 # Requêtes par défaut. La page peut en ajouter d'autres via le paramètre
 # `q` de l'API de refresh.
