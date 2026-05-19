@@ -65,136 +65,139 @@
         </div>
       </div>
 
-      {# ─── Dossier de compétences (DC) ─── #}
-      <div class="card v30-fc-dc-card" style="margin-bottom:12px;" data-v30-fc-dc-card>
-        <div class="row-sb" style="margin-bottom:10px;">
-          <div class="card-title">{{ ui.icon('report', 14) }} Dossier de compétences</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-enrich
-                    title="Analyser le DC via IA pour enrichir la fiche" style="display:none;">
-              {{ ui.icon('sparkles', 12) }} Enrichir via DC
-            </button>
-            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-generate
-                    title="Ouvrir le générateur DC">
-              {{ ui.icon('sparkles', 12) }} Générer
-            </button>
-            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-upload-btn
-                    title="Charger un PDF existant">
-              {{ ui.icon('upload', 12) }} Charger
-            </button>
+      {# ─── DC + Pièces jointes (côte-à-côte) ─── #}
+      <div class="v30-fc-2col">
+
+        {# Dossier de compétences (DC) #}
+        <div class="card v30-fc-dc-card" data-v30-fc-dc-card>
+          <div class="row-sb" style="margin-bottom:10px;">
+            <div class="card-title">{{ ui.icon('report', 14) }} Dossier de compétences</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-enrich
+                      title="Analyser le DC via IA pour enrichir la fiche" style="display:none;">
+                {{ ui.icon('sparkles', 12) }} Enrichir
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-generate
+                      title="Ouvrir le générateur DC">
+                {{ ui.icon('sparkles', 12) }} Générer
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-upload-btn
+                      title="Charger un PDF existant">
+                {{ ui.icon('upload', 12) }} Charger
+              </button>
+            </div>
           </div>
+          <div data-v30-fc-dc-status>
+            <div class="skel" style="width:60%;height:14px;margin-bottom:6px;"></div>
+            <div class="skel" style="width:40%;height:12px;"></div>
+          </div>
+          <input type="file" data-v30-fc-dc-input style="display:none;" accept="application/pdf,.pdf">
         </div>
-        <div data-v30-fc-dc-status>
-          <div class="skel" style="width:60%;height:14px;margin-bottom:6px;"></div>
-          <div class="skel" style="width:40%;height:12px;"></div>
+
+        {# Pièces jointes (CV, Excel de suivi, etc.) #}
+        <div class="card v30-fc-att-card" data-v30-fc-att-card>
+          <div class="row-sb" style="margin-bottom:10px;">
+            <div class="card-title">{{ ui.icon('paperclip', 14) }} Pièces jointes</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-att-upload-btn
+                      title="Ajouter une pièce jointe (CV, Excel de suivi, etc.)">
+                {{ ui.icon('upload', 12) }} Ajouter
+              </button>
+            </div>
+          </div>
+          <div data-v30-fc-att-list>
+            <div class="empty" style="padding:6px 0 8px;font-size:12px;color:var(--text-3);">
+              Chargement…
+            </div>
+          </div>
+          <input type="file" data-v30-fc-att-input style="display:none;"
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp,.pptx,.ppt,.odt,.ods">
         </div>
-        <input type="file" data-v30-fc-dc-input style="display:none;" accept="application/pdf,.pdf">
+
       </div>
 
-      {# ─── Fiche entretien EC1 (visible uniquement quand statut = ec1) ─── #}
-      <div class="card v30-fc-ec1-card" style="margin-bottom:12px;display:none;" data-v30-fc-ec1-card>
-        <div class="row-sb" style="margin-bottom:10px;">
-          <div class="card-title">{{ ui.icon('report', 14) }} Fiche entretien EC1</div>
-          <div style="display:flex;gap:6px;align-items:center;">
+      {# ─── Entretien + Évaluation (côte-à-côte) ─── #}
+      <div class="v30-fc-2col">
+
+        {# Entretien (+ actions EC1 quand statut = entretien) #}
+        <div class="card v30-section" data-v30-fc-section="entretien">
+          <div class="row-sb" style="margin-bottom:10px;">
+            <div class="card-title">{{ ui.icon('calendar', 14) }} Entretien</div>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="entretien" aria-label="Éditer entretien">
+              {{ ui.icon('edit', 13) }} Éditer
+            </button>
+          </div>
+          <div class="v30-fc-entretien-view" data-v30-fc-entretien-view>
+            <div class="v30-fc-info-grid">
+              <div class="v30-fc-info-item">
+                <div class="v30-fc-info-item__label">Date</div>
+                <div class="v30-fc-info-item__value" data-field="entretien_date">
+                  <span class="skel" style="width:100px;height:13px;display:inline-block;"></span>
+                </div>
+              </div>
+              <div class="v30-fc-info-item">
+                <div class="v30-fc-info-item__label">Lieu</div>
+                <div class="v30-fc-info-item__value" data-field="entretien_lieu">
+                  <span class="skel" style="width:120px;height:13px;display:inline-block;"></span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:8px;">
+              <div class="v30-fc-info-item__label">Notes entretien</div>
+              <div class="v30-fc-info-item__value" data-field="entretien_notes" style="white-space:pre-wrap;line-height:1.6;min-height:1.4em;">
+                <span class="skel" style="width:90%;height:12px;display:inline-block;margin-top:4px;"></span>
+              </div>
+            </div>
+          </div>
+
+          {# Actions EC1 — visibles quand le candidat est en statut entretien / ec1 #}
+          <div class="v30-fc-ec1-actions" data-v30-fc-ec1-actions style="display:none;">
+            <div class="v30-fc-ec1-actions__hint">
+              {{ ui.icon('report', 12) }} Fiche entretien EC1 : générer l'Excel pré-rempli ou pré-remplir depuis une transcription IA.
+            </div>
+            <button type="button" class="btn btn-accent btn-sm" data-v30-fc-ec1-download
+                    title="Génère et télécharge la fiche EC1 au format Excel">
+              {{ ui.icon('report', 12) }} Télécharger Excel EC1
+            </button>
             <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-ec1-transcript
                     title="Coller la transcription de l'entretien pour pré-remplir la fiche via IA">
               {{ ui.icon('sparkles', 12) }} Coller transcription
             </button>
-            <button type="button" class="btn btn-accent btn-sm" data-v30-fc-ec1-download
-                    title="Générer le fichier Excel rempli avec les données du candidat">
-              {{ ui.icon('report', 12) }} Télécharger Excel
+          </div>
+        </div>
+
+        {# Évaluation #}
+        <div class="card v30-section" data-v30-fc-section="evaluation">
+          <div class="row-sb" style="margin-bottom:10px;">
+            <div class="card-title">{{ ui.icon('star', 14) }} Évaluation</div>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="evaluation" aria-label="Éditer évaluation">
+              {{ ui.icon('edit', 13) }} Éditer
             </button>
           </div>
+          <div class="v30-fc-eval-view" data-v30-fc-eval-view>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div class="v30-fc-info-item">
+                <div class="v30-fc-info-item__label">Technique</div>
+                <div class="v30-fc-info-item__value" data-field="eval_technique" style="white-space:pre-wrap;line-height:1.5;">
+                  <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+                </div>
+              </div>
+              <div class="v30-fc-info-item">
+                <div class="v30-fc-info-item__label">Personnalité</div>
+                <div class="v30-fc-info-item__value" data-field="eval_personnalite" style="white-space:pre-wrap;line-height:1.5;">
+                  <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+                </div>
+              </div>
+              <div class="v30-fc-info-item">
+                <div class="v30-fc-info-item__label">Communication</div>
+                <div class="v30-fc-info-item__value" data-field="eval_communication" style="white-space:pre-wrap;line-height:1.5;">
+                  <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div style="font-size:12px;color:var(--text-3);line-height:1.5;">
-          Génère la fiche d'entretien EC1 au format Excel à partir des informations renseignées
-          dans la fiche (identité, évaluation, mobilité, salaire, références…) et de la checklist EC1.
-          Vous pouvez aussi coller la transcription de l'entretien pour que l'IA pré-remplisse automatiquement les champs.
-        </div>
-      </div>
 
-      {# ─── Pièces jointes (CV, Excel de suivi, etc.) ─── #}
-      <div class="card v30-fc-att-card" style="margin-bottom:12px;" data-v30-fc-att-card>
-        <div class="row-sb" style="margin-bottom:10px;">
-          <div class="card-title">{{ ui.icon('paperclip', 14) }} Pièces jointes</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-att-upload-btn
-                    title="Ajouter une pièce jointe (CV, Excel de suivi, etc.)">
-              {{ ui.icon('upload', 12) }} Ajouter un fichier
-            </button>
-          </div>
-        </div>
-        <div data-v30-fc-att-list>
-          <div class="empty" style="padding:8px 0;font-size:12px;color:var(--text-3);">
-            Chargement…
-          </div>
-        </div>
-        <input type="file" data-v30-fc-att-input style="display:none;"
-               accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp,.pptx,.ppt,.odt,.ods">
-      </div>
-
-      {# ─── Entretien ─── #}
-      <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="entretien">
-        <div class="row-sb" style="margin-bottom:10px;">
-          <div class="card-title">{{ ui.icon('calendar', 14) }} Entretien</div>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="entretien" aria-label="Éditer entretien">
-            {{ ui.icon('edit', 13) }} Éditer
-          </button>
-        </div>
-        <div class="v30-fc-entretien-view" data-v30-fc-entretien-view>
-          <div class="v30-fc-info-grid">
-            <div class="v30-fc-info-item">
-              <div class="v30-fc-info-item__label">Date</div>
-              <div class="v30-fc-info-item__value" data-field="entretien_date">
-                <span class="skel" style="width:100px;height:13px;display:inline-block;"></span>
-              </div>
-            </div>
-            <div class="v30-fc-info-item">
-              <div class="v30-fc-info-item__label">Lieu</div>
-              <div class="v30-fc-info-item__value" data-field="entretien_lieu">
-                <span class="skel" style="width:120px;height:13px;display:inline-block;"></span>
-              </div>
-            </div>
-          </div>
-          <div style="margin-top:8px;">
-            <div class="v30-fc-info-item__label">Notes entretien</div>
-            <div class="v30-fc-info-item__value" data-field="entretien_notes" style="white-space:pre-wrap;line-height:1.6;min-height:1.4em;">
-              <span class="skel" style="width:90%;height:12px;display:inline-block;margin-top:4px;"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {# ─── Évaluation ─── #}
-      <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="evaluation">
-        <div class="row-sb" style="margin-bottom:10px;">
-          <div class="card-title">{{ ui.icon('star', 14) }} Évaluation</div>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="evaluation" aria-label="Éditer évaluation">
-            {{ ui.icon('edit', 13) }} Éditer
-          </button>
-        </div>
-        <div class="v30-fc-eval-view" data-v30-fc-eval-view>
-          <div class="v30-fc-info-grid" style="margin-bottom:8px;">
-            <div class="v30-fc-info-item">
-              <div class="v30-fc-info-item__label">Technique</div>
-              <div class="v30-fc-info-item__value" data-field="eval_technique">
-                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
-              </div>
-            </div>
-            <div class="v30-fc-info-item">
-              <div class="v30-fc-info-item__label">Personnalité</div>
-              <div class="v30-fc-info-item__value" data-field="eval_personnalite">
-                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
-              </div>
-            </div>
-            <div class="v30-fc-info-item">
-              <div class="v30-fc-info-item__label">Communication</div>
-              <div class="v30-fc-info-item__value" data-field="eval_communication">
-                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {# ─── Notes & suivi (timeline candidate_events) ─── #}
