@@ -304,26 +304,36 @@ def _get_embedding_for_text(text: str, entity_type: str, entity_id: int = None, 
 
 
 def _compute_semantic_similarity(text1: str, text2: str, entity_type: str = "tag") -> float:
-    """Calcule la similarité sémantique entre deux textes via embeddings.
+    """Score de proximité entre deux termes techniques (0.0 à 1.0).
 
-    Fallback Jaccard sur les mots si les embeddings échouent.
+    Stratégie (du plus fiable au plus approximatif) :
+    1. Match exact après normalisation (accents/casse/espaces) → 1.0
+    2. Synonyme via le dictionnaire `utils.tech_synonyms` → 0.85
+    3. Jaccard sur les mots (utile pour les libellés multi-mots type
+       « chef de projet industrialisation ») → ratio brut
+    L'ancien embedding-fréquence-de-caractères a été retiré : il
+    produisait des cosinus parasites entre termes sans rapport.
     """
     if not text1 or not text2:
         return 0.0
 
-    emb1 = _get_embedding_for_text(text1, entity_type) or _get_text_embedding_simple(text1)
-    emb2 = _get_embedding_for_text(text2, entity_type) or _get_text_embedding_simple(text2)
+    from utils.tech_synonyms import _norm, are_synonyms
 
-    if not emb1 or not emb2:
-        words1 = set(text1.lower().split())
-        words2 = set(text2.lower().split())
-        if not words1 or not words2:
-            return 0.0
-        intersection = len(words1 & words2)
-        union = len(words1 | words2)
-        return intersection / union if union > 0 else 0.0
+    a, b = _norm(text1), _norm(text2)
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    if are_synonyms(a, b):
+        return 0.85
 
-    return _cosine_similarity(emb1, emb2)
+    words1 = set(a.split())
+    words2 = set(b.split())
+    if not words1 or not words2:
+        return 0.0
+    intersection = len(words1 & words2)
+    union = len(words1 | words2)
+    return intersection / union if union > 0 else 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════
