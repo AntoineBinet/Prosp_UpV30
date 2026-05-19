@@ -252,32 +252,48 @@
 .v30-cat-file__name {
   flex: 1;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+}
+.v30-cat-file__name .v30-cat-file__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text);
+  min-width: 0;
+}
+.v30-cat-file__name--dl { cursor: pointer; }
+.v30-cat-file__name--dl:hover .v30-cat-file__label {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .v30-cat-file__size {
   font-size: 10.5px;
   color: var(--text-3);
   margin-left: 6px;
+  flex-shrink: 0;
 }
 .v30-cat-file__actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  align-items: center;
 }
 .v30-cat-file__actions a,
 .v30-cat-file__actions label,
 .v30-cat-file__actions button {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   justify-content: center;
   padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: var(--r-md);
   background: transparent;
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 12px;
   cursor: pointer;
   text-decoration: none;
@@ -288,6 +304,18 @@
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--border);
+}
+.v30-cat-file__actions .v30-cat-file__dl-btn {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  padding: 4px 10px;
+  font-weight: 500;
+}
+.v30-cat-file__actions .v30-cat-file__dl-btn:hover {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  border-color: var(--accent);
 }
 .v30-cat-file__actions .danger:hover { color: var(--danger); border-color: var(--danger); }
 

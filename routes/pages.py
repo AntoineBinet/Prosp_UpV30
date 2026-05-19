@@ -1057,6 +1057,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["generatePushAI"], "endpoints": ["POST /api/push/generate"], "backend": ["routes/push.py:api_push_generate"]}},
                 {"label": "Upload template fichier", "href": "/v30/push",
                  "tools": {"handlers": ["uploadTemplateFile"], "endpoints": ["POST /api/push-categories/<id>/upload-template", "POST /api/push/templates/upload"], "backend": ["routes/push.py:api_push_upload_template"]}},
+                {"label": "Télécharger template (.msg)", "href": "/v30/push",
+                 "tools": {"handlers": ["renderModalCatFiles"], "endpoints": ["GET /api/push-categories/<id>/files", "GET /api/pushs/user/<uid>/<cat_id>/<filename>"], "backend": ["routes/push.py:api_serve_push_file"]}},
             ],
         },
         {

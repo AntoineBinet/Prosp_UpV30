@@ -355,12 +355,12 @@
     box.innerHTML = files.map(function (f) {
       var sizeKo = (f.size / 1024).toFixed(0);
       return '<div class="v30-cat-file">' +
-        '<span class="v30-cat-file__name" title="' + esc(f.name) + '">' +
-          ic('file', 13) + ' ' + esc(f.name) +
+        '<a class="v30-cat-file__name v30-cat-file__name--dl" href="' + esc(f.url) + '" download="' + esc(f.name) + '" title="Télécharger « ' + esc(f.name) + ' »" aria-label="Télécharger ' + esc(f.name) + '">' +
+          ic('file', 13) + ' <span class="v30-cat-file__label">' + esc(f.name) + '</span>' +
           '<span class="v30-cat-file__size">' + sizeKo + ' Ko</span>' +
-        '</span>' +
+        '</a>' +
         '<div class="v30-cat-file__actions">' +
-          '<a href="' + esc(f.url) + '" download="' + esc(f.name) + '" title="Télécharger" aria-label="Télécharger ' + esc(f.name) + '">' + ic('download', 13) + '</a>' +
+          '<a class="v30-cat-file__dl-btn" href="' + esc(f.url) + '" download="' + esc(f.name) + '" title="Télécharger" aria-label="Télécharger ' + esc(f.name) + '">' + ic('download', 13) + ' Télécharger</a>' +
           '<label title="Remplacer" aria-label="Remplacer ' + esc(f.name) + '">' +
             ic('refreshCw', 13) +
             '<input type="file" accept=".msg,.eml,.oft" style="display:none;" data-v30-replace-file="' + catId + '" data-v30-replace-name="' + esc(f.name) + '">' +

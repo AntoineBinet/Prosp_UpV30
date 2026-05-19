@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.78] — 2026-05-19 · Téléchargement explicite des templates push (.msg)
+
+- **Modal catégorie de push — téléchargement plus visible** : dans la
+  fiche d'une catégorie (`/v30/push` → carte → modale détail), la
+  section *Templates email (.msg)* offrait déjà un bouton de
+  téléchargement par fichier, mais son icône (couleur `--text-3`) était
+  presque invisible sur fond sombre. Désormais :
+  1. le **nom du fichier est lui-même un lien de téléchargement** —
+     un clic dessus déclenche `download` natif (`<a download="...">`) ;
+  2. un **bouton explicite « Télécharger »** (icône + libellé, teinte
+     `--accent`) apparaît dans la barre d'actions à droite, à côté des
+     icônes *Remplacer* / *Supprimer* dont le contraste est aussi
+     remonté à `--text-2` ;
+  3. survol du nom : couleur accent + souligné — signal clair que c'est
+     cliquable.
+- **Fichiers modifiés** : `static/js/v30/push.js` (`renderModalCatFiles`)
+  et `static/css/v30/push.css` (`.v30-cat-file*`).
+- **Backend inchangé** : `GET /api/pushs/user/<uid>/<cat_id>/<filename>`
+  ([routes/push.py:533](routes/push.py)) sert déjà le fichier avec le
+  bon MIME type (`application/vnd.ms-outlook` pour `.msg`).
+- **Toile d'araignée** : action `push.template.download` renforcée sur
+  la page Push (handler `renderModalCatFiles`, endpoint
+  `GET /api/pushs/user/<uid>/<cat_id>/<filename>`).
+
 ## [32.77] — 2026-05-19 · Vraie IA pour le classement des candidats lors d'un push
 
 - **Audit** : la barre "L'IA analyse François ROMANET pour la catégorie X…"
