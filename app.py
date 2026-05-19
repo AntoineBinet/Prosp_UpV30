@@ -1567,6 +1567,24 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             );
             CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
 
+            -- v32.65: file d'attente IA pour enrichissement entreprises asynchrone
+            -- Le worker (app.py) traite 1 job pending toutes les 5s : pending → running → done|error.
+            -- L'utilisateur valide ensuite chaque résultat depuis la page Entreprises.
+            CREATE TABLE IF NOT EXISTS companies_enrich_queue (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id   INTEGER NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                fields_json  TEXT,
+                sources      TEXT,
+                error        TEXT,
+                created_at   TEXT NOT NULL,
+                processed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cenq_status ON companies_enrich_queue(status, id);
+            CREATE INDEX IF NOT EXISTS idx_cenq_owner ON companies_enrich_queue(owner_id, status);
+            CREATE INDEX IF NOT EXISTS idx_cenq_company ON companies_enrich_queue(company_id, owner_id);
+
             -- v31: persistent DC generation history (replaces in-session list)
             CREATE TABLE IF NOT EXISTS dc_generations (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -9054,9 +9072,83 @@ if __name__ == "__main__":
                 max_instances=1,
                 coalesce=True,
             )
+
+            # v32.65: worker file d'attente IA entreprises — traite 1 job toutes les 5s
+            def _process_enrich_queue_job():
+                from routes.companies import run_company_enrich  # import local évite circulaire
+                try:
+                    with _conn() as conn:
+                        job = conn.execute(
+                            "SELECT id, company_id, owner_id FROM companies_enrich_queue "
+                            "WHERE status='pending' ORDER BY id ASC LIMIT 1;"
+                        ).fetchone()
+                        if not job:
+                            return
+                        jid = int(job["id"])
+                        cid = int(job["company_id"])
+                        owner_id = int(job["owner_id"])
+                        # Lock atomique : passe à running uniquement si encore pending
+                        cur = conn.execute(
+                            "UPDATE companies_enrich_queue SET status='running' "
+                            "WHERE id=? AND status='pending';",
+                            (jid,)
+                        )
+                        if cur.rowcount == 0:
+                            return  # un autre worker l'a pris
+                        row = conn.execute(
+                            "SELECT * FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                            (cid, owner_id)
+                        ).fetchone()
+                    if not row:
+                        with _conn() as conn:
+                            conn.execute(
+                                "UPDATE companies_enrich_queue "
+                                "SET status='error', error=?, processed_at=? WHERE id=?;",
+                                ("Entreprise supprimée ou inaccessible", _now_iso(), jid)
+                            )
+                        return
+                    result = run_company_enrich(dict(row))
+                    now = _now_iso()
+                    with _conn() as conn:
+                        if result.get("ok"):
+                            conn.execute(
+                                "UPDATE companies_enrich_queue "
+                                "SET status='done', fields_json=?, sources=?, processed_at=? "
+                                "WHERE id=?;",
+                                (json.dumps(result.get("fields") or {}, ensure_ascii=False),
+                                 result.get("sources") or "", now, jid)
+                            )
+                        else:
+                            conn.execute(
+                                "UPDATE companies_enrich_queue "
+                                "SET status='error', error=?, processed_at=? WHERE id=?;",
+                                (str(result.get("error") or "Erreur IA")[:500], now, jid)
+                            )
+                except Exception as exc:
+                    logger.error("enrich-queue worker error: %s", exc)
+                    try:
+                        with _conn() as conn:
+                            conn.execute(
+                                "UPDATE companies_enrich_queue "
+                                "SET status='error', error=?, processed_at=? "
+                                "WHERE status='running' AND processed_at IS NULL;",
+                                (f"Worker crash: {exc}"[:500], _now_iso())
+                            )
+                    except Exception:
+                        pass
+
+            _scheduler.add_job(
+                func=_process_enrich_queue_job,
+                trigger='interval',
+                seconds=5,
+                id='companies_enrich_queue',
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
             _scheduler.start()
             atexit.register(lambda: _scheduler.shutdown())
-            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min, email reports chaque minute, actus refresh toutes les 6h")
+            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min, email reports chaque minute, actus refresh toutes les 6h, enrich queue toutes les 5s")
             # Premier refresh actus au boot (best-effort, en thread pour ne pas bloquer)
             threading.Thread(target=lambda: _actus_svc.refresh_all(force=False),
                              daemon=True, name='actus_refresh_startup').start()

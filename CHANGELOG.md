@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.68] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
+## [32.70] — 2026-05-19 · Productivité Phase 4 · Séquences push cadencées
 
 - **Séquences push** : cadences guidées avec adaptation multi-canal.
   Chaque étape suggère un canal (email / appel / LinkedIn / attendre)
@@ -50,7 +50,7 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   - `POST   /api/push/sequences/enrollments/<id>/cancel`
 - **Toile** : 4 nouvelles actions sous *Focus* et *Prospects*.
 
-## [32.67] — 2026-05-19 · Productivité Phase 3 · Funnel cumulatif + Score IA
+## [32.69] — 2026-05-19 · Productivité Phase 3 · Funnel cumulatif + Score IA
 
 - **Funnel cumulatif 5 étapes** dans `/v30/stats` : *Total → Contactés
   → RDV pris → RDV tenus → Signés*. Chaque étape est un sous-ensemble
@@ -84,7 +84,7 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   - Signés : event `contrat_signe` enregistré.
 - **Toile** : 4 nouvelles actions sous *Stats* et *Prospects*.
 
-## [32.66] — 2026-05-19 · Productivité Phase 2 · IA Next Action (badge passif)
+## [32.68] — 2026-05-19 · Productivité Phase 2 · IA Next Action (badge passif)
 
 - **Carte « Prochaine action recommandée »** en tête de l'onglet *Aperçu*
   sur chaque fiche prospect : une suggestion IA concrète (action, canal,
@@ -126,7 +126,7 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - **Toile** : 5 nouvelles actions sous *Focus* et *Prospects* dans
   `_build_sitemap_data()`.
 
-## [32.65] — 2026-05-19 · Productivité Phase 1 · Workflow RDV no-show
+## [32.67] — 2026-05-19 · Productivité Phase 1 · Workflow RDV no-show
 
 - **Nouvelle section « RDV à statuer »** dans `/v30/focus` : les RDV passés
   au statut "Rendez-vous" qui n'ont pas encore été revus apparaissent en
@@ -155,6 +155,66 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   - `GET /api/rdv/no-show-stats` — stats 30j (count par outcome,
     distribution par jour de la semaine, taux no-show). Utilisé Phase 3.
 - **Toile** : 3 nouvelles actions sous *Focus* dans `_build_sitemap_data()`.
+
+## [32.66] — 2026-05-19 · Entreprises · Scrapping IA en file d'attente (validation différée)
+
+- **Nouveau mode bulk : « Mettre en file d'attente »** sur la modale
+  *Scrapping IA en masse* (page Entreprises). Permet de lancer Tavily +
+  Ollama sur N entreprises sélectionnées **en arrière-plan**, fermer la
+  modale, et revenir valider les résultats plus tard — utile pour les
+  gros lots (chaque enrichissement prend 30–60 s).
+- **Bouton « Lancer maintenant »** conservé pour le flux existant
+  (smart-merge automatique : ne remplit que les champs vides, sans revue).
+- **Badge « N à valider »** dans le header de la page Entreprises
+  (apparaît dès qu'un job est terminé). Clic → liste des suggestions IA
+  en attente avec, pour chaque entreprise :
+  - bouton **Vérifier & appliquer** → ouvre la modale enrich classique
+    pré-remplie (cases à cocher par champ, comparaison avant/après) ;
+  - bouton **Ignorer** → supprime le job sans rien modifier ;
+  - statut visible (en file d'attente / en cours / à valider / échec).
+- **Bouton « Nettoyer terminés »** : retire d'un coup tous les jobs
+  appliqués/ignorés/en erreur.
+- **Backend** :
+  - Nouvelle table `companies_enrich_queue` (créée au boot via
+    `init_db()`).
+  - Routes `POST/GET /api/companies/enrich-queue`,
+    `POST .../<jid>/discard`, `DELETE .../<jid>`,
+    `POST .../clear-done` dans `routes/companies.py`.
+  - Logique d'enrich extraite en helper réutilisable
+    `run_company_enrich(company)` partagé entre la route synchrone et
+    le worker.
+  - **Worker APScheduler** : traite 1 job `pending` toutes les 5 s
+    (single instance, transition atomique `pending → running → done|error`).
+  - Dédupe : si un même `(owner, company)` est déjà en `pending`/`running`,
+    le nouvel enqueue est ignoré (champ `duplicates` dans la réponse).
+- **Sitemap** : ligne « Scrapping IA en file d'attente » ajoutée dans
+  `routes/pages.py` (test HTTP rejoué : `/api/companies/enrich-queue` 🟢).
+
+## [32.65] — 2026-05-19 · Carte · Géocodage en masse avec fallbacks
+
+- **Plus d'« erreur » pour les grands groupes type EDF, JTEKT…** dont
+  l'adresse contient un nom de bâtiment ou de campus (« Tour EDF »,
+  « Cœur Défense »…) que Nominatim n'indexe pas en tant qu'adresse
+  postale standard.
+- **Chaîne de repli** dans `routes/map.py::_company_queries()` /
+  `_prospect_queries()` — la 1re requête qui répond gagne :
+  1. `adresse, ville, pays` (variante historique)
+  2. `adresse` seule (cas où elle contient déjà code postal + ville)
+  3. `site, ville, pays` (campus connus de Nominatim)
+  4. `nom_société, ville, pays` (Nominatim connaît EDF, Total…)
+  5. `ville, pays` (dernier recours : marqueur sur le centre-ville
+     plutôt qu'une erreur).
+- **Normalisation des champs adresse** : sauts de ligne, tabulations et
+  espaces multiples remplacés par `, ` avant d'envoyer la requête
+  (évite des échecs sur des adresses multi-lignes copiées).
+- **Visibilité des essais** côté UI :
+  - les entrées **erreur** affichent en muted la 1re requête tentée
+    (avec toutes les variantes en `title` au survol),
+  - les entrées **succès via repli** sont marquées `≈ requête utilisée`
+    pour distinguer un marqueur « à l'adresse » d'un marqueur
+    « centre-ville approximatif ».
+- **Endpoint single-shot** `POST /api/map/geocode` : retourne désormais
+  la liste `tried[]` en cas de 404, pour faciliter le debug.
 
 ## [32.64] — 2026-05-19 · Besoins · 2 nouveaux statuts candidat (Présenté / Démarré)
 

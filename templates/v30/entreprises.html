@@ -40,6 +40,9 @@
         {{ ui.icon('filter', 13) }} Filtres
         <span class="badge" data-field="active" hidden>0</span>
       </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-pending hidden title="Voir les scrappings IA en attente de validation">
+        {{ ui.icon('sparkles', 13) }} <span data-v30-ent-enrich-pending-label>0 à valider</span>
+      </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-fill-map title="Enrichir + géocoder toutes les entreprises sans coordonnées pour les afficher sur la carte">
         {{ ui.icon('sparkles', 13) }} Compléter la carte
       </button>
@@ -418,7 +421,39 @@
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-bulk-stop hidden>Arrêter</button>
       <div class="v30-spacer" style="flex:1;"></div>
-      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-enrich-bulk-start>Lancer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-enrich-bulk-queue title="Lancer le scrapping en arrière-plan — tu pourras valider les résultats plus tard">
+        {{ ui.icon('bell', 13) }} Mettre en file d'attente
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-enrich-bulk-start title="Lancer maintenant en restant sur la modale (smart-merge automatique)">Lancer maintenant</button>
+    </div>
+  </div>
+</div>
+
+{# Validations IA en attente — file d'attente du scrapping différé #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-enrich-pending" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-ent-enrich-pending-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-enrich-pending-title">{{ ui.icon('sparkles', 14) }} Scrappings IA en attente</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="muted" style="font-size:12.5px;margin:0 0 10px;">
+        <span data-v30-ent-pending-summary>Aucun scrapping en cours.</span>
+      </div>
+      <div data-v30-ent-pending-list style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div data-v30-ent-pending-empty class="muted" style="text-align:center;padding:24px 12px;font-size:12.5px;" hidden>
+        Aucun résultat pour le moment. Sélectionne des entreprises sur la liste puis utilise « Mettre en file d'attente » dans le bouton « Scrapping IA » de la barre d'action en bas.
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-pending-clear-done title="Retirer tous les jobs terminés ou en erreur (sans appliquer)">
+        {{ ui.icon('x', 13) }} Nettoyer terminés
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-pending-refresh title="Actualiser la liste">
+        {{ ui.icon('sparkles', 13) }} Actualiser
+      </button>
     </div>
   </div>
 </div>

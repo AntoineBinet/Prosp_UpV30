@@ -459,6 +459,48 @@
           <span>Activer Adzuna comme source d'annonces</span>
         </label>
 
+        {# ─── France Travail (API OAuth gratuite) ─── #}
+        <div class="v30-params__divider"></div>
+        <h4 class="v30-params__scope-title">France Travail (ex-Pôle Emploi)</h4>
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:6px;">
+          API officielle <strong>100% gratuite</strong> du premier opérateur français de l'emploi —
+          volume énorme, qualité élevée. Inscription développeur en 5 min, OAuth client_credentials
+          (App + Client ID/Secret). Recommandé.
+        </p>
+        <div class="v30-params__btn-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <a class="btn btn-ghost btn-sm" href="https://francetravail.io/inscription"
+             target="_blank" rel="noopener" title="Créer un compte développeur France Travail">
+            {{ ui.icon('plus', 13) }} Créer un compte
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://francetravail.io/data/api/offres-emploi"
+             target="_blank" rel="noopener" title="Documentation Offres d'emploi v2">
+            {{ ui.icon('file', 13) }} Documentation API
+          </a>
+          <a class="btn btn-ghost btn-sm" href="https://francetravail.io/donnees/api"
+             target="_blank" rel="noopener" title="Mes applications (récupérer Client ID/Secret)">
+            {{ ui.icon('star', 13) }} Mes applications
+          </a>
+        </div>
+
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">Client ID</label>
+            <input type="text" class="input" data-v30-actus-ft-id
+                   placeholder="PAR_xxxx_xxxxxxxx" autocomplete="off">
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Client Secret</label>
+            <input type="password" class="input" data-v30-actus-ft-secret
+                   placeholder="Laisser vide pour conserver le secret existant"
+                   autocomplete="off">
+          </div>
+        </div>
+
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-actus-ft-enabled>
+          <span>Activer France Travail comme source d'annonces</span>
+        </label>
+
         {# ─── Jobfly ─── #}
         <div class="v30-params__divider"></div>
         <h4 class="v30-params__scope-title">Jobfly</h4>
@@ -508,6 +550,9 @@
           </button>
           <button type="button" class="btn btn-ghost" data-v30-actus-sources-test="adzuna">
             {{ ui.icon('zap', 13) }} Tester Adzuna
+          </button>
+          <button type="button" class="btn btn-ghost" data-v30-actus-sources-test="france_travail">
+            {{ ui.icon('zap', 13) }} Tester France Travail
           </button>
           <button type="button" class="btn btn-ghost" data-v30-actus-sources-test="jobfly">
             {{ ui.icon('zap', 13) }} Tester Jobfly
