@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.77] — 2026-05-19 · Téléchargement explicite des templates push (.msg)
+## [32.78] — 2026-05-19 · Téléchargement explicite des templates push (.msg)
 
 - **Modal catégorie de push — téléchargement plus visible** : dans la
   fiche d'une catégorie (`/v30/push` → carte → modale détail), la
@@ -25,6 +25,61 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - **Toile d'araignée** : action `push.template.download` renforcée sur
   la page Push (handler `renderModalCatFiles`, endpoint
   `GET /api/pushs/user/<uid>/<cat_id>/<filename>`).
+
+## [32.77] — 2026-05-19 · Vraie IA pour le classement des candidats lors d'un push
+
+- **Audit** : la barre "L'IA analyse François ROMANET pour la catégorie X…"
+  affichée à l'ouverture du push email ne déclenchait **aucun appel IA**
+  par défaut. Le ranking se faisait uniquement via du tag-matching
+  déterministe (× 3 exact, × 2 sémantique) et la "similarité sémantique"
+  utilisait un faux embedding basé sur la **fréquence des caractères** des
+  termes (`utils.ai_helpers._get_text_embedding_simple` — 28 mots-clés
+  techniques hardcodés). Les options serveur `use_ollama=1` et
+  `ai_explanations=1` existaient mais n'étaient jamais activées par le
+  frontend, et les champs `ai_explanation` / `semantic_matches` calculés
+  n'étaient jamais affichés.
+- **Synonymes techniques propres** : nouveau module
+  [utils/tech_synonyms.py](utils/tech_synonyms.py) avec ~45 groupes
+  d'équivalence (Java ≈ JEE ≈ Spring Boot, FPGA ≈ VHDL, k8s ≈ Kubernetes,
+  AUTOSAR ≈ CAN ≈ LIN, chef de projet ≈ project manager, énergie ≈
+  nucléaire ≈ EDF, etc.). `_compute_semantic_similarity` retourne
+  désormais 1.0 (match exact), 0.85 (synonyme) ou un Jaccard mots
+  (libellés multi-mots), au lieu de cosinus parasites sur des comptages
+  de caractères. Le badge `matched_tags=['jee', 'k8s']` +
+  `semantic_matches=['jee≈spring boot', 'k8s≈kubernetes']` devient
+  explicable.
+- **Réordonnancement IA activé par défaut** : le frontend
+  ([static/js/v30/push-modal.js](static/js/v30/push-modal.js)) appelle
+  systématiquement `best-candidates?use_ollama=1&ai_explanations=1`. Le
+  prompt côté backend ([app.py](app.py) `api_prospect_best_candidates`)
+  inclut maintenant la **fonction** du prospect, ses **notes** (excerpt
+  280 chars), l'**industrie / stack / pain points** de l'entreprise et
+  les **mots-clés de la catégorie de push** ciblée.
+- **Explications IA en batch (1 seul appel pour le top 5)** : au lieu de
+  N appels Ollama séquentiels (latence × N), un seul prompt retourne un
+  JSON `{"1": "raison candidat 1", ...}` pour les 5 premiers. Format
+  contraint, parsing tolérant aux variations.
+- **UX honnête, en 2 phases** : la barre IA affiche "Calcul des scores de
+  pertinence…" puis bascule à "L'IA contextualise les candidats pour
+  François ROMANET…" après 1.5 s (le calcul SQL est terminé, l'attente
+  vient désormais d'Ollama). Au terme : "✨ N candidats classés par
+  l'IA". Toggle "Mode rapide" cliquable dans la barre pour désactiver
+  l'IA (préférence persistée dans `localStorage.prospup.push_ai_ranking`).
+- **Justifications IA visibles** : les explications générées par l'IA
+  apparaissent en italique sous le nom du candidat dans le combobox
+  "Suggérés par l'IA" ET dans les cartes des 2 candidats sélectionnés
+  (`.v30pm-combo__opt-why`, `.v30pm-candcard__why`).
+- **Fallback robuste** : si Ollama est indisponible (timeout, 503, ou
+  désactivé via le toggle), le backend renvoie le scoring déterministe
+  sans IA et sans erreur — l'UX bascule sur "✓ N candidats triés par
+  pertinence". Le bloc try/except enveloppe chaque appel IA séparément.
+- **Compatibilité DB ancienne** : si les colonnes `stack` / `pain_points`
+  n'existent pas sur `companies`, fallback automatique sur le SELECT
+  legacy (try/except `sqlite3.OperationalError`).
+- **Toile d'araignée** : action "Meilleurs candidats par prospect"
+  renommée "Meilleurs candidats par prospect (IA-classés)" avec le bon
+  endpoint qualifié et `utils/tech_synonyms.are_synonyms` ajouté dans
+  les backends.
 
 ## [32.76] — 2026-05-19 · Mode Prosp respecte le tri + filtres du tableau Prospects
 

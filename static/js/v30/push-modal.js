@@ -121,10 +121,11 @@
               '<select class="v30-input v30-input--lg" data-v30pm-cat aria-label="Catégorie push"></select>' +
             '</label>' +
 
-            // Barre IA (progression scoring candidats)
+            // Barre IA (progression scoring + réordonnancement candidats)
             '<div class="v30pm-ia-bar" data-v30pm-iabar>' +
               '<span class="v30pm-ai-progress__pulse"></span>' +
-              '<span class="v30pm-ia-bar__msg" data-v30pm-iabar-msg>L\'IA réfléchit aux meilleurs candidats…</span>' +
+              '<span class="v30pm-ia-bar__msg" data-v30pm-iabar-msg>Calcul des scores de pertinence…</span>' +
+              '<a href="#" class="v30pm-ia-bar__toggle" data-v30pm-iabar-toggle hidden></a>' +
               '<span class="v30pm-ia-bar__stats" data-v30pm-iabar-stats></span>' +
             '</div>' +
 
@@ -448,18 +449,23 @@
       if (c.has_dc) withDC.push(c);
       else withoutDC.push(c);
     });
-    function row(c, slot, extraCls, pct) {
+    function row(c, slot, extraCls, pct, explanation) {
       var dcPill = c.has_dc
         ? '<span class="v30pm-combo__dc v30pm-combo__dc--ok" title="DC disponible">' + ic('checkCircle', 10) + '</span>'
         : '<span class="v30pm-combo__dc v30pm-combo__dc--ko" title="Pas de DC">' + ic('x', 10) + '</span>';
       var pctPill = (pct != null && pct > 0)
         ? '<span class="v30pm-combo__pct" title="Score de pertinence">' + Math.round(pct) + '%</span>'
         : '';
+      var why = (explanation && String(explanation).trim()) || '';
+      var whyLine = why
+        ? '<span class="v30pm-combo__opt-why" title="Justification IA">' + esc(why) + '</span>'
+        : '';
       return '<button type="button" class="v30pm-combo__opt ' + (extraCls || '') + '" role="option" data-v30pm-opt-id="' + c.id + '" data-v30pm-opt-slot="' + slot + '">' +
         dcPill +
         '<span class="v30pm-combo__opt-body">' +
           '<span class="v30pm-combo__opt-name">' + esc(c.name || '') + '</span>' +
           (c.role ? '<span class="v30pm-combo__opt-role">' + esc(c.role) + '</span>' : '') +
+          whyLine +
         '</span>' +
         pctPill +
       '</button>';
@@ -469,17 +475,22 @@
       return '<div class="v30pm-combo__group"><div class="v30pm-combo__group-label">' + label + '</div>' +
         list.map(function (item) {
           if (item && typeof item === 'object' && 'candidate' in item) {
-            return row(item.candidate, slot, cls, item.pct);
+            return row(item.candidate, slot, cls, item.pct, item.explanation);
           }
           return row(item, slot, cls);
         }).join('') +
       '</div>';
     }
     return function (slot) {
-      // aiSuggestions : array de {id, pct}. On résout les candidats correspondants.
+      // aiSuggestions : array de {id, pct, explanation}. On résout les candidats correspondants.
       var suggested = (STATE.aiSuggestions || []).map(function (s) {
         var c = findCandidate(s.id != null ? s.id : s);
-        return c ? { candidate: c, pct: (s && s.pct) || 0 } : null;
+        if (!c) return null;
+        return {
+          candidate: c,
+          pct: (s && s.pct) || 0,
+          explanation: (s && s.explanation) || ''
+        };
       }).filter(Boolean);
       var html = '';
       // Option "aucun"
@@ -589,6 +600,7 @@
       return;
     }
     var html = '';
+    var explanations = STATE.aiExplanations || {};
     slots.forEach(function (slot) {
       var id = STATE.selectedCand[slot];
       if (!id) return;
@@ -597,6 +609,10 @@
       var desc = cachedDesc(id);
       var noDc = !c.has_dc;
       var cls = 'v30pm-candcard' + (noDc ? ' v30pm-candcard--no-dc' : '');
+      var why = explanations[String(id)] || '';
+      var whyLine = why
+        ? '<div class="v30pm-candcard__why" title="Justification IA">' + ic('robot', 11) + ' ' + esc(why) + '</div>'
+        : '';
       html +=
         '<div class="' + cls + '" data-v30pm-candcard="' + id + '">' +
           '<div class="v30pm-candcard__head">' +
@@ -614,6 +630,7 @@
                   '</button>') +
             '</div>' +
           '</div>' +
+          whyLine +
           (noDc
             ? '<div class="v30pm-candcard__empty">Ce candidat n\'a pas de dossier de compétences — impossible de générer automatiquement. Tu peux rédiger manuellement ci-dessous.</div>' +
               '<textarea class="v30pm-candcard__textarea" data-v30pm-desc="' + id + '" placeholder="Rédige une courte présentation du candidat…">' + esc(desc) + '</textarea>'
@@ -707,12 +724,22 @@
     });
   }
 
-  // ─── Barre IA (scoring candidats) ─────────────────────────
+  // ─── Barre IA (scoring + réordonnancement candidats) ──────
+  // Préférence persistée : IA activée par défaut, désactivable via toggle dans la barre.
+  function isAIRankingEnabled() {
+    try {
+      var v = localStorage.getItem('prospup.push_ai_ranking');
+      return v === null ? true : v === '1';
+    } catch (_) { return true; }
+  }
+  function setAIRankingEnabled(on) {
+    try { localStorage.setItem('prospup.push_ai_ranking', on ? '1' : '0'); } catch (_) {}
+  }
   function showIABar(msg) {
     var bar = $sel('data-v30pm-iabar');
     if (bar) bar.classList.add('is-active');
     var m = $sel('data-v30pm-iabar-msg');
-    if (m) m.textContent = msg || 'L\'IA réfléchit aux meilleurs candidats…';
+    if (m) m.textContent = msg || 'Calcul des scores de pertinence…';
     updateIABarStats(0);
   }
   function updateIABarMsg(msg) {
@@ -723,9 +750,18 @@
     var s = $sel('data-v30pm-iabar-stats');
     if (s) s.textContent = secs ? secs.toFixed(1) + ' s' : '';
   }
+  function setIABarToggleLink(label, onClick) {
+    var t = $sel('data-v30pm-iabar-toggle');
+    if (!t) return;
+    if (!label) { t.hidden = true; t.textContent = ''; t.onclick = null; return; }
+    t.hidden = false;
+    t.textContent = label;
+    t.onclick = function (e) { e.preventDefault(); onClick && onClick(); };
+  }
   function hideIABar() {
     var bar = $sel('data-v30pm-iabar');
     if (bar) bar.classList.remove('is-active');
+    setIABarToggleLink('', null);
   }
 
   // ─── Loaders ──────────────────────────────────────────────
@@ -744,28 +780,56 @@
   }
 
   function loadAISuggestions(catId) {
-    // Deuxième passe : scoring côté serveur (tags × 3 + notes + catégorie…).
-    // Affiche la barre IA contextuelle.
+    // Pipeline : (1) scoring déterministe instantané côté serveur, puis si
+    // mode IA activé (2) réordonnancement Ollama + (3) explications batch.
+    // Le message UX change à 1.5s pour refléter la transition scoring → IA.
     var p = STATE.prospect || {};
-    var cat = (STATE.categories || []).filter(function (c) { return String(c.id) === String(catId); })[0];
-    var ctxMsg = 'L\'IA analyse ' + (p.name ? esc(p.name) : 'ce prospect') +
-                 (cat ? ' pour la catégorie « ' + esc(cat.name) + ' »' : '') + '…';
-    showIABar(ctxMsg);
+    var aiOn = isAIRankingEnabled();
+    var initialMsg = 'Calcul des scores de pertinence…';
+    showIABar(initialMsg);
     var startTs = Date.now();
     var tick = setInterval(function () { updateIABarStats((Date.now() - startTs) / 1000); }, 150);
-    var qs = catId ? ('?push_category_id=' + encodeURIComponent(catId)) : '';
-    return fetchJSON('/api/prospect/' + STATE.prospectId + '/best-candidates' + qs).then(function (j) {
+
+    // Bascule à la phase « IA » après 1.5 s (le calcul SQL est terminé,
+    // l'attente vient désormais d'Ollama).
+    var phaseTimer = null;
+    if (aiOn) {
+      phaseTimer = setTimeout(function () {
+        var who = p.name ? esc(p.name) : 'ce prospect';
+        updateIABarMsg('L\'IA contextualise les candidats pour ' + who + '…');
+      }, 1500);
+      setIABarToggleLink('Mode rapide', function () {
+        setAIRankingEnabled(false);
+        toast('Mode rapide activé — l\'IA ne sera plus utilisée pour le classement', 'info', 3500);
+      });
+    }
+
+    var qs = [];
+    if (catId) qs.push('push_category_id=' + encodeURIComponent(catId));
+    if (aiOn) { qs.push('use_ollama=1'); qs.push('ai_explanations=1'); }
+    var url = '/api/prospect/' + STATE.prospectId + '/best-candidates' + (qs.length ? ('?' + qs.join('&')) : '');
+
+    return fetchJSON(url).then(function (j) {
       var arr = (j && j.candidates) || [];
-      // On garde les 5 meilleurs avec leur score (relevance_pct 0-100)
+      // Top 5 conservés avec leur score (relevance_pct 0-100) ET l'explication IA si fournie.
       STATE.aiSuggestions = arr.slice(0, 5).map(function (c) {
-        return { id: c.id, pct: (c.relevance_pct != null ? c.relevance_pct : c.pct) || 0 };
+        return {
+          id: c.id,
+          pct: (c.relevance_pct != null ? c.relevance_pct : c.pct) || 0,
+          explanation: c.ai_explanation || ''
+        };
+      });
+      // Cache global des explications (utilisé pour affichage dans les cartes candidats)
+      STATE.aiExplanations = STATE.aiExplanations || {};
+      arr.forEach(function (c) {
+        if (c.ai_explanation) STATE.aiExplanations[String(c.id)] = c.ai_explanation;
       });
       // Si certains candidats suggérés ne sont pas dans allCandidates (filtrage
       // serveur différent), on les ajoute pour pouvoir les afficher.
       arr.forEach(function (c) {
         if (!findCandidate(c.id)) STATE.allCandidates.push(c);
       });
-      // 30.17 : auto-sélection des 2 meilleurs candidats AVEC DC (si l'user
+      // Auto-sélection des 2 meilleurs candidats AVEC DC (si l'user
       // n'a pas encore fait son propre choix). On saute les candidats sans DC
       // pour la pré-sélection automatique, car la description IA ne peut pas
       // être générée sans DC.
@@ -781,21 +845,33 @@
       }
       renderCombos();
       renderCandCards();
-      // 30.17 : déclenche en arrière-plan la génération de description pour
-      // les candidats sélectionnés qui n'en ont pas encore.
       autoGenerateSelectedDescriptions();
       clearInterval(tick);
+      if (phaseTimer) clearTimeout(phaseTimer);
       var elapsed = (Date.now() - startTs) / 1000;
       if (arr.length) {
-        updateIABarMsg('✨ ' + arr.length + ' candidats suggérés par pertinence');
+        var doneMsg = aiOn
+          ? '✨ ' + arr.length + ' candidats classés par l\'IA'
+          : '✓ ' + arr.length + ' candidats triés par pertinence';
+        updateIABarMsg(doneMsg);
         updateIABarStats(elapsed);
-        setTimeout(hideIABar, 2400);
+        // Toggle « Réactiver l'IA » si l'user est en mode rapide
+        if (!aiOn) {
+          setIABarToggleLink('Activer l\'IA', function () {
+            setAIRankingEnabled(true);
+            toast('Mode IA réactivé — rechargez le push pour voir le classement IA', 'info', 3500);
+          });
+        } else {
+          setIABarToggleLink('', null);
+        }
+        setTimeout(hideIABar, 2800);
       } else {
         updateIABarMsg('Aucune suggestion trouvée');
         setTimeout(hideIABar, 2000);
       }
     }).catch(function () {
       clearInterval(tick);
+      if (phaseTimer) clearTimeout(phaseTimer);
       STATE.aiSuggestions = [];
       renderCombos();
       updateIABarMsg('Impossible de calculer les suggestions');
@@ -1357,6 +1433,7 @@
     STATE.currentUserId = null;
     STATE.allCandidates = [];
     STATE.aiSuggestions = [];
+    STATE.aiExplanations = {};
     STATE.selectedCand = { 1: null, 2: null };
     STATE.candDescCache = {};
     STATE.categories = [];

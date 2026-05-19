@@ -5527,7 +5527,7 @@ def api_prospect_best_candidates(prospect_id: int):
 
     with _conn() as conn:
         p_row = conn.execute(
-            "SELECT name, tags, company_id, notes, fixedMetier, pertinence FROM prospects WHERE id=? AND owner_id=?;",
+            "SELECT name, fonction, tags, company_id, notes, fixedMetier, pertinence FROM prospects WHERE id=? AND owner_id=?;",
             (prospect_id, uid),
         ).fetchone()
         if not p_row:
@@ -5535,6 +5535,7 @@ def api_prospect_best_candidates(prospect_id: int):
 
         prospect_tags = _parse_json_str_list(p_row["tags"])
         company_id = p_row["company_id"]
+        prospect_fonction = (p_row["fonction"] or "").strip() if "fonction" in p_row.keys() else ""
         prospect_notes = (p_row["notes"] or "").strip()
         fixed_metier = (p_row["fixedMetier"] or "").strip()
         prospect_pertinence = (p_row["pertinence"] or "").strip()
@@ -5559,26 +5560,42 @@ def api_prospect_best_candidates(prospect_id: int):
         company_city = ""
         company_industry = ""
         company_groupe = ""
+        company_stack = ""
+        company_pain = ""
         if company_id:
-            c_row = conn.execute(
-                "SELECT groupe, tags, city, site, industry FROM companies WHERE id=? AND owner_id=?;",
-                (company_id, uid),
-            ).fetchone()
+            try:
+                c_row = conn.execute(
+                    "SELECT groupe, tags, city, site, industry, stack, pain_points FROM companies WHERE id=? AND owner_id=?;",
+                    (company_id, uid),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                # DB ancienne sans stack/pain_points → fallback colonnes legacy
+                c_row = conn.execute(
+                    "SELECT groupe, tags, city, site, industry FROM companies WHERE id=? AND owner_id=?;",
+                    (company_id, uid),
+                ).fetchone()
             if c_row:
                 # sqlite3.Row n'a pas de méthode .get(), utiliser l'accès direct
                 company_groupe = (c_row["groupe"] or "").strip() if c_row["groupe"] else ""
                 company_tags = _parse_json_str_list(c_row["tags"])
                 company_city = ((c_row["city"] or "") if c_row["city"] else (c_row["site"] or "")).lower().strip()
                 company_industry = (c_row["industry"] or "").lower().strip() if c_row["industry"] else ""
+                if "stack" in c_row.keys():
+                    company_stack = (c_row["stack"] or "").strip()
+                if "pain_points" in c_row.keys():
+                    company_pain = (c_row["pain_points"] or "").strip()
 
-        # Piste 5: optional push category keywords
+        # Piste 5: optional push category keywords + nom
         category_keywords = []
+        category_name = ""
         if push_category_id:
-            cat_row = conn.execute("SELECT keywords FROM push_categories WHERE id=? AND owner_id=?;", (push_category_id, uid)).fetchone()
+            cat_row = conn.execute("SELECT name, keywords FROM push_categories WHERE id=? AND owner_id=?;", (push_category_id, uid)).fetchone()
             if cat_row:
                 cat_dict = _row_to_dict(cat_row)
-                if cat_dict and cat_dict.get("keywords"):
-                    category_keywords = _parse_json_str_list(cat_dict["keywords"])
+                if cat_dict:
+                    category_name = (cat_dict.get("name") or "").strip()
+                    if cat_dict.get("keywords"):
+                        category_keywords = _parse_json_str_list(cat_dict["keywords"])
 
         all_sources = (
             [t.lower() for t in prospect_tags_effective]
@@ -5723,61 +5740,115 @@ def api_prospect_best_candidates(prospect_id: int):
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     top = scored[:8]
-    
-    # Phase 1: Génération d'explications IA pour chaque match
+
+    # ── Contexte enrichi pour les deux prompts IA (réordonnancement + explications)
+    prospect_name = (p_row["name"] or "").strip() if p_row["name"] else ""
+    notes_excerpt = (prospect_notes[:280] + "…") if len(prospect_notes) > 280 else prospect_notes
+    ctx_lines = []
+    if prospect_name:
+        ctx_lines.append(f"Prospect : {prospect_name}")
+    if prospect_fonction:
+        ctx_lines.append(f"Fonction : {prospect_fonction}")
+    if company_groupe:
+        comp_line = f"Entreprise : {company_groupe}"
+        if company_industry:
+            comp_line += f" ({company_industry})"
+        ctx_lines.append(comp_line)
+    if company_stack:
+        ctx_lines.append(f"Stack entreprise : {company_stack[:200]}")
+    if company_pain:
+        ctx_lines.append(f"Enjeux entreprise : {company_pain[:200]}")
+    if category_name:
+        kw_str = ", ".join(category_keywords[:8]) if category_keywords else ""
+        ctx_lines.append(f"Catégorie push ciblée : {category_name}" + (f" (mots-clés : {kw_str})" if kw_str else ""))
+    if prospect_tags_effective:
+        ctx_lines.append(f"Tags du prospect : {', '.join(prospect_tags_effective[:12])}")
+    if notes_excerpt:
+        ctx_lines.append(f"Notes : {notes_excerpt}")
+    prospect_ctx_block = "\n".join(ctx_lines) if ctx_lines else f"Prospect : {prospect_name or 'inconnu'}"
+
+    # ── Réordonnancement IA (avant les explications, pour les générer sur le top final)
+    use_ollama = request.args.get("use_ollama") == "1"
+    if use_ollama and len(top) > 1:
+        try:
+            cand_lines = []
+            for c in top:
+                matched = ", ".join((c.get("matched_tags") or [])[:8])
+                role = c.get("role") or ""
+                years = c.get("years_experience")
+                yrs_str = f" — {years} ans" if isinstance(years, int) and years > 0 else ""
+                cand_lines.append(f"- {c.get('name') or '?'} ({role}{yrs_str}) : {matched}")
+            rerank_prompt = (
+                "Tu es un commercial senior dans une société de conseil en ingénierie. "
+                "Classe les candidats du plus pertinent au moins pertinent pour CE prospect précis, "
+                "en tenant compte de sa fonction, des enjeux de son entreprise et de la catégorie de push ciblée.\n\n"
+                f"{prospect_ctx_block}\n\n"
+                f"Candidats à classer (nom, rôle, années d'exp, compétences matchées) :\n"
+                + "\n".join(cand_lines) + "\n\n"
+                "Réponds UNIQUEMENT par les noms exacts des candidats, un par ligne, "
+                "du meilleur au moins bon match. Pas de numérotation, pas de commentaire, "
+                "pas d'introduction."
+            )
+            text = _call_ai(rerank_prompt, timeout=20)
+            if text:
+                order_names = [n.strip().lstrip("-•0123456789.) ").strip() for n in text.split("\n") if n.strip()]
+                by_name = {c.get("name"): c for c in top}
+                reordered = []
+                used = set()
+                for n in order_names:
+                    if n in by_name and n not in used:
+                        reordered.append(by_name[n])
+                        used.add(n)
+                for c in top:
+                    if c.get("name") not in used:
+                        reordered.append(c)
+                if reordered:
+                    top = reordered
+        except Exception as e:
+            logger.info("Réordonnancement IA ignoré: %s", e)
+
+    # ── Explications IA en BATCH (1 seul appel pour les 5 premiers, gain de latence ×5)
     use_ai_explanations = request.args.get("ai_explanations") == "1"
     if use_ai_explanations and top:
+        explain_targets = top[:5]
         try:
-            p_dict = _row_to_dict(p_row)
-            prospect_name = (p_dict.get("name") or "").strip() if p_dict else ""
-            prospect_fonction = (p_dict.get("fonction") or "").strip() if p_dict else ""
-            prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, fonction: {prospect_fonction}, tags: {prospect_tags_effective}"
-            
-            for candidate in top:
-                matched_tags_str = ", ".join(candidate.get("matched_tags", [])[:10])
-                semantic_str = ", ".join(candidate.get("semantic_matches", []))
-                candidate_ctx = f"Candidat: {candidate.get('name')}, rôle: {candidate.get('role')}, compétences: {', '.join(candidate.get('skills', [])[:10])}, expérience: {candidate.get('years_experience', 'N/A')} ans"
-                
-                explanation_prompt = f"""Tu es un assistant de matching prospect/candidat. Explique en 2-3 phrases pourquoi ce candidat correspond bien à ce prospect.
-
-{prospect_ctx}
-
-{candidate_ctx}
-
-Matches exacts: {matched_tags_str}
-Matches sémantiques: {semantic_str if semantic_str else 'Aucun'}
-
-Réponds UNIQUEMENT par une explication courte (2-3 phrases), sans formules de politesse, en expliquant les points forts du match."""
-                
-                try:
-                    explanation = _call_ai(explanation_prompt, timeout=10)
-                    candidate["ai_explanation"] = explanation.strip()
-                except Exception:
-                    candidate["ai_explanation"] = None
+            cand_block_lines = []
+            for idx, c in enumerate(explain_targets, start=1):
+                role = c.get("role") or ""
+                years = c.get("years_experience")
+                yrs_str = f", {years} ans d'exp" if isinstance(years, int) and years > 0 else ""
+                skills = ", ".join((c.get("skills") or [])[:8])
+                matched = ", ".join((c.get("matched_tags") or [])[:6])
+                cand_block_lines.append(
+                    f"{idx}. {c.get('name') or '?'} ({role}{yrs_str}) — skills : {skills} — matches : {matched}"
+                )
+            batch_prompt = (
+                "Tu es un commercial senior dans une société de conseil en ingénierie. "
+                "Pour chacun des candidats ci-dessous, justifie en UNE seule phrase concrète et orientée valeur "
+                "pourquoi il colle au prospect — cite un point fort observable (techno, expérience secteur, mission passée). "
+                "Pas de blabla générique, pas de 'serait un bon profil'.\n\n"
+                f"{prospect_ctx_block}\n\n"
+                "Candidats :\n" + "\n".join(cand_block_lines) + "\n\n"
+                "Réponds UNIQUEMENT au format JSON strict : "
+                '{"1": "phrase candidat 1", "2": "phrase candidat 2", ...}. '
+                "Pas de markdown, pas de texte avant ou après le JSON."
+            )
+            raw = _call_ai(batch_prompt, timeout=30)
+            if raw:
+                m = re.search(r"\{[\s\S]*\}", raw)
+                parsed = {}
+                if m:
+                    try:
+                        parsed = json.loads(m.group(0))
+                    except Exception:
+                        parsed = {}
+                for idx, c in enumerate(explain_targets, start=1):
+                    val = parsed.get(str(idx)) or parsed.get(idx)
+                    if isinstance(val, str) and val.strip():
+                        c["ai_explanation"] = val.strip()
         except Exception as e:
-            logger.warning("Erreur génération explications IA: %s", str(e))
-    
-    # Réordonnancement intelligent avec Ollama (existant, amélioré)
-    use_ollama = request.args.get("use_ollama") == "1"
-    if use_ollama and top:
-        try:
-            p_dict = _row_to_dict(p_row) if not isinstance(p_row, dict) else p_row
-            prospect_name = (p_dict.get("name") or "").strip() if p_dict else ""
-            prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, tags: {prospect_tags}"
-            cand_lines = "\n".join(f"- {c.get('name') or '?'}: {', '.join((c.get('matched_tags') or [])[:8])}" for c in top)
-            prompt = f"Contexte: {prospect_ctx}\n\nCandidats (nom + compétences matchées):\n{cand_lines}\n\nRéponds UNIQUEMENT par les noms des candidats, un par ligne, du meilleur au moins bon match. Pas d'autre texte."
-            text = _call_ai(prompt, timeout=15)
-            if text:
-                order_names = [n.strip() for n in text.split("\n") if n.strip()]
-                by_name = {c.get("name"): c for c in top}
-                reordered = [by_name[n] for n in order_names if n in by_name]
-                for c in top:
-                    if c not in reordered:
-                        reordered.append(c)
-                top = reordered
-        except Exception:
-            pass
-    
+            logger.info("Explications IA ignorées: %s", e)
+
     return jsonify(ok=True, candidates=top, prospect_tags=prospect_tags)
 
 
