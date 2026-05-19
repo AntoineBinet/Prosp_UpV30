@@ -2,6 +2,40 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.67] — 2026-05-19 · Sécurité · Hardening auth (Phase 2)
+
+Deuxième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).
+Cible les vecteurs auth web + JWT mobile.
+
+- **CSRF strict (E3)** — `_require_same_origin()` refuse désormais les
+  requêtes sans header `Origin` valide. Fallback `Referer` autorisé si
+  même origine. Avant : pas d'`Origin` = pass (bypassable via `curl`,
+  scripts). Le check ne s'applique qu'aux mutations cookie-auth ; le
+  JWT Bearer reste exempt (le token prouve l'auth).
+- **CORS strict (E5)** — `Access-Control-Allow-Origin` ne renvoie plus
+  `*`. À la place, on écho l'`Origin` reçue *uniquement* si elle est
+  dans la whitelist web ou mobile (`capacitor://`, `ionic://`). Nouvelle
+  variable d'env `PROSPUP_MOBILE_ORIGINS` pour étendre. Apps natives sans
+  Origin continuent de fonctionner.
+- **Rotation session ID au login (M3)** — `session.clear()` avant le re-set
+  des champs après vérif mdp. Prévient la session fixation.
+- **Durée session 8h → 4h (M4)** — réduit la fenêtre d'exploitation d'un
+  cookie volé.
+- **Invalidation refresh tokens au changement de mdp (M5)** — un attaquant
+  qui avait volé un refresh token (valide 30 j) est désormais déconnecté
+  dès que la victime change son mot de passe.
+- **Header `X-Recovery-Token` ajouté à la whitelist CORS** pour permettre
+  l'usage cross-origin du token de récupération depuis la 404.
+- **Commentaire IDOR avatar (E4)** — confirmé comme volontaire en mode
+  mono-tenant (les collègues doivent voir les avatars). Note ajoutée pour
+  un éventuel pivot SaaS multi-tenant.
+
+Non livré dans cette phase :
+- **E2** — vérification GPG des commits git (besoin que tu setup ta clé
+  GPG côté PC hébergeur en premier, puis on l'active dans `git pull`).
+- **M6** — MFA TOTP (page setup, flow login, codes recovery — mérite
+  une phase dédiée).
+
 ## [32.66] — 2026-05-19 · Sécurité · Recovery token sur deploy/404 (Phase 1)
 
 Première phase du plan de remédiation de l'[audit cybersécurité du

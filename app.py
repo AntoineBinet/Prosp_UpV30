@@ -162,6 +162,7 @@ from utils.auth import (
     _uid,
     _verify_access_token,
     _verify_refresh_token,
+    is_cors_origin_allowed,
     login_required,
     role_required,
     validate_payload,
@@ -207,7 +208,7 @@ else:
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True   # v23.4: requires HTTPS (Cloudflare Tunnel)
-app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)  # v23.4: reduced from 30d for security
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=4)  # v32.67: reduced from 8h after audit
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # v32.1 : 500 MB pour les uploads audio
 app.json.ensure_ascii = False  # v27.12: caractères Unicode non échappés dans les réponses JSON
 
@@ -335,10 +336,19 @@ def _after_request(response):
         "frame-ancestors 'self'"
     )
 
-    # ── CORS for mobile JWT auth (v24.0) ──
+    # ── CORS for mobile JWT auth (v24.0, durci v32.67) ──
+    # Avant v32.67 : Allow-Origin=* dès que Bearer JWT présent. Trop large :
+    # un JWT volé pouvait être exploité depuis n'importe quel domaine.
+    # Maintenant : on écho l'Origin uniquement si elle est dans la whitelist
+    # (web + capacitor/ionic mobile). Sinon, pas de header CORS = navigateur
+    # bloque. Les apps natives sans Origin continuent de marcher (CORS ne
+    # s'applique qu'aux contextes navigateur).
     if request.headers.get("Authorization", "").startswith("Bearer ") or request.method == "OPTIONS":
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        req_origin = request.headers.get("Origin", "")
+        if is_cors_origin_allowed(req_origin):
+            response.headers["Access-Control-Allow-Origin"] = req_origin
+            response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Recovery-Token"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
 
     # Cache headers for API GET responses (30s private cache)
@@ -420,10 +430,13 @@ def _require_auth():
 
 @app.route("/api/<path:path>", methods=["OPTIONS"])
 def api_cors_preflight(path):
-    """Handle CORS preflight requests for mobile app (v24.0)."""
+    """Handle CORS preflight requests for mobile app (v24.0, durci v32.67)."""
     resp = app.make_default_options_response()
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    req_origin = request.headers.get("Origin", "")
+    if is_cors_origin_allowed(req_origin):
+        resp.headers["Access-Control-Allow-Origin"] = req_origin
+        resp.headers["Vary"] = "Origin"
+    resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Recovery-Token"
     resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return resp
 

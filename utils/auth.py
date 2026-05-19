@@ -135,19 +135,65 @@ if _env_origins:
             _origins_list.append(o + "/")
 _ALLOWED_ORIGINS = frozenset(_origins_list)
 
+# v32.67 — Origines mobiles autorisées pour le CORS quand Bearer JWT.
+# capacitor:// et ionic:// par défaut. Override via PROSPUP_MOBILE_ORIGINS.
+_mobile_origins = [
+    "capacitor://localhost", "ionic://localhost",
+    "http://localhost", "https://localhost",
+]
+_env_mobile = os.environ.get("PROSPUP_MOBILE_ORIGINS", "").strip()
+if _env_mobile:
+    for o in _env_mobile.split(","):
+        o = o.strip().rstrip("/")
+        if o:
+            _mobile_origins.append(o)
+_MOBILE_ORIGINS = frozenset(_mobile_origins)
+
+
+def is_cors_origin_allowed(origin: str) -> bool:
+    """Returns True si une Origin reçue est autorisée pour les réponses CORS."""
+    if not origin:
+        return False
+    o = origin.strip().rstrip("/")
+    return o in _ALLOWED_ORIGINS or o in _MOBILE_ORIGINS or (o + "/") in _ALLOWED_ORIGINS
+
 
 def _require_same_origin():
-    """Anti-CSRF léger : si l'en-tête Origin est présent, exiger une origine autorisée."""
-    origin = (request.headers.get("Origin") or "").strip().rstrip("/")
-    if not origin:
-        return None
+    """Strict CSRF check via Origin/Referer header (v32.67).
+
+    Avant v32.67 : si pas d'Origin → pass (bypass possible via curl, scripts).
+    Maintenant :
+      - Origin présent et dans la whitelist → pass
+      - Origin présent et pas dans la whitelist → 403
+      - Origin absent : on tente le Referer en fallback (certains navigateurs
+        omettent Origin sur des navigations same-site). Si Referer non plus,
+        ou Referer hors whitelist → 403.
+    Le check n'est appliqué que sur les mutations cookie-auth (cf. before_request).
+    Pour JWT Bearer, le check est skip (le token lui-même prouve l'auth)."""
+    origin_raw = (request.headers.get("Origin") or "").strip().rstrip("/")
+    if origin_raw:
+        try:
+            host = (request.host_url or "").rstrip("/")
+            if origin_raw == host:
+                return None
+            if origin_raw in _ALLOWED_ORIGINS or (origin_raw + "/") in _ALLOWED_ORIGINS:
+                return None
+            return jsonify(ok=False, error="Origine non autorisée"), 403
+        except Exception:
+            return jsonify(ok=False, error="Origine non autorisée"), 403
+
+    # Pas d'Origin : fallback Referer (cas legacy / clients sans header Origin)
+    referer = (request.headers.get("Referer") or "").strip()
+    if not referer:
+        return jsonify(ok=False, error="Origine manquante (header Origin ou Referer requis)"), 403
     try:
         host = (request.host_url or "").rstrip("/")
-        if origin == host:
+        if referer.startswith(host + "/") or referer == host:
             return None
-        if origin in _ALLOWED_ORIGINS or origin.rstrip("/") in _ALLOWED_ORIGINS:
-            return None
-        return jsonify(ok=False, error="Origine non autorisée"), 403
+        for ok_origin in _ALLOWED_ORIGINS:
+            if ok_origin and (referer.startswith(ok_origin + "/") or referer == ok_origin):
+                return None
+        return jsonify(ok=False, error="Referer non autorisé"), 403
     except Exception:
         return jsonify(ok=False, error="Origine non autorisée"), 403
 
