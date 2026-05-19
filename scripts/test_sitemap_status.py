@@ -96,6 +96,7 @@ API_GETS: list[str] = [
     "/api/prospects/quick-filter",
     "/api/prospects/tags-count",
     "/api/companies/list",
+    "/api/companies/enrich-queue",
     "/api/candidates",
     "/api/candidates/source-from-folder",
     "/api/candidate-push",

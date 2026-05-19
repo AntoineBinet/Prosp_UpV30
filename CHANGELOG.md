@@ -2,6 +2,40 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.66] — 2026-05-19 · Entreprises · Scrapping IA en file d'attente (validation différée)
+
+- **Nouveau mode bulk : « Mettre en file d'attente »** sur la modale
+  *Scrapping IA en masse* (page Entreprises). Permet de lancer Tavily +
+  Ollama sur N entreprises sélectionnées **en arrière-plan**, fermer la
+  modale, et revenir valider les résultats plus tard — utile pour les
+  gros lots (chaque enrichissement prend 30–60 s).
+- **Bouton « Lancer maintenant »** conservé pour le flux existant
+  (smart-merge automatique : ne remplit que les champs vides, sans revue).
+- **Badge « N à valider »** dans le header de la page Entreprises
+  (apparaît dès qu'un job est terminé). Clic → liste des suggestions IA
+  en attente avec, pour chaque entreprise :
+  - bouton **Vérifier & appliquer** → ouvre la modale enrich classique
+    pré-remplie (cases à cocher par champ, comparaison avant/après) ;
+  - bouton **Ignorer** → supprime le job sans rien modifier ;
+  - statut visible (en file d'attente / en cours / à valider / échec).
+- **Bouton « Nettoyer terminés »** : retire d'un coup tous les jobs
+  appliqués/ignorés/en erreur.
+- **Backend** :
+  - Nouvelle table `companies_enrich_queue` (créée au boot via
+    `init_db()`).
+  - Routes `POST/GET /api/companies/enrich-queue`,
+    `POST .../<jid>/discard`, `DELETE .../<jid>`,
+    `POST .../clear-done` dans `routes/companies.py`.
+  - Logique d'enrich extraite en helper réutilisable
+    `run_company_enrich(company)` partagé entre la route synchrone et
+    le worker.
+  - **Worker APScheduler** : traite 1 job `pending` toutes les 5 s
+    (single instance, transition atomique `pending → running → done|error`).
+  - Dédupe : si un même `(owner, company)` est déjà en `pending`/`running`,
+    le nouvel enqueue est ignoré (champ `duplicates` dans la réponse).
+- **Sitemap** : ligne « Scrapping IA en file d'attente » ajoutée dans
+  `routes/pages.py` (test HTTP rejoué : `/api/companies/enrich-queue` 🟢).
+
 ## [32.65] — 2026-05-19 · Carte · Géocodage en masse avec fallbacks
 
 - **Plus d'« erreur » pour les grands groupes type EDF, JTEKT…** dont
