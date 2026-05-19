@@ -2,6 +2,23 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.64] — 2026-05-19 · Besoins · 2 nouveaux statuts candidat (Présenté / Démarré)
+
+- **Statuts candidat enrichis** sur la fiche Traitement Besoin : ajout de
+  *Présenté au client* (violet) et *Démarré sur la mission* (émeraude)
+  entre *RT* et *Non dispo*, pour suivre les candidats jusqu'au démarrage
+  effectif de la mission.
+- **Ordre du cycle** (clic sur la pastille) :
+  *Pas contacté → Messagerie → Dispo → RT → Présenté → Démarré → Non dispo*.
+- **Tri auto par dispo** : les candidats déjà *Démarrés* remontent tout
+  en haut, suivis de *Présentés*, puis *RT*, *Dispo*, *Messagerie*,
+  *Pas contacté*, et enfin *Non dispo* en bas.
+- **Export PDF** : les nouveaux statuts sont rendus avec leurs pastilles
+  colorées dédiées (`_CAND_STATUS_PILL` dans `routes/besoins.py`).
+- **Légende** : la barre de légende au-dessus de la liste de candidats
+  affiche désormais les 7 statuts (Dispo, Pas contacté, Messagerie, RT,
+  Présenté, Démarré, Non dispo).
+
 ## [32.63] — 2026-05-13 · Fiche prospect · CR de RDV par PDF + visionneuse
 
 - **Onglet « CR » enrichi** sur la fiche prospect : affiche désormais

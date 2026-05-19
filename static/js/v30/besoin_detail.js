@@ -17,18 +17,21 @@
   const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'rt', 'envoi_dt', 'propal', 'rt_client', 'lieu_habitation', 'diplome'];
 
   // Statut "couleur" libre par ligne — non utilisé par l'export Excel mais
-  // affiché dans l'UI : '' (pas contacté) | 'msg' (bleu) | 'dispo' (vert) | 'rt' (ambre) | 'nope' (rouge).
-  const STATUS_ORDER = ['', 'msg', 'dispo', 'rt', 'nope'];
+  // affiché dans l'UI : '' (pas contacté) | 'msg' (bleu) | 'dispo' (vert) | 'rt' (ambre) |
+  // 'pres' (violet) | 'start' (émeraude) | 'nope' (rouge).
+  const STATUS_ORDER = ['', 'msg', 'dispo', 'rt', 'pres', 'start', 'nope'];
   const STATUS_LABELS = {
     '':      'Pas contacté',
     'msg':   'Messagerie',
     'dispo': 'Disponible',
     'rt':    'RT',
+    'pres':  'Présenté au client',
+    'start': 'Démarré sur la mission',
     'nope':  'Non disponible',
   };
-  // Ordre de tri automatique par dispo (du haut au bas) :
-  // rt (ambre) > dispo (vert) > msg (bleu) > '' (pas contacté) > nope (rouge)
-  const STATUS_SORT_RANK = { 'rt': 0, 'dispo': 1, 'msg': 2, '': 3, 'nope': 4 };
+  // Ordre de tri automatique par dispo (du haut au bas) — étapes les plus avancées d'abord :
+  // start > pres > rt > dispo > msg > '' (pas contacté) > nope
+  const STATUS_SORT_RANK = { 'start': 0, 'pres': 1, 'rt': 2, 'dispo': 3, 'msg': 4, '': 5, 'nope': 6 };
 
   const state = {
     besoin: null,
@@ -596,7 +599,7 @@
     const statusBtn = document.createElement('button');
     statusBtn.type = 'button';
     statusBtn.className = 'v30-cand-card__status';
-    statusBtn.title = 'Statut — clic pour cycler (Pas contacté → Messagerie → Dispo → RT → Non dispo)';
+    statusBtn.title = 'Statut — clic pour cycler (Pas contacté → Messagerie → Dispo → RT → Présenté → Démarré → Non dispo)';
     statusBtn.textContent = STATUS_LABELS[status];
     statusBtn.addEventListener('click', (e) => {
       e.stopPropagation();
