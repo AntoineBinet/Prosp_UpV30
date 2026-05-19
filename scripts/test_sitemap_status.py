@@ -144,6 +144,8 @@ API_GETS: list[str] = [
     "/api/rdv-checklist?prospect_id=1",
     "/api/rdv/pending-review",
     "/api/rdv/no-show-stats",
+    "/api/ai/next-action/today",
+    "/api/ai/next-action/1",
     "/api/ec1-checklist?candidate_id=1",
     "/api/export/day",
     "/api/export/xlsx",

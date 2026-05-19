@@ -2,6 +2,48 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.66] — 2026-05-19 · Productivité Phase 2 · IA Next Action (badge passif)
+
+- **Carte « Prochaine action recommandée »** en tête de l'onglet *Aperçu*
+  sur chaque fiche prospect : une suggestion IA concrète (action, canal,
+  date, justification, score de confiance 0-100) générée par Ollama.
+  Bouton *Actualiser* pour régénérer, bouton *Appliquer · Email/Appel/...*
+  pour passer à l'action en 1 clic.
+- **Section « Prochaines actions IA »** dans `/v30/focus` : top 10 des
+  suggestions actives, triées par date d'action puis confiance. Bouton
+  *Actualiser le batch* pour régénérer en masse les suggestions périmées.
+- **Suggestion passive** (décision UX validée en planning) : aucune
+  notification, aucun envoi auto, aucune pré-rédaction. L'utilisateur
+  reste maître de la décision.
+- **6 types d'action** : `email` / `call` / `linkedin` / `rdv` / `wait`
+  / `other` — chacun avec son icône, sa couleur, et son comportement
+  d'application :
+  - `email` → ouvre la modale Push v30 sur le bon canal (fallback `mailto:`),
+  - `call` → `tel:` (mobile) ou affichage du numéro,
+  - `linkedin` → ouvre le profil dans un nouvel onglet,
+  - `rdv` → ouvre `/v30/calendrier?prospect_id=...`,
+  - `wait` / `other` → ouvre la fiche prospect.
+- **Cache + TTL** : suggestion stockée dans `prospects.next_action_ai`
+  (JSON) avec timestamp `next_action_ai_at`. TTL = 7 jours : au-delà,
+  badge *Périmé* affiché et la suggestion peut être rafraîchie.
+- **Sélection des prospects actifs** : statut hors *Pas intéressé*, au
+  moins une activité (lastContact / push / event) dans les 60 derniers
+  jours. Le job batch ne touche pas les prospects froids.
+- **Mode dégradé** : si Ollama est indisponible, l'endpoint retourne
+  *502 IA indisponible* sans bloquer la page. Les suggestions en cache
+  restent affichées.
+- **Schéma** : 2 nouvelles colonnes sur `prospects` :
+  - `next_action_ai` (TEXT, JSON sérialisé de la suggestion),
+  - `next_action_ai_at` (TEXT, timestamp ISO de la dernière génération).
+  Migration appliquée à la DB principale et aux DB user.
+- **API** :
+  - `GET /api/ai/next-action/<id>` — lit le cache (rapide, jamais d'appel IA).
+  - `POST /api/ai/next-action/<id>/refresh` — force regen (1 appel Ollama).
+  - `GET /api/ai/next-action/today` — top suggestions actives (Focus).
+  - `POST /api/ai/next-action/refresh-batch` — regen N prospects actifs.
+- **Toile** : 5 nouvelles actions sous *Focus* et *Prospects* dans
+  `_build_sitemap_data()`.
+
 ## [32.65] — 2026-05-19 · Productivité Phase 1 · Workflow RDV no-show
 
 - **Nouvelle section « RDV à statuer »** dans `/v30/focus` : les RDV passés

@@ -191,6 +191,73 @@
   .v30-rdv-review-row__actions { justify-content: flex-start; }
 }
 
+/* ─── Bloc Suggestions IA (Phase 2 productivité) ─────────────────── */
+.v30-focus-na-ai { border-left: 3px solid var(--accent); }
+.v30-na-sparkle { color: var(--accent); font-size: 14px; line-height: 1; }
+.v30-na-stale {
+  display: inline-block;
+  background: var(--warning, #c47);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.v30-na-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.v30-na-list-row:first-child { border-top: none; }
+.v30-na-list-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.v30-na-list-row__info { min-width: 0; }
+.v30-na-list-row__name { font-weight: 600; font-size: 13px; }
+.v30-na-list-row__action {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-na-list-row__meta { font-size: 11px; margin-top: 2px; }
+
+.v30-na-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  flex: 0 0 auto;
+  color: white;
+}
+.v30-na-type.na-type--email    { background: #4a86e8; }
+.v30-na-type.na-type--call     { background: #16a34a; }
+.v30-na-type.na-type--linkedin { background: #0a66c2; }
+.v30-na-type.na-type--rdv      { background: #a855f7; }
+.v30-na-type.na-type--wait     { background: #6b7280; }
+.v30-na-type.na-type--other    { background: #94a3b8; }
+
+@media (max-width: 720px) {
+  .v30-na-list-row { grid-template-columns: 1fr; }
+}
+
 /* ─── Modale choix numéro (phone picker) ─── */
 .v30-phone-picker__list {
   display: flex;

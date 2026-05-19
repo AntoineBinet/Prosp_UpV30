@@ -913,6 +913,12 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["bindRdvReview"], "endpoints": ["POST /api/rdv/<id>/review"], "backend": ["routes/rdv_review.py:api_rdv_review", "utils/ai_helpers.py:_call_ai"]}},
                 {"label": "Relance IA après no-show / annulé", "href": "/v30/focus",
                  "tools": {"handlers": ["_openRelanceModal"], "endpoints": ["POST /api/rdv/<id>/review"], "backend": ["routes/rdv_review.py:_generate_relance_ai"]}},
+                {"label": "Prochaines actions IA (top 10)", "href": "/v30/focus",
+                 "tools": {"handlers": ["mountFocusSection"], "endpoints": ["GET /api/ai/next-action/today"], "backend": ["routes/next_action_ai.py:api_next_action_today", "services/next_action_ai.py:list_today_suggestions"]}},
+                {"label": "Régénérer batch suggestions IA", "href": "/v30/focus",
+                 "tools": {"handlers": ["mountFocusSection"], "endpoints": ["POST /api/ai/next-action/refresh-batch"], "backend": ["routes/next_action_ai.py:api_next_action_refresh_batch", "services/next_action_ai.py:generate_for_prospect"]}},
+                {"label": "Appliquer suggestion IA (email/appel/LinkedIn/RDV)", "href": "/v30/focus",
+                 "tools": {"handlers": ["applySuggestion"], "endpoints": ["GET /api/prospect/timeline"], "backend": ["app.py:api_prospect_timeline"]}},
             ],
         },
         {
@@ -1002,6 +1008,10 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["openFilePreview", "closeFilePreview"], "endpoints": ["GET /api/prospect/attachments/<id>/file", "GET /api/prospect/attachments/<id>/thumb"], "backend": ["routes/attachments.py:api_prospect_attachment_file", "routes/attachments.py:api_prospect_attachment_thumb"]}},
                 {"label": "Photo prospect", "href": "/v30/prospect/<id>",
                  "tools": {"handlers": ["uploadPhoto"], "endpoints": ["POST /api/prospect/photo", "GET /api/photos/prospect/<id>"], "backend": ["routes/dashboard.py:api_prospect_photo"]}},
+                {"label": "Carte Prochaine action IA", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["mountProspectCard"], "endpoints": ["GET /api/ai/next-action/<id>"], "backend": ["routes/next_action_ai.py:api_next_action_get", "services/next_action_ai.py:get_cached"]}},
+                {"label": "Régénérer suggestion IA (fiche)", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["mountProspectCard"], "endpoints": ["POST /api/ai/next-action/<id>/refresh"], "backend": ["routes/next_action_ai.py:api_next_action_refresh", "services/next_action_ai.py:generate_for_prospect"]}},
             ],
         },
         {

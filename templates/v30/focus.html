@@ -71,6 +71,25 @@
     </div>
   </section>
 
+  {# ─── Bloc Suggestions IA (Phase 2 productivité v32.x) ─── #}
+  {# Top suggestions actives par confiance, générées à la demande depuis la fiche prospect. #}
+  <section class="card card-flush v30-focus-na-ai" data-v30-focus-na-ai style="margin-bottom:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        <span class="v30-na-sparkle" aria-hidden="true">✦</span>
+        Prochaines actions IA <span class="tab-count" data-field="na-count">—</span>
+      </div>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-focus-na-ai-batch
+              title="Régénérer 10 suggestions périmées (ou absentes) en arrière-plan">
+        Actualiser le batch
+      </button>
+    </div>
+    <div data-v30-focus-na-ai-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
   {# ─── Colonne unique 3 blocs : Overdue · Aujourd'hui · À venir ─── #}
   <div class="v30-focus-cols">
 
@@ -263,4 +282,5 @@
 <script defer src="/static/js/v30/phone-picker.js?v={{ static_hash('js/v30/phone-picker.js') }}"></script>
 <script defer src="/static/js/v30/push-modal.js?v={{ static_hash('js/v30/push-modal.js') }}"></script>
 <script defer src="/static/js/v30/focus.js?v={{ static_hash('js/v30/focus.js') }}"></script>
+<script defer src="/static/js/v30/next_action_ai.js?v={{ static_hash('js/v30/next_action_ai.js') }}"></script>
 {% endblock %}
