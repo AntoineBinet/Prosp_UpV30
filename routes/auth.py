@@ -34,6 +34,7 @@ from app import (
     login_required,
     validate_payload,
 )
+from utils.auth import rate_limit
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -275,6 +276,7 @@ def api_auth_revoke():
 
 
 @auth_bp.post("/api/auth/change-password")
+@rate_limit(max_per_minute=5, scope="change-password")
 def api_auth_change_password():
     uid = session.get('user_id')
     if not uid:

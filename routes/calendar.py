@@ -2,19 +2,53 @@
 from __future__ import annotations
 
 import datetime
+import ipaddress
 import json
 import re
+import socket
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List
 
 from flask import Blueprint, jsonify, request
 
 from services.working_days import get_holidays as _get_holidays, has_holidays_package
-from utils.auth import _uid
+from utils.auth import _uid, rate_limit
 from utils.db import _conn
 
 calendar_bp = Blueprint("calendar", __name__)
+
+
+# v32.68 — Anti-SSRF pour /api/calendar_events_external.
+# Bloque tout host qui résout vers une IP privée / loopback / link-local /
+# multicast / reserved. Empêche d'utiliser l'endpoint comme proxy interne
+# pour atteindre 127.0.0.1:11434 (Ollama), 169.254.169.254 (metadata cloud),
+# 192.168.x.x (réseau local), etc.
+def _is_safe_external_url(url: str) -> tuple[bool, str]:
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception as exc:
+        return False, f"URL invalide : {exc}"
+    if parsed.scheme not in ("http", "https"):
+        return False, "Schéma non autorisé (http/https requis)"
+    host = parsed.hostname
+    if not host:
+        return False, "Hostname manquant"
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False, "Hostname non résolvable"
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False, f"IP invalide ({ip_str})"
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            return False, f"IP non autorisée ({ip})"
+    return True, ""
 
 
 @calendar_bp.get("/api/holidays")
@@ -398,6 +432,7 @@ def _parse_ics_to_events(ics_text: str) -> List[Dict[str, Any]]:
 
 
 @calendar_bp.get("/api/calendar_events_external")
+@rate_limit(max_per_minute=10, scope="ics-external")
 def api_calendar_events_external():
     """Fetch an external .ics URL (Outlook/Google) and return events. Avoids CORS."""
     uid = _uid()
@@ -406,10 +441,15 @@ def api_calendar_events_external():
     url = (request.args.get("url") or "").strip()
     if not url or not url.startswith(("http://", "https://")):
         return jsonify(ok=False, error="URL invalide"), 400
+    # v32.68 — Anti-SSRF : bloque les IP privées / loopback / metadata cloud.
+    safe, reason = _is_safe_external_url(url)
+    if not safe:
+        return jsonify(ok=False, error=f"URL refusée : {reason}"), 400
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Prosp'Up/1.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
-            ics_text = resp.read().decode("utf-8", errors="replace")
+            # Limite la taille téléchargée à 5 MB (ICS habituel : quelques KB)
+            ics_text = resp.read(5 * 1024 * 1024).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         return jsonify(ok=False, error=f"HTTP {e.code}"), 502
     except urllib.error.URLError as e:

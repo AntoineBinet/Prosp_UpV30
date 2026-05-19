@@ -172,7 +172,7 @@
   </div>
 
   <script>
-    window.SITEMAP_DATA = {{ sitemap_json | safe }};
+    window.SITEMAP_DATA = {{ sitemap_data | tojson }};
     window.IS_ADMIN = {{ 'true' if is_admin else 'false' }};
   </script>
   <script defer src="/static/js/v30/sitemap.js?v={{ static_hash('js/v30/sitemap.js') }}"></script>

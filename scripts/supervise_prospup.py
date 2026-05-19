@@ -159,15 +159,32 @@ def _health_check(port: int, timeout: int = 5) -> bool:
         return False
 
 
+# v32.68 — Whitelist stricte des commandes serveur acceptables.
+# Avant : shell=True + var d'env non sanitizée → injection si PROSPUP_APP_CMD
+# pouvait être modifié par un attaquant local. Maintenant : seules les
+# commandes connues sont autorisées, le reste tombe sur le défaut.
+_ALLOWED_APP_COMMANDS = {
+    "python app.py --production",
+    "python app.py --prod",
+    "python app.py",
+    "py app.py --production",
+    "py app.py --prod",
+    "py app.py",
+}
+
+
 def _start_server(app_cmd: str) -> subprocess.Popen:
     env = os.environ.copy()
     env["PROSPUP_LAUNCHER"] = "BAT"
-    _log(f"[SERVER] Démarrage: {app_cmd}")
+    safe_cmd = (app_cmd or "").strip()
+    if safe_cmd not in _ALLOWED_APP_COMMANDS:
+        _log(f"[SERVER] [WARN] PROSPUP_APP_CMD={safe_cmd!r} hors whitelist — fallback sur défaut.")
+        safe_cmd = "python app.py --production"
+    _log(f"[SERVER] Démarrage: {safe_cmd}")
     return subprocess.Popen(
-        app_cmd,
+        safe_cmd.split(),  # shell=False : pas d'interprétation shell
         cwd=str(PROJECT_ROOT),
         env=env,
-        shell=True,
     )
 
 

@@ -2,6 +2,49 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.68] — 2026-05-19 · Sécurité · Defense in depth (Phase 3)
+
+Troisième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).
+
+- **Anti-SSRF (E6)** — `/api/calendar_events_external` refuse maintenant
+  les URLs résolvant vers une IP privée, loopback, link-local, multicast
+  ou réservée. Empêche d'utiliser l'endpoint comme proxy interne pour
+  taper sur Ollama (127.0.0.1:11434), AWS metadata (169.254.169.254),
+  ou des services LAN. Limite de taille de réponse à 5 MB.
+- **shell=True purgé (E7)** — `scripts/supervise_prospup.py`,
+  `scripts/auto_sync_pc.py` et `scripts/watch-prospup.py` n'utilisent
+  plus `shell=True`. Les commandes serveur sont whitelistées (set fini :
+  `python app.py`, `python app.py --prod`, etc.). Une variable d'env
+  hors whitelist tombe sur le défaut au lieu d'être exécutée telle quelle.
+- **`data/ai_config.json` chmod 600 (M2)** — appliqué à chaque écriture
+  (POSIX seulement, Windows ACL gère au niveau dossier user). Le fichier
+  contient les clés API Tavily/Anthropic/HuggingFace/France Travail en clair.
+- **Whitelist auth nettoyée (M8)** — `/api/system/check-deployment` et
+  `/api/system/logs` retirés de la whitelist `before_request`. Leurs
+  handlers re-checkent admin de toute façon, donc anti-pattern fragile.
+  Désormais les routes admin passent par le check session normal.
+- **`|safe` → `|tojson` dans sitemap (M9)** — `routes/pages.py` passe le
+  dict brut, le template fait `{{ sitemap_data | tojson }}` qui échappe
+  proprement `<`, `>`, `&`. Si un jour des labels user-controlled
+  entraient dans le sitemap, plus de XSS possible.
+- **Anti-SQLi via whitelist (M11)** — `routes/collab.py` action
+  `update_prospect` n'autorise plus que des noms de colonnes d'une liste
+  fermée. Avant : `field="x=1,owner_id=99 WHERE 1=1;--"` permettait du
+  cross-tenant rewrite.
+- **Rate-limit générique (M12)** — nouveau decorator `@rate_limit(
+  max_per_minute=N, scope="...")` dans `utils/auth.py`. Appliqué à :
+  `/api/auth/change-password` (5/min), `/api/calendar_events_external`
+  (10/min), `/api/ollama/generate` (30/min), `/api/ollama/generate-stream`
+  (20/min). In-memory, mono-process, OK pour Waitress.
+
+Skip volontaire :
+- **E8 / M1** — SQLCipher / chiffrement backups : trop intrusif, mérite
+  une phase dédiée (migration de la DB, gestion de la clé maître).
+- **M10** — `MAX_CONTENT_LENGTH` 500 MB : laissé tel quel, nécessaire
+  pour les uploads audio de transcription. Le risque DoS reste à PC perso.
+- **E2** — vérification GPG des commits : attente de ton setup côté PC.
+- **M6** — MFA TOTP : phase dédiée séparée.
+
 ## [32.67] — 2026-05-19 · Sécurité · Hardening auth (Phase 2)
 
 Deuxième phase du plan de remédiation de l'[audit du 19 mai 2026](docs/AUDIT_SECURITE_2026-05.md).

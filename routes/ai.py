@@ -33,11 +33,13 @@ from app import (
     _uid,
     logger,
 )
+from utils.auth import rate_limit
 
 ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.post("/api/ollama/generate")
+@rate_limit(max_per_minute=30, scope="ollama-generate")
 def api_ollama_generate():
     """Proxy IA unifié (non-streaming) : Ollama + Tavily (recherche web) si configuré."""
     uid = _uid()
@@ -93,6 +95,7 @@ def api_ollama_generate():
 
 
 @ai_bp.post("/api/ollama/generate-stream")
+@rate_limit(max_per_minute=20, scope="ollama-stream")
 def api_ollama_generate_stream():
     """Proxy IA unifié avec streaming SSE : Ollama + Tavily (recherche web) si configuré."""
     uid = _uid()

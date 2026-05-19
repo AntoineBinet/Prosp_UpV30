@@ -1515,9 +1515,13 @@ def page_v30_sitemap():
     current_user = _get_current_user() or {}
     is_admin = current_user.get("role") == "admin"
     data = _build_sitemap_data(is_admin=is_admin)
+    # v32.68 — Passe le dict brut au lieu d'une string JSON ; le filtre |tojson
+    # côté template fait le json.dumps avec échappement XSS-safe (< → <
+    # etc.). Avant : json.dumps + |safe = vulnérable si jamais on injectait
+    # un jour des données user-controlled dans le sitemap.
     return render_template(
         "v30/sitemap.html",
         app_version=APP_VERSION,
-        sitemap_json=json.dumps(data, ensure_ascii=False),
+        sitemap_data=data,
         is_admin=is_admin,
     )

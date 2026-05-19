@@ -251,6 +251,45 @@ def _record_login_attempt():
         _login_attempts.setdefault(ip, []).append(time.time())
 
 
+# ── Rate limit générique (v32.68) ──────────────────────────────────
+# Decorator pour limiter le nombre de requêtes par IP sur n'importe quelle
+# route. In-memory (perdu au restart), pas adapté pour cluster multi-process
+# mais OK pour mono-instance Waitress.
+_generic_rate_buckets: Dict[str, Dict[str, List[float]]] = {}
+_generic_rate_lock = threading.Lock()
+
+
+def rate_limit(max_per_minute: int = 20, scope: str = "default"):
+    """Decorator de rate-limit par IP. Retourne 429 si dépassement.
+
+    Usage : `@rate_limit(max_per_minute=10, scope="ollama")` au-dessus
+    d'une route Flask. Le `scope` sépare les compteurs (un endpoint coûteux
+    peut avoir son propre seau sans pénaliser les autres)."""
+    from functools import wraps
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            ip = request.remote_addr or "unknown"
+            now = time.time()
+            window = 60.0
+            with _generic_rate_lock:
+                bucket = _generic_rate_buckets.setdefault(scope, {})
+                # Eviction périodique
+                if len(bucket) > 1000:
+                    for k in [k for k, ts in bucket.items() if all(now - t >= window for t in ts)]:
+                        del bucket[k]
+                hits = [t for t in bucket.get(ip, []) if now - t < window]
+                if len(hits) >= max_per_minute:
+                    bucket[ip] = hits
+                    return jsonify(ok=False, error="Trop de requêtes. Réessayez dans 1 min."), 429
+                hits.append(now)
+                bucket[ip] = hits
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 # ── JWT (HS256, sans dépendance PyJWT) ─────────────────────────────
 _JWT_ACCESS_EXPIRY = 900        # 15 minutes
 _JWT_REFRESH_EXPIRY = 2592000   # 30 days

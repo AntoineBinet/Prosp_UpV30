@@ -84,11 +84,17 @@ def _load_ai_config() -> dict:
 
 
 def _save_ai_config(config: dict):
-    """Persiste la config IA sur disque et rafraîchit le cache."""
+    """Persiste la config IA sur disque et rafraîchit le cache.
+    v32.68 : chmod 600 sur le fichier (POSIX) — il contient les clés API
+    en clair (Tavily, Anthropic, HuggingFace, France Travail, etc.)."""
     global _ai_config_cache
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(_AI_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+    try:
+        os.chmod(_AI_CONFIG_FILE, 0o600)
+    except (NotImplementedError, OSError):
+        pass  # Windows : ACL géré au niveau du dossier user
     _ai_config_cache = config
 
 

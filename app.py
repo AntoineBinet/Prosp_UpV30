@@ -386,10 +386,18 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/tick', '/api/system/check-deployment', '/api/system/logs',
-               '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
-               '/api/deploy/validation-status', '/api/deploy/confirm-validation',
-               '/prospects/mode-prosp', '/api/mode-prosp/')
+    # v32.68 — Whitelist nettoyée. Avant : /api/system/check-deployment et
+    # /api/system/logs étaient ici, alors que leurs handlers re-checkent admin.
+    # Anti-pattern : si un dev oublie le re-check, la route devient publique.
+    # Maintenant : les routes admin passent par le check session normal, et
+    # le re-check rôle dans le handler n'est plus qu'une défense en profondeur.
+    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico',
+               '/api/auth/',                                              # login flow (rate-limité)
+               '/api/app-version', '/api/tick',                           # heartbeat trivial
+               '/api/deploy/health',                                       # status pour le superviseur
+               '/api/deploy/pull-from-404', '/api/deploy/rollback',        # auth par recovery token
+               '/api/deploy/validation-status', '/api/deploy/confirm-validation',  # post-pull validation
+               '/prospects/mode-prosp', '/api/mode-prosp/')               # mode prosp autonome (auth par token URL)
     if any(request.path.startswith(p) for p in allowed):
         return
 
