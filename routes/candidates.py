@@ -1481,7 +1481,9 @@ def api_candidate_attachment_delete(att_id):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# v32.81 — Fiche entretien EC1 — formulaire éditable + export Excel
+# v32.82 — Fiche entretien EC1 — formulaire éditable + export Excel
+# Génération par manipulation directe du template .xlsx (zip) : préserve
+# les cases à cocher, images, mise en forme et formules des 4 pages.
 # ═══════════════════════════════════════════════════════════════════
 
 def _ec1_template_path() -> Path | None:
@@ -1500,32 +1502,6 @@ def _slugify_for_filename(s: str) -> str:
     """Convertit une chaîne en nom de fichier Excel safe."""
     s = re.sub(r"[^A-Za-z0-9_\-\. ]+", "", s or "").strip()
     return re.sub(r"\s+", "_", s) or "candidat"
-
-
-def _ec1_apply_to_cell(ws, cell_ref: str, value):
-    """Écrit `value` dans `cell_ref` en respectant les merges (on cible
-    toujours la cellule top-left de la plage)."""
-    try:
-        from openpyxl.utils import range_boundaries  # type: ignore
-    except Exception:
-        ws[cell_ref] = value
-        return
-    target = cell_ref
-    for rng in list(ws.merged_cells.ranges):
-        try:
-            min_col, min_row, max_col, max_row = range_boundaries(str(rng))
-            tl = ws.cell(row=min_row, column=min_col).coordinate
-            cell = ws[cell_ref]
-            if (cell.row >= min_row and cell.row <= max_row
-                    and cell.column >= min_col and cell.column <= max_col):
-                target = tl
-                break
-        except Exception:
-            continue
-    try:
-        ws[target] = value
-    except Exception as e:
-        logger.warning("[ec1] write cell %s failed: %s", target, e)
 
 
 # ── Modèle de données de la fiche EC1 ──────────────────────────────
@@ -1563,14 +1539,24 @@ _EC1_CHECKLIST_KEYS = (
     "evaluation_personnalite", "evaluation_communication", "rappel_valeurs_up",
     "fourchette_salaire", "reponse_questions_craintes", "process_prochaines_etapes",
 )
+# Zones de mobilité — calquées sur le template Excel (cases à cocher).
+_EC1_MOBILITY_ZONES = (
+    "Banlieue parisienne", "Lyon", "Aix", "Sophia", "Paris", "Grenoble",
+    "Toulon", "Province", "Nationale", "Valence", "Montpellier", "Rennes",
+    "Internationale",
+)
+# Zones sans case à cocher dans le template → on préfixe la cellule d'un ✓.
+_EC1_MOBILITY_TEXT_CELLS = {
+    "Valence": "F14", "Montpellier": "G14", "Rennes": "H14", "Internationale": "J14",
+}
 
 
 def _ec1_yesno_to_int(v):
     """Convertit une valeur Oui/Non du formulaire en 0/1 (None si indéterminé)."""
     s = str(v if v is not None else "").strip().lower()
-    if s in ("oui", "yes", "1", "true", "o"):
+    if s in ("oui", "yes", "1", "true", "o", "on"):
         return 1
-    if s in ("non", "no", "0", "false", "n"):
+    if s in ("non", "no", "0", "false", "n", "off"):
         return 0
     return None
 
@@ -1609,6 +1595,23 @@ def _ec1_diplomes_default(c: dict) -> str:
     if annees:
         s = (s + f" — {annees} ans").strip(" —")
     return s
+
+
+def _ec1_zone_set(mobilite) -> set:
+    """Parse la chaîne `mobilite` (zones séparées par des virgules) en set de
+    libellés normalisés sur la liste de référence."""
+    out = set()
+    if not mobilite:
+        return out
+    parts = [p.strip() for p in str(mobilite).replace(";", ",").split(",")]
+    lower_ref = {z.lower(): z for z in _EC1_MOBILITY_ZONES}
+    for p in parts:
+        if not p:
+            continue
+        z = lower_ref.get(p.lower())
+        if z:
+            out.add(z)
+    return out
 
 
 def _ec1_load_context(cid: int, uid: int):
@@ -1665,6 +1668,7 @@ def _ec1_data_from_db(c: dict, ec1_data: dict, user, interview_at=None) -> dict:
         "permis_travail": c.get("permis_travail") or "",
         "demarches_administratives": "",
         "disponibilite": c.get("disponibilite") or "",
+        "domicile": "",
         "mobilite": c.get("mobilite") or "",
         "fonctions_recherchees": c.get("fonctions_recherchees") or "",
         "motif_recherche": c.get("motif_recherche") or "",
@@ -1687,87 +1691,235 @@ def _ec1_data_from_db(c: dict, ec1_data: dict, user, interview_at=None) -> dict:
     }
 
 
-def _ec1_fill_worksheet(ws, d: dict):
-    """Remplit la feuille « Dossier candidat » à partir du dict plat `d`."""
+# ── Génération Excel par manipulation directe du zip .xlsx ──────────
+
+def _ec1_xml_escape(s: str) -> str:
+    """Échappe une valeur texte pour insertion dans du XML."""
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _ec1_set_cell(sheet_xml: str, ref: str, value: str) -> str:
+    """Écrit `value` (chaîne) dans la cellule `ref` du XML de la feuille,
+    sous forme d'inline string. Insère la cellule si elle est absente."""
+    value = _ec1_xml_escape(value)
+    pat = r'<c r="' + ref + r'"( s="\d+")?[^>]*?(/>|>.*?</c>)'
+    m = re.search(pat, sheet_xml, re.S)
+    if m:
+        style = m.group(1) or ""
+        new = ('<c r="' + ref + '"' + style + ' t="inlineStr"><is>'
+               '<t xml:space="preserve">' + value + '</t></is></c>')
+        return sheet_xml[:m.start()] + new + sheet_xml[m.end():]
+    # Cellule absente → on l'insère en tête de sa ligne (colonne A).
+    row_num = re.match(r'[A-Z]+(\d+)', ref)
+    if row_num:
+        rm = re.search(r'<row r="' + row_num.group(1) + r'"[^>]*>', sheet_xml)
+        if rm:
+            cell = ('<c r="' + ref + '" t="inlineStr"><is>'
+                    '<t xml:space="preserve">' + value + '</t></is></c>')
+            return sheet_xml[:rm.end()] + cell + sheet_xml[rm.end():]
+    return sheet_xml
+
+
+def _ec1_shared_strings(ss_xml: str) -> list:
+    """Liste des chaînes partagées (texte brut) du classeur."""
+    out = []
+    for si in re.findall(r'<si>(.*?)</si>', ss_xml, re.S):
+        out.append(re.sub(r'<[^>]+>', '', si))
+    return out
+
+
+def _ec1_cell_text(sheet_xml: str, ref: str, strings: list) -> str:
+    """Texte affiché d'une cellule (résout les chaînes partagées)."""
+    m = re.search(r'<c r="' + ref + r'"[^>]*?(?:/>|>(.*?)</c>)', sheet_xml, re.S)
+    if not m:
+        return ""
+    seg, inner = m.group(0), m.group(1)
+    if inner is None:
+        return ""
+    v = re.search(r'<v>(.*?)</v>', inner, re.S)
+    if v and 't="s"' in seg:
+        try:
+            return strings[int(v.group(1))]
+        except Exception:
+            return ""
+    if v:
+        return v.group(1)
+    isr = re.search(r'<t[^>]*>(.*?)</t>', inner, re.S)
+    return isr.group(1) if isr else ""
+
+
+def _ec1_resolve_checkboxes(sheet_xml: str, rels_xml: str, strings: list) -> dict:
+    """Cartographie les cases à cocher du template.
+
+    Chaque case est repérée par (chemin ctrlProp, shapeId) — le shapeId
+    correspond à l'attribut `o:spid` du dessin VML.
+
+    Retour : { 'permis': [(ctrlProp, shapeId)], 'vehicule': [...],
+               'zones': {zone: [(ctrlProp, shapeId)]},
+               'chk': {'A48': [...], 'A49': [...]} }
+    """
+    from openpyxl.utils import get_column_letter
+    rel_map = dict(re.findall(
+        r'<Relationship Id="(rId\d+)"[^>]*Target="([^"]+)"', rels_xml))
+    res = {"permis": [], "vehicule": [], "zones": {}, "chk": {"A48": [], "A49": []}}
+    zone_lower = {z.lower(): z for z in _EC1_MOBILITY_ZONES}
+    pattern = (r'<control shapeId="(\d+)" r:id="(rId\d+)" name="[^"]*".*?'
+               r'<from><xdr:col>(\d+)</xdr:col><xdr:colOff>\d+</xdr:colOff>'
+               r'<xdr:row>(\d+)</xdr:row>')
+    for shape_id, rid, col, row in re.findall(pattern, sheet_xml, re.S):
+        col, row = int(col), int(row)
+        target = rel_map.get(rid, "")
+        if not target:
+            continue
+        cp = "xl/" + target.replace("../", "")
+        box = (cp, shape_id)
+        if col == 1 and row == 8:
+            res["permis"].append(box)
+        elif col == 3 and row == 8:
+            res["vehicule"].append(box)
+        elif col == 0 and row == 47:
+            res["chk"]["A48"].append(box)
+        elif col == 0 and row == 48:
+            res["chk"]["A49"].append(box)
+        else:
+            city_ref = get_column_letter(col + 2) + str(row + 1)
+            city = _ec1_cell_text(sheet_xml, city_ref, strings).strip()
+            zone = zone_lower.get(city.lower())
+            if zone:
+                res["zones"].setdefault(zone, []).append(box)
+    return res
+
+
+def _ec1_build_xlsx(d: dict) -> bytes:
+    """Génère la fiche EC1 .xlsx en modifiant directement le template (zip).
+
+    Préserve toutes les cases à cocher, images et mises en forme ; coche
+    permis / véhicule / zones de mobilité / checklist selon `d`.
+    """
+    import zipfile
+    from io import BytesIO
+
+    template = _ec1_template_path()
+    if not template:
+        raise RuntimeError("Template Excel introuvable")
+
+    with zipfile.ZipFile(str(template), "r") as zin:
+        infos = zin.infolist()
+        parts = {n: zin.read(n) for n in zin.namelist()}
+
+    sheet = parts["xl/worksheets/sheet1.xml"].decode("utf-8")
+    rels = parts.get("xl/worksheets/_rels/sheet1.xml.rels", b"").decode("utf-8")
+    strings = _ec1_shared_strings(parts.get("xl/sharedStrings.xml", b"").decode("utf-8"))
+
     def g(k):
         v = d.get(k)
         return "" if v is None else str(v).strip()
 
-    # ── Identité ──
-    _ec1_apply_to_cell(ws, "A3", "Prénom Nom : " + g("name"))
-    _ec1_apply_to_cell(ws, "C4", g("phone"))
-    _ec1_apply_to_cell(ws, "C5", g("email"))
-    _ec1_apply_to_cell(ws, "C6", g("diplomes_experience"))
-    _ec1_apply_to_cell(ws, "C7", g("date_lieu_naissance"))
-    _ec1_apply_to_cell(ws, "C8", g("etat_civil"))
-    _ec1_apply_to_cell(ws, "K4", g("source"))
-
-    # ── Entête EC1 ──
-    _ec1_apply_to_cell(ws, "G6", g("recruteur_trigramme") or "XXX")
+    # ── Valeurs texte des cellules ──
     ec1_date = g("ec1_date")
-    _ec1_apply_to_cell(ws, "H6", "OK" if ec1_date else "")
-    _ec1_apply_to_cell(ws, "J6", _ec1_fmt_date(ec1_date))
-
-    # ── Administratif ──
-    _ec1_apply_to_cell(ws, "B9", _ec1_yesno_label(d.get("permis_conduire")))
-    _ec1_apply_to_cell(ws, "D9", _ec1_yesno_label(d.get("vehicule")))
-    _ec1_apply_to_cell(ws, "B10", g("permis_travail"))
-    _ec1_apply_to_cell(ws, "A12", g("demarches_administratives"))
-
-    # ── Disponibilité / mobilité ──
-    _ec1_apply_to_cell(ws, "G10", g("disponibilite"))
-    _ec1_apply_to_cell(ws, "I11", g("mobilite"))
-
-    # ── Recherche ──
-    _ec1_apply_to_cell(ws, "A15", g("fonctions_recherchees"))
-    _ec1_apply_to_cell(ws, "F18", g("motif_recherche"))
-
-    # ── Rémunération ──
-    _ec1_apply_to_cell(ws, "B20", g("remuneration_actuelle"))
-    _ec1_apply_to_cell(ws, "B21", g("pretentions_salariales"))
-    _ec1_apply_to_cell(ws, "B22", g("propal_a"))
-    _ec1_apply_to_cell(ws, "B23", g("mail_recap"))
-    _ec1_apply_to_cell(ws, "E23", g("montant_recap"))
-    _ec1_apply_to_cell(ws, "F21", g("avancement_recherches"))
-
-    # ── Évaluation ──
-    _ec1_apply_to_cell(ws, "B26", g("eval_technique"))
-    _ec1_apply_to_cell(ws, "B27", g("eval_personnalite"))
-    _ec1_apply_to_cell(ws, "B28", g("eval_communication"))
-    _ec1_apply_to_cell(ws, "B29", g("ec1_statut"))
-    if g("avis_perso"):
-        _ec1_apply_to_cell(ws, "D25", g("avis_perso"))
-
-    # ── Langues ──
-    _ec1_apply_to_cell(ws, "B36", g("langues"))
-
-    # ── Références ──
-    if g("references_candidat"):
-        _ec1_apply_to_cell(ws, "A42", g("references_candidat"))
-
-    # ── Checklist EC1 (cases A48-A51) ──
-    chk = d.get("__checklist") if isinstance(d.get("__checklist"), dict) else {}
-    for cell_ref, key in (
-        ("A48", "mobilite_dispo_souhaits"),
-        ("A49", "fourchette_salaire"),
-        ("A50", None),
-        ("A51", None),
-    ):
-        checked = False
-        note = ""
-        if key and isinstance(chk.get(key), dict):
-            checked = bool(chk[key].get("checked"))
-            note = str(chk[key].get("note") or "")
-        cell_val = ws[cell_ref].value or ""
-        new_val = ("[X] " if checked else "[ ] ") + str(cell_val).lstrip(" ✓✗-")
-        if note:
-            new_val += f"  — {note}"
-        _ec1_apply_to_cell(ws, cell_ref, new_val)
-
-    # ── Note libre EC1 globale ──
+    cells = [
+        ("A3", "Prénom Nom : " + g("name")),
+        ("C4", g("phone")),
+        ("C5", g("email")),
+        ("C6", g("diplomes_experience")),
+        ("C7", g("date_lieu_naissance")),
+        ("C8", g("etat_civil")),
+        ("K4", g("source")),
+        ("G6", g("recruteur_trigramme") or "XXX"),
+        ("H6", "OK" if ec1_date else ""),
+        ("J6", _ec1_fmt_date(ec1_date)),
+        ("B10", g("permis_travail")),
+        ("A12", g("demarches_administratives")),
+        ("G10", g("disponibilite")),
+        ("I11", g("domicile")),
+        ("A15", g("fonctions_recherchees")),
+        ("F18", g("motif_recherche")),
+        ("B20", g("remuneration_actuelle")),
+        ("B21", g("pretentions_salariales")),
+        ("B22", g("propal_a")),
+        ("B23", g("mail_recap")),
+        ("E23", g("montant_recap")),
+        ("F21", g("avancement_recherches")),
+        ("B26", g("eval_technique")),
+        ("B27", g("eval_personnalite")),
+        ("B28", g("eval_communication")),
+        ("B29", g("ec1_statut")),
+        ("D25", g("avis_perso")),
+        ("B36", g("langues")),
+        ("A42", g("references_candidat")),
+    ]
     free_note = g("entretien_notes") or g("__free_note")
     if free_note:
-        _ec1_apply_to_cell(ws, "A52", "Notes : " + free_note[:400])
+        cells.append(("A52", "Notes : " + free_note[:400]))
+
+    zones = _ec1_zone_set(d.get("mobilite"))
+    for zone, ref in _EC1_MOBILITY_TEXT_CELLS.items():
+        if zone in zones:
+            cells.append((ref, "✓ " + zone))
+
+    for ref, val in cells:
+        if val == "":
+            continue
+        sheet = _ec1_set_cell(sheet, ref, val)
+
+    # ── Cases à cocher ──
+    cb = _ec1_resolve_checkboxes(sheet, rels, strings)
+    to_check = []  # (ctrlProp_path, vml_id)
+    if _ec1_yesno_to_int(d.get("permis_conduire")) == 1:
+        to_check += cb["permis"]
+    if _ec1_yesno_to_int(d.get("vehicule")) == 1:
+        to_check += cb["vehicule"]
+    for zone in zones:
+        to_check += cb["zones"].get(zone, [])
+    chk = d.get("__checklist") if isinstance(d.get("__checklist"), dict) else {}
+
+    def _checked(key):
+        return isinstance(chk.get(key), dict) and bool(chk[key].get("checked"))
+
+    if _checked("mobilite_dispo_souhaits"):
+        to_check += cb["chk"]["A48"]
+    if _checked("fourchette_salaire"):
+        to_check += cb["chk"]["A49"]
+
+    parts["xl/worksheets/sheet1.xml"] = sheet.encode("utf-8")
+
+    # ctrlProps : ajoute checked="Checked"
+    shape_ids = set()
+    for cp_path, shape_id in to_check:
+        shape_ids.add(shape_id)
+        if cp_path in parts:
+            x = parts[cp_path].decode("utf-8")
+            if "checked=" not in x:
+                x = x.replace('objectType="CheckBox"',
+                              'objectType="CheckBox" checked="Checked"', 1)
+            parts[cp_path] = x.encode("utf-8")
+
+    # VML : ajoute <x:Checked>1</x:Checked> dans le ClientData de la case.
+    # Les formes VML sont repérées par leur o:spid (= shapeId du contrôle).
+    vml_key = "xl/drawings/vmlDrawing1.vml"
+    if shape_ids and vml_key in parts:
+        vml = parts[vml_key].decode("utf-8")
+        for sid in shape_ids:
+            vml = re.sub(
+                r'(_x0000_s' + re.escape(sid) + r'"[\s\S]*?</x:Anchor>)',
+                lambda m: m.group(1) + "<x:Checked>1</x:Checked>",
+                vml, count=1, flags=re.S,
+            )
+        parts[vml_key] = vml.encode("utf-8")
+
+    # Force le recalcul des formules (pages 2-4) à l'ouverture.
+    wb_key = "xl/workbook.xml"
+    if wb_key in parts:
+        wb = parts[wb_key].decode("utf-8")
+        if "<calcPr" in wb and "fullCalcOnLoad" not in wb:
+            wb = wb.replace("<calcPr ", '<calcPr fullCalcOnLoad="1" ', 1)
+        parts[wb_key] = wb.encode("utf-8")
+
+    bio = BytesIO()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in infos:
+            zout.writestr(info, parts[info.filename])
+    return bio.getvalue()
 
 
 def _ec1_persist(cid: int, uid: int, fields: dict, checklist) -> None:
@@ -1862,39 +2014,23 @@ def api_candidate_ec1_export(cid):
     else:
         d = _ec1_data_from_db(c, ec1_data, user, interview_at)
 
-    template = _ec1_template_path()
-    if not template:
-        return jsonify(ok=False, error="Template Excel introuvable"), 500
-
     try:
-        import openpyxl  # type: ignore
-    except ImportError:
-        return jsonify(ok=False, error="openpyxl non installé"), 500
-
-    try:
-        wb = openpyxl.load_workbook(str(template))
-        ws = wb["Dossier candidat"] if "Dossier candidat" in wb.sheetnames else wb.active
-        _ec1_fill_worksheet(ws, d)
-
-        from io import BytesIO
-        bio = BytesIO()
-        wb.save(bio)
-        bio.seek(0)
-
-        safe_name = _slugify_for_filename(c.get("name") or "candidat")
-        trig = _slugify_for_filename(d.get("recruteur_trigramme") or "XXX")
-        today = datetime.datetime.now().strftime("%d%m%Y")
-        download_name = f"Fiche_entretien_{safe_name}_EC1_{trig}_{today}.xlsx"
-
-        return send_file(
-            bio,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        xlsx_bytes = _ec1_build_xlsx(d)
     except Exception as e:
         logger.error("EC1 export failed: %s", e)
         return jsonify(ok=False, error=f"Erreur génération Excel : {e}"), 500
+
+    from io import BytesIO
+    safe_name = _slugify_for_filename(c.get("name") or "candidat")
+    trig = _slugify_for_filename(d.get("recruteur_trigramme") or "XXX")
+    today = datetime.datetime.now().strftime("%d%m%Y")
+    download_name = f"Fiche_entretien_{safe_name}_EC1_{trig}_{today}.xlsx"
+    return send_file(
+        BytesIO(xlsx_bytes),
+        as_attachment=True,
+        download_name=download_name,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @candidates_bp.post("/api/candidates/<int:cid>/ec1-apply")
@@ -1944,6 +2080,7 @@ def api_candidate_ec1_from_transcript(cid):
     if len(transcript) > 40000:
         transcript = transcript[:40000]
 
+    zones_list = ", ".join(_EC1_MOBILITY_ZONES)
     prompt = f"""Tu es un assistant RH expert. Voici la transcription d'un entretien EC1 (entretien de qualification candidat) chez Up Technologies.
 
 ---
@@ -1959,7 +2096,8 @@ Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, 
     "permis_travail": "permis / autorisation de travail (ex: Carte de séjour, UE)",
     "demarches_administratives": "détails des démarches administratives en cours",
     "disponibilite": "date ou délai de disponibilité (ex: Immédiate, 3 mois)",
-    "mobilite": "zones géographiques (ex: Lyon, Paris, Nationale)",
+    "domicile": "ville de domicile du candidat",
+    "mobilite": "zones de mobilité, séparées par des virgules, UNIQUEMENT parmi : {zones_list}",
     "fonctions_recherchees": "postes et secteurs visés",
     "motif_recherche": "motif de départ / motivations principales",
     "remuneration_actuelle": "rémunération actuelle (fixe + variable + avantages)",
@@ -1987,7 +2125,7 @@ Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, 
   }}
 }}
 
-Mets les champs absents à la chaîne vide. Pour permis_conduire et vehicule, réponds exactement « Oui » ou « Non » (ou chaîne vide). Pour la checklist, mets `checked` à true si le sujet a été abordé pendant l'entretien."""
+Mets les champs absents à la chaîne vide. Pour permis_conduire et vehicule, réponds exactement « Oui » ou « Non » (ou chaîne vide). Pour mobilite, n'utilise que les libellés de la liste fournie. Pour la checklist, mets `checked` à true si le sujet a été abordé pendant l'entretien."""
 
     try:
         config = _load_ai_config()

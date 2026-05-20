@@ -1477,14 +1477,15 @@
       { key: 'ec1_date', label: 'Date EC1', type: 'date' }
     ]},
     { title: 'Administratif', fields: [
-      { key: 'permis_conduire', label: 'Permis de conduire', type: 'select', options: ['', 'Oui', 'Non'] },
-      { key: 'vehicule', label: 'Véhicule', type: 'select', options: ['', 'Oui', 'Non'] },
+      { key: 'permis_conduire', label: 'Permis de conduire', type: 'bool' },
+      { key: 'vehicule', label: 'Véhicule', type: 'bool' },
       { key: 'permis_travail', label: 'Permis de travail', type: 'text' },
       { key: 'demarches_administratives', label: 'Détails démarches administratives', type: 'textarea', full: true }
     ]},
     { title: 'Disponibilité & mobilité', fields: [
       { key: 'disponibilite', label: 'Disponibilité', type: 'text' },
-      { key: 'mobilite', label: 'Mobilité', type: 'text' }
+      { key: 'domicile', label: 'Domicile', type: 'text' },
+      { key: 'mobilite', label: 'Zones de mobilité', type: 'zones', full: true }
     ]},
     { title: 'Recherche', fields: [
       { key: 'fonctions_recherchees', label: 'Fonctions recherchées', type: 'textarea', full: true },
@@ -1526,6 +1527,23 @@
     ['reponse_questions_craintes', 'Réponses aux questions / craintes'],
     ['process_prochaines_etapes', 'Détail du process et prochaines étapes']
   ];
+  // Zones de mobilité — calquées sur les cases à cocher du template Excel.
+  var EC1_MOBILITY_ZONES = [
+    'Banlieue parisienne', 'Lyon', 'Aix', 'Sophia', 'Paris', 'Grenoble',
+    'Toulon', 'Province', 'Nationale', 'Valence', 'Montpellier', 'Rennes',
+    'Internationale'
+  ];
+  function ec1ZoneSet(str) {
+    var set = {};
+    String(str || '').split(',').forEach(function (p) {
+      var t = p.trim().toLowerCase();
+      if (t) set[t] = true;
+    });
+    return set;
+  }
+  function ec1IsTrue(v) {
+    return /^(oui|1|true|on|yes)$/i.test(String(v == null ? '' : v).trim());
+  }
 
   // Fusionne la réponse serveur en état de formulaire (valeurs + provenance IA).
   function buildEc1State(res) {
@@ -1575,6 +1593,15 @@
             html += '<option value="' + esc(o) + '"' + (String(val) === String(o) ? ' selected' : '') + '>' + esc(o || '—') + '</option>';
           });
           html += '</select>';
+        } else if (f.type === 'bool') {
+          html += '<label class="v30-ec1-check v30-ec1-bool"><input type="checkbox" data-ec1-field="' + f.key + '" data-ec1-bool="1"' + (ec1IsTrue(val) ? ' checked' : '') + '><span>Oui</span></label>';
+        } else if (f.type === 'zones') {
+          var zset = ec1ZoneSet(val);
+          html += '<div class="v30-ec1-zones">';
+          EC1_MOBILITY_ZONES.forEach(function (z) {
+            html += '<label class="v30-ec1-check"><input type="checkbox" data-ec1-zone="' + esc(z) + '"' + (zset[z.toLowerCase()] ? ' checked' : '') + '><span>' + esc(z) + '</span></label>';
+          });
+          html += '</div>';
         } else {
           var t = (f.type === 'date') ? 'date' : 'text';
           html += '<input type="' + t + '" id="ec1f-' + f.key + '" class="v30-ec1-input" data-ec1-field="' + f.key + '" value="' + esc(val) + '">';
@@ -1610,8 +1637,18 @@
     var fields = {}, checklist = {};
     if (modal) {
       modal.querySelectorAll('[data-ec1-field]').forEach(function (el) {
-        fields[el.getAttribute('data-ec1-field')] = el.value;
+        var key = el.getAttribute('data-ec1-field');
+        if (el.getAttribute('data-ec1-bool')) {
+          fields[key] = el.checked ? 'Oui' : 'Non';
+        } else {
+          fields[key] = el.value;
+        }
       });
+      var zones = [];
+      modal.querySelectorAll('[data-ec1-zone]').forEach(function (el) {
+        if (el.checked) zones.push(el.getAttribute('data-ec1-zone'));
+      });
+      fields.mobilite = zones.join(', ');
       modal.querySelectorAll('[data-ec1-check]').forEach(function (el) {
         checklist[el.getAttribute('data-ec1-check')] = { checked: !!el.checked, note: '' };
       });
