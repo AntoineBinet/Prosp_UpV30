@@ -2,6 +2,39 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.89] — 2026-05-20 · Gamification — prise de RDV de nouveau comptabilisée
+
+- **RDV non comptés** : prendre un rendez-vous avec un prospect (passage
+  au statut « Rendez-vous » depuis la fiche, le kanban ou le statut en
+  masse) n'incrémentait ni l'objectif de gamification « Prendre 1 RDV
+  Prosp » ni la carte Performance « RDV ».
+- **Cause 1 — import manquant** : `routes/bulk.py` (endpoint
+  `/api/prospects/bulk-edit`, utilisé par la fiche prospect, le kanban
+  et l'édition de statut en masse) n'importait pas `datetime`. La
+  création des events `rdv_taken` *et* `status_change`, encapsulée dans
+  un `try/except`, échouait donc silencieusement (`NameError`) — aucun
+  event n'était jamais écrit par cet endpoint.
+- **Cause 2 — date obligatoire** : même dans les chemins fonctionnels
+  (`upsert_all` / `/api/save`, Mode Prosp), l'event `rdv_taken` n'était
+  logué que si une `rdvDate` était renseignée. Déplacer un prospect en
+  « Rendez-vous » sans saisir de date n'était pas comptabilisé.
+- **Correction** : ajout de l'import `datetime` dans `routes/bulk.py` ;
+  l'event `rdv_taken` est désormais déclenché par la *transition* vers
+  le statut « Rendez-vous » — avec ou sans `rdvDate` — en plus du cas
+  déjà géré (changement de date sur un prospect déjà « Rendez-vous »).
+  Appliqué aux trois points d'écriture : `upsert_all` (`/api/save`),
+  `/api/prospects/bulk-edit` et l'enregistrement Mode Prosp.
+- **Pas de sur-comptage** : éditer un prospect déjà « Rendez-vous »
+  sans changer son statut ni sa date ne crée aucun event ; l'index
+  unique `(prospect_id, type, date)` limite à un event par jour et par
+  prospect.
+- **Test** : `tests/test_gamification_rdv.py` couvre les trois cas
+  (transition sans date, non-régression sans changement, changement de
+  date).
+- **Fichiers modifiés** : `app.py`, `routes/bulk.py`, `config.py`,
+  `tests/test_gamification_rdv.py`. Toile d'araignée non impactée
+  (aucune action, route ou endpoint ajouté, renommé ou supprimé).
+
 ## [32.88] — 2026-05-20 · Liste — coches de sélection au style v30
 
 - **Coches custom (mode sombre)** : les coches natives des listes
