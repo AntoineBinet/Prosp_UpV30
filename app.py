@@ -5608,11 +5608,19 @@ def api_prospect_best_candidates(prospect_id: int):
                     if cat_dict.get("keywords"):
                         category_keywords = _parse_json_str_list(cat_dict["keywords"])
 
+        # Piste 6: fonction du prospect + secteur de l'entreprise comme mots-clés
+        # (jusqu'ici chargés mais jamais exploités → prospects sans tags ne
+        # matchaient aucun candidat).
+        fonction_keywords = _keywords_from_notes(prospect_fonction)
+        industry_keywords = _keywords_from_notes(company_industry)
+
         all_sources = (
             [t.lower() for t in prospect_tags_effective]
             + [t.lower() for t in company_tags]
             + [t.lower() for t in category_keywords]
             + notes_keywords_lower
+            + [k.lower() for k in fonction_keywords]
+            + [k.lower() for k in industry_keywords]
         )
         if not all_sources:
             return jsonify(ok=True, candidates=[], prospect_tags=prospect_tags)

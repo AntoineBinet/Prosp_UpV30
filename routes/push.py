@@ -9,7 +9,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
 from app import _audit_log, _init_user_db, _parse_json_str_list, log_activity, logger
@@ -1080,3 +1080,34 @@ def api_candidate_generate_description(cand_id):
         return jsonify(ok=False, error="Impossible de générer la description (pas de DC PDF ou IA indisponible)"), 422
 
     return jsonify(ok=True, description=desc)
+
+
+@push_bp.get("/api/prospect/<int:prospect_id>/push-ai-plan")
+def api_prospect_push_ai_plan(prospect_id: int):
+    """SSE — plan IA du push, diffusé étape par étape pour la modale « Pousser ».
+
+    Pipeline transparent : profil → recherche web (Tavily) → secteur + catégorie
+    (Ollama) → scoring candidats → classement + justifications. Chaque étape est
+    émise en direct pour que l'utilisateur voie le raisonnement de l'IA.
+
+    Query : `category_id` (optionnel) — si une catégorie est déjà choisie dans
+    la modale, le plan la conserve au lieu de la laisser l'IA la deviner.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    # La collecte DB se fait ici (contexte de requête → DB per-user) ; le
+    # générateur SSE reste pur ensuite (Tavily + Ollama + calcul, hors contexte).
+    from services.push_ai import gather_plan_input, stream_push_ai_plan
+
+    preset = request.args.get("category_id", type=int)
+    plan_input, err = gather_plan_input(uid, prospect_id, preset_category_id=preset)
+    if err:
+        return jsonify(ok=False, error=err), 404
+
+    return Response(
+        stream_push_ai_plan(plan_input),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
