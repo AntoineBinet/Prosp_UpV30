@@ -2,6 +2,28 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.79] — 2026-05-20 · Mode Prosp — rail et barre de commande masquables au survol
+
+- **Mode Prosp plus aéré** : dans `/v30/mode-prosp`, le rail d'actions
+  (bord gauche, 76 px) et la barre de commande (bord bas, 40 px) se
+  replient désormais sur les bords de l'écran et réapparaissent au
+  survol de leur zone. La topbar, la fiche prospect et le journal
+  restent affichés en permanence.
+- **Aucun décalage** : les emplacements (`.mp-rail` / `.mp-cmdbar`)
+  conservent leurs dimensions dans le flux — le viewport et tous les
+  autres éléments ne bougent pas, qu'une barre soit visible ou non.
+  Le contenu de chaque barre est déplacé dans un wrapper
+  (`.mp-rail-inner` / `.mp-cmdbar-inner`) animé en `transform`/`opacity`.
+- **Comportement** : auto-masquage actif uniquement sur pointeur fin
+  (souris) via `@media (hover: hover) and (pointer: fine)` ; sur
+  tactile et mobile les barres restent affichées comme avant. Le rail
+  réapparaît aussi au focus clavier (`:focus-within`) ;
+  `prefers-reduced-motion` conserve le masquage sans le glissement.
+- **Fichiers modifiés** : `templates/v30/mode_prosp.html` et
+  `static/css/v30/mode_prosp.css`. Aucun changement fonctionnel
+  (boutons, handlers, endpoints inchangés) — toile d'araignée non
+  impactée.
+
 ## [32.78] — 2026-05-19 · Téléchargement explicite des templates push (.msg)
 
 - **Modal catégorie de push — téléchargement plus visible** : dans la
