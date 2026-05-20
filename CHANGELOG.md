@@ -2,6 +2,19 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.82] — 2026-05-20 · Bouton « Suivant » de rattrapage — ancrage à droite
+
+- **Repositionnement** : le bouton flottant « Suivant » (rattrapage de
+  push) passe du bord gauche au **bord droit** de l'écran — il ne
+  chevauche plus la barre latérale.
+- **Style aligné v30** : fond `--surface`, fine bordure `--border`,
+  libellé en `--text` et logo dé en `--accent` (au lieu d'une pastille
+  pleine accent, trop voyante). Ombre, rayons, durées et courbes
+  d'animation tirés des tokens du design system ; apparition glissée
+  depuis la droite.
+- **Périmètre** : `static/css/v30/prospect_detail.css` uniquement — la
+  logique du tirage aléatoire et le JS sont inchangés.
+
 ## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
 
 - **Suite d'un EC1 plus propre** : après l'analyse IA d'une transcription
