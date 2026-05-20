@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.88] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
+## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
 
 - **Tri par colonnes rétabli** : la liste des entreprises retrouve le
   tri interactif, comme le tableau Prospects. Les en-têtes **Entreprise**,
@@ -18,6 +18,23 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - **Fichiers modifiés** : `static/js/v30/entreprises.js`,
   `templates/v30/entreprises.html`, `routes/pages.py` (toile d'araignée :
   nouvelle action « Trier le tableau »), `config.py`.
+
+## [32.88] — 2026-05-20 · Liste — coches de sélection au style v30
+
+- **Coches custom (mode sombre)** : les coches natives des listes
+  Prospects et Entreprises s'affichaient comme des carrés blancs
+  criards, particulièrement sur fond sombre. Elles sont remplacées
+  par une coche dessinée au style v30 : surface neutre bordée au
+  repos (plus aucun carré blanc), remplissage `--accent` avec un
+  check arrondi à l'état coché, bordure accentuée au survol et tiret
+  à l'état indéterminé.
+- **Portée** : règle scopée à `.v30-pp-table input[type="checkbox"]`
+  — couvre la liste Prospects (tableau desktop + cartes mobile) et la
+  liste Entreprises, qui partagent le même tableau. Aucun changement
+  de comportement ni de logique de sélection.
+- **Fichiers modifiés** : `static/css/v30/prospects.css`,
+  `config.py`. Toile d'araignée non impactée (aucune action, route
+  ou endpoint modifié).
 
 ## [32.87] — 2026-05-20 · Mode Prosp — finitions mode sombre (scrollbars + fiche)
 
