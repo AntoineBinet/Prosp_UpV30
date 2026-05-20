@@ -205,6 +205,61 @@
   background: color-mix(in oklch, var(--accent) 12%, var(--surface));
 }
 
+/* ─── Coches de sélection — liste prospects + entreprises ───────
+   Coche custom v30 : surface neutre bordée au repos (plus de carré
+   blanc natif, criard en mode sombre), remplissage accent + check
+   arrondi à l'état coché, tiret à l'état indéterminé. */
+.v30-pp-table input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease);
+}
+.v30-pp-table input[type="checkbox"]:hover {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 12%, var(--surface));
+}
+.v30-pp-table input[type="checkbox"]:checked,
+.v30-pp-table input[type="checkbox"]:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.v30-pp-table input[type="checkbox"]:checked:hover,
+.v30-pp-table input[type="checkbox"]:indeterminate:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.v30-pp-table input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent-fg);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6L9 17l-5-5'/></svg>") center / 11px no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6L9 17l-5-5'/></svg>") center / 11px no-repeat;
+}
+.v30-pp-table input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-fg);
+  transform: translate(-50%, -50%);
+}
+
 .v30-pp-name {
   display: flex;
   align-items: center;
