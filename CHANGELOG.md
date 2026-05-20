@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.86] — 2026-05-20 · Import prospects — zone de dépôt avec glisser-déposer
+
+- **Glisser-déposer de fichier** : l'onglet « Fichier (Excel / CSV) » de
+  la modale d'import accepte désormais un fichier déposé directement
+  depuis l'explorateur. La zone se surligne pendant le survol et
+  l'import se lance au dépôt, exactement comme via le sélecteur.
+- **Zone de dépôt redessinée** : l'ancien champ `<input type="file">`
+  natif est remplacé par une zone au style v30 (bordure pointillée,
+  icône d'upload, formats acceptés) — cohérente avec le reste du
+  design system, en mode clair comme sombre.
+- **Retour visuel** : une pastille affiche le nom du fichier
+  sélectionné une fois celui-ci chargé.
+- **Garde-fous** : les fichiers d'un format non supporté sont rejetés
+  avec un message clair ; un dépôt à côté de la zone n'ouvre plus le
+  fichier dans le navigateur.
+
 ## [32.85] — 2026-05-20 · Enrichissement de la fiche candidat depuis les documents (IA)
 
 - **Bouton « Enrichir » sur chaque pièce jointe** : dans la fiche
