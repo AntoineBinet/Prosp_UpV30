@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.80] — 2026-05-20 · Bouton « Suivant » de rattrapage de push
+
+- **Re-tirage aléatoire d'un prospect à pousser** : quand on ouvre une
+  fiche prospect depuis l'objectif « push » du jour (tirage aléatoire),
+  un **bouton flottant « Suivant »** (logo dé) apparaît sur le bord
+  gauche de l'écran. Un clic propose **un autre prospect éligible au
+  hasard** — pratique quand le prospect tiré ne convient pas.
+- **Pas de doublon** : les prospects déjà proposés pendant la session de
+  rattrapage sont mémorisés (`sessionStorage`) et exclus du tirage ; une
+  fois toute la liste parcourue, un nouveau tour redémarre.
+- **Visible en rattrapage uniquement** : le bouton n'apparaît que si la
+  fiche est ouverte via le mécanisme de rattrapage de push (URL
+  `?push=rattrapage`) — invisible en navigation normale.
+- **Backend** : `GET /api/prospects/quick-filter?preset=push_ready`
+  accepte désormais un paramètre `exclude` (liste d'IDs à écarter) —
+  [app.py](app.py) `api_prospects_quick_filter`.
+- **Fichiers** : nouveau `static/js/v30/push_rattrapage.js` ;
+  `static/js/v30/dashboard.js` (`handleObjPush`),
+  `templates/v30/prospect_detail.html`,
+  `static/css/v30/prospect_detail.css`.
+- **Toile d'araignée** : nouvelles actions « Objectif push → fiche
+  aléatoire » (Dashboard) et « Rattrapage de push — bouton Suivant »
+  (fiche prospect).
+
 ## [32.79] — 2026-05-20 · Mode Prosp — rail et barre de commande masquables au survol
 
 - **Mode Prosp plus aéré** : dans `/v30/mode-prosp`, le rail d'actions
