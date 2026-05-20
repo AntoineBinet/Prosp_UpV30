@@ -9,7 +9,8 @@
     filtered: [],
     selected: new Set(),
     q: '',
-    filters: { piped: false, hasProspects: false, emptyOnly: false, tags: [] }
+    filters: { piped: false, hasProspects: false, emptyOnly: false, tags: [] },
+    sort: { key: '', dir: 'asc' }
   };
 
   var SPLIT_STATE = { selectedId: null, loadingId: null, cache: {} };
@@ -521,6 +522,72 @@
     });
   }
 
+  // ─── Tri du tableau ──────────────────────────────────────
+  // Colonnes triables au clic sur l'en-tête — aligné sur le pattern Prospects.
+  var SORT_KEY = 'v30.entreprises.sort';
+  var SORTABLE_COLS = ['groupe', 'site', 'total', 'piped', 'won', 'lastContact'];
+
+  function loadSortPref() {
+    try {
+      var raw = localStorage.getItem(SORT_KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (s && SORTABLE_COLS.indexOf(s.key) >= 0 && (s.dir === 'asc' || s.dir === 'desc')) {
+        STATE.sort = { key: s.key, dir: s.dir };
+      }
+    } catch (_) {}
+  }
+  function saveSortPref() {
+    try { localStorage.setItem(SORT_KEY, JSON.stringify(STATE.sort)); } catch (_) {}
+  }
+
+  function sortArray(arr, key, dir) {
+    return arr.slice().sort(function (a, b) {
+      var va, vb;
+      switch (key) {
+        case 'groupe':      va = String(a.groupe || '').toLowerCase(); vb = String(b.groupe || '').toLowerCase(); break;
+        case 'site':        va = String(a.site || '').toLowerCase();   vb = String(b.site || '').toLowerCase();   break;
+        case 'total':       va = a.total || 0; vb = b.total || 0; break;
+        case 'piped':       va = a.piped || 0; vb = b.piped || 0; break;
+        case 'won':         va = a.won || 0;   vb = b.won || 0;   break;
+        case 'lastContact': va = a.lastContact ? String(a.lastContact).slice(0, 10) : ''; vb = b.lastContact ? String(b.lastContact).slice(0, 10) : ''; break;
+        default: return 0;
+      }
+      var cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return dir === 'desc' ? -cmp : cmp;
+    });
+  }
+
+  // Met à jour les flèches ↑/↓/↕ des en-têtes selon STATE.sort.
+  function renderSortHeaders() {
+    document.querySelectorAll('[data-v30-ent-panel="table"] thead th[data-sort-key]').forEach(function (th) {
+      var arrow = th.querySelector('[data-sort-arrow]');
+      if (!arrow) return;
+      var active = STATE.sort.key === th.dataset.sortKey;
+      arrow.textContent = active ? (STATE.sort.dir === 'asc' ? '↑' : '↓') : '↕';
+      arrow.style.opacity = active ? '.7' : '.25';
+    });
+  }
+
+  function bindSort() {
+    var thead = document.querySelector('[data-v30-ent-panel="table"] thead');
+    if (!thead) return;
+    thead.addEventListener('click', function (e) {
+      var th = e.target.closest('th[data-sort-key]');
+      if (!th) return;
+      var key = th.dataset.sortKey;
+      if (STATE.sort.key === key) {
+        STATE.sort.dir = STATE.sort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.sort.key = key;
+        STATE.sort.dir = 'asc';
+      }
+      saveSortPref();
+      renderSortHeaders();
+      applyFilter();
+    });
+  }
+
   // ─── Recherche + filtres ─────────────────────────────────
   function passesFilters(r) {
     var F = STATE.filters;
@@ -544,6 +611,9 @@
           || (r.site || '').toLowerCase().indexOf(q) >= 0
           || (r.tags || []).some(function (t) { return t.toLowerCase().indexOf(q) >= 0; });
     });
+    if (STATE.sort && STATE.sort.key) {
+      STATE.filtered = sortArray(STATE.filtered, STATE.sort.key, STATE.sort.dir);
+    }
     renderRows(STATE.filtered);
     var cardsPanel = $('[data-v30-ent-panel="cards"]');
     if (cardsPanel && !cardsPanel.hidden) renderCards(STATE.filtered);
@@ -1661,6 +1731,7 @@
   }
 
   function init() {
+    loadSortPref();
     bindSearch();
     bindViewSwitch();
     bindModalDismiss();
@@ -1677,6 +1748,8 @@
     bindBulk();
     bindOpen();
     bindSplit();
+    bindSort();
+    renderSortHeaders();
     reload();
     startPendingPolling();
   }

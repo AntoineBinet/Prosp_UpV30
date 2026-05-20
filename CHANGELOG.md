@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.89] — 2026-05-20 · Badge de statut cliquable dans les tableaux
+## [32.90] — 2026-05-20 · Badge de statut cliquable dans les tableaux
 
 - **Changement de statut inline** : dans tous les tableaux de prospects
   (liste Prospects, vue Split Entreprises, Focus), le badge de statut
@@ -25,6 +25,23 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   `static/js/v30/prospects.js`, `static/js/v30/entreprises.js`,
   `static/js/v30/focus.js`, `routes/pages.py` (toile d'araignée mise à
   jour : 3 nouvelles actions), `config.py`.
+
+## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
+
+- **Tri par colonnes rétabli** : la liste des entreprises retrouve le
+  tri interactif, comme le tableau Prospects. Les en-têtes **Entreprise**,
+  **Site**, **Prospects**, **RDV / Propale**, **Gagnés** et **Dernier
+  contact** sont cliquables : un premier clic trie en ordre croissant,
+  un second bascule en décroissant. La colonne active affiche une flèche
+  ↑/↓, les autres une flèche neutre ↕.
+- **Persistance** : le tri choisi est mémorisé dans `localStorage`
+  (`v30.entreprises.sort`) et restauré au rechargement de la page.
+- **Tri par défaut conservé** : sans colonne sélectionnée, l'ordre
+  intelligent historique reste appliqué (en pipeline → total prospects
+  → nom). Le tri s'applique aussi aux vues Cartes et Split.
+- **Fichiers modifiés** : `static/js/v30/entreprises.js`,
+  `templates/v30/entreprises.html`, `routes/pages.py` (toile d'araignée :
+  nouvelle action « Trier le tableau »), `config.py`.
 
 ## [32.88] — 2026-05-20 · Liste — coches de sélection au style v30
 

@@ -977,6 +977,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["deleteCompany"], "endpoints": ["POST /api/companies/delete"], "backend": ["routes/companies.py:api_companies_delete"]}},
                 {"label": "Filtrer / rechercher", "href": "/v30/entreprises",
                  "tools": {"handlers": ["filterEntreprises"], "endpoints": ["GET /api/search"], "backend": ["app.py:api_search"]}},
+                {"label": "Trier le tableau (colonnes cliquables)", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["bindSort", "sortArray", "renderSortHeaders"], "endpoints": [], "backend": []}},
                 {"label": "Exporter la liste", "href": "/v30/entreprises",
                  "tools": {"handlers": ["exportXlsx"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
                 {"label": "Vue liste / cartes / carte géo", "href": "/v30/entreprises",
