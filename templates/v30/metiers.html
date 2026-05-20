@@ -16,7 +16,7 @@
     <div class="page-header__group">
       <p class="page-eyebrow">Référentiels</p>
       <h1 class="page-title">Métiers &amp; tags IA.</h1>
-      <p class="page-sub">Référentiel des spécialités utilisées par l'IA pour la catégorisation.</p>
+      <p class="page-sub">L'arborescence courbe en lecture · le drill-in d'un métier à droite.</p>
     </div>
     <div class="page-header__actions">
       <button type="button" class="btn" data-v30-metiers-export>
@@ -24,29 +24,111 @@
       </button>
       {% if current_user and current_user.role == 'admin' %}
       <button type="button" class="btn btn-accent" data-v30-metier-add>
-        {{ ui.icon('plus', 13) }} Ajouter (custom)
+        {{ ui.icon('plus', 13) }} Ajouter
       </button>
       {% endif %}
     </div>
   </div>
 
-  {# ─── Search bar ─── #}
-  <div class="search-bar v30-metiers__search">
-    {{ ui.icon('search', 14) }}
-    <input type="search" class="input" data-v30-metiers-search
-           placeholder="Rechercher un métier, une techno, un secteur…" autocomplete="off">
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-metiers-search-clear hidden aria-label="Effacer">×</button>
+  {# ─── Toolbar ─── #}
+  <div class="v6-toolbar">
+    <div class="v6-search">
+      <span class="v6-search__icon">⌕</span>
+      <input type="search" class="v6-search__input" data-v6-search
+             placeholder="Rechercher un métier, une techno, un secteur…"
+             autocomplete="off" spellcheck="false">
+      <span class="v6-search__kbd">⌘K</span>
+    </div>
+    <div class="v6-seg" data-v6-seg>
+      <button type="button" class="is-on" data-seg="tree">Arbre</button>
+      <button type="button" data-seg="list">Liste</button>
+      <button type="button" data-seg="matrix">Matrice</button>
+    </div>
   </div>
 
-  {# ─── Filtres domaine ─── #}
-  <div class="filter-chips v30-metiers__domains" data-v30-metiers-domains role="group" aria-label="Filtre domaine">
-    {# Rempli en JS depuis METIERS_DATA #}
-  </div>
+  {# ─── Grille principale : arbre + détail ─── #}
+  <div class="v6-grid">
 
-  {# ─── Grille métiers ─── #}
-  <div class="v30-metiers__count muted" data-v30-metiers-count></div>
-  <div class="metiers-grid" data-v30-metiers-grid>
-    <div class="empty" style="padding:24px;">Chargement…</div>
+    {# Panneau arbre (gauche) #}
+    <div class="v6-pane" data-v6-tree-pane>
+      <div class="v6-tree-h">
+        <span class="v6-tree-h__ttl">Arborescence métiers</span>
+        <span class="v6-tree-h__ct" data-v6-tree-count>4 familles · 26 métiers</span>
+        <span class="v6-tree-h__acts">
+          <button type="button" class="v6-ico-btn" title="Replier" data-v6-collapse>⊟</button>
+          <button type="button" class="v6-ico-btn" title="Centrer"  data-v6-center>⊕</button>
+        </span>
+      </div>
+      <div class="v6-canvas" data-v6-canvas>
+        <div class="v6-inner" data-v6-inner>
+          {# Rempli dynamiquement par metiers.js #}
+        </div>
+      </div>
+    </div>
+
+    {# Panneau détail (droite, 380 px) #}
+    <div class="v6-pane v6-pane--detail">
+      <div class="v6-det">
+
+        <div class="v6-det-h">
+          <div class="v6-crumb" data-v6-crumb></div>
+          <h2 class="v6-det-title" data-v6-det-title></h2>
+        </div>
+
+        <div class="v6-det-body" data-v6-det-body>
+
+          <div class="v6-sec">
+            <div class="v6-sec-label">Définition IA</div>
+            <div class="v6-desc" data-v6-desc></div>
+          </div>
+
+          <div class="v6-sec">
+            <div class="v6-sec-label">Usage</div>
+            <div class="v6-stats-grid">
+              <div class="v6-stat">
+                <div class="v6-stat__l">Prospects</div>
+                <div class="v6-stat__v" data-v6-vol-p>—</div>
+                <div class="v6-stat__tr" data-v6-trend></div>
+              </div>
+              <div class="v6-stat">
+                <div class="v6-stat__l">Entreprises</div>
+                <div class="v6-stat__v" data-v6-vol-e>—</div>
+              </div>
+              <div class="v6-stat">
+                <div class="v6-stat__l">Besoins</div>
+                <div class="v6-stat__v" data-v6-vol-b>—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v6-sec">
+            <div class="v6-sec-label">
+              Secteurs rattachés
+              <span class="v6-sec-label__ct" data-v6-sec-ct></span>
+            </div>
+            <div class="v6-pills" data-v6-sectors></div>
+          </div>
+
+          <div class="v6-sec">
+            <div class="v6-sec-label">
+              Mots-clés IA
+              <span class="v6-sec-label__ct" data-v6-kw-ct></span>
+            </div>
+            <div class="v6-pills v6-pills--kw" data-v6-keywords></div>
+          </div>
+
+        </div>
+
+        <div class="v6-det-foot">
+          <button type="button" class="btn btn-ghost btn-sm">✎ Éditer</button>
+          <button type="button" class="btn btn-ghost btn-sm">⎘ Dupliquer</button>
+          <span class="v6-det-foot__spacer"></span>
+          <button type="button" class="btn btn-ghost btn-sm v6-btn-danger">⌫ Supprimer</button>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   {# ─── Custom métiers (admin) ─── #}
@@ -64,55 +146,6 @@
   </details>
   {% endif %}
 
-</div>
-
-{# ─── Modale détail métier ─── #}
-<div class="v30-modal-bd" data-v30-metier-detail-bd hidden>
-  <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-label="Détail métier">
-    <header class="v30-modal__head">
-      <h2 class="v30-modal__title" data-v30-metier-detail-title>Détail</h2>
-      <button type="button" class="btn btn-ghost btn-icon" data-v30-metier-detail-close aria-label="Fermer">{{ ui.icon('x') }}</button>
-    </header>
-    <div class="v30-modal__body">
-      <div class="v30-colgrid v30-metier-detail">
-        <div class="v30-metier-detail__left">
-          <h3 class="v30-metier-detail__h">Description</h3>
-          <p class="v30-metier-detail__desc" data-v30-metier-detail-desc>—</p>
-
-          <h3 class="v30-metier-detail__h">Secteurs</h3>
-          <div class="v30-metier-detail__sectors" data-v30-metier-detail-sectors></div>
-
-          <h3 class="v30-metier-detail__h">Certifications</h3>
-          <div class="v30-metier-detail__certs" data-v30-metier-detail-certifs>—</div>
-        </div>
-        <div class="v30-metier-detail__right">
-          <div class="v30-metier-detail__stats">
-            <div class="v30-metier-detail__stat">
-              <span class="v30-metier-detail__stat-key">Salaire médian</span>
-              <span class="v30-metier-detail__stat-val mono" data-v30-metier-detail-salary>—</span>
-            </div>
-            <div class="v30-metier-detail__stat">
-              <span class="v30-metier-detail__stat-key">Tendance</span>
-              <span class="v30-metier-detail__trend" data-v30-metier-detail-trend>
-                <span class="v30-metier-detail__trend-bar"><i></i></span>
-                <span class="v30-metier-detail__trend-label" data-v30-metier-detail-trend-label>—</span>
-              </span>
-            </div>
-            <div class="v30-metier-detail__stat">
-              <span class="v30-metier-detail__stat-key">Domaine</span>
-              <span class="v30-metier-detail__stat-val" data-v30-metier-detail-domain>—</span>
-            </div>
-          </div>
-
-          <h3 class="v30-metier-detail__h">Compétences clés</h3>
-          <div class="v30-metier-detail__skills" data-v30-metier-detail-skills></div>
-        </div>
-      </div>
-    </div>
-    <footer class="v30-modal__foot">
-      <button type="button" class="btn btn-ghost" data-v30-metier-detail-close>Fermer</button>
-    </footer>
-  </div>
 </div>
 
 <script defer src="/static/js/metiers-data.js?v={{ static_hash('js/metiers-data.js') }}"></script>
