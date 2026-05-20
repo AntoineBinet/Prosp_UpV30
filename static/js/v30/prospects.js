@@ -132,49 +132,17 @@
     } catch (_) { return iso; }
   }
 
-  function rdvDateLabel(iso) {
-    if (!iso) return '';
-    try {
-      var d = new Date(iso);
-      if (isNaN(d.getTime())) return '';
-      var now = new Date();
-      var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      var startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      var diffJ = Math.round((startDate.getTime() - startToday.getTime()) / 86400000);
-      if (diffJ === 0) return "auj.";
-      if (diffJ === 1) return 'demain';
-      if (diffJ === -1) return 'hier';
-      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }).replace('.', '');
-    } catch (_) { return ''; }
-  }
-
-  function renderStatusBadge(p, extraStyle) {
+  // Badge de statut. Cliquable (V30StatusPicker) dans le tableau ;
+  // `plain` force la variante non interactive (ex. ligne split, contenue
+  // dans un <a> où un <button> imbriqué serait invalide).
+  function renderStatusBadge(p, extraStyle, plain) {
     if (!p || !p.statut) return '—';
-    var cls = statusClass(p.statut);
-    var label = esc(p.statut);
-    if (p.statut === 'Rendez-vous' && p.rdvDate) {
-      var dl = rdvDateLabel(p.rdvDate);
-      if (dl) label += ' · ' + esc(dl);
-    }
-    var style = extraStyle ? ' style="' + extraStyle + '"' : '';
-    return '<span class="status ' + cls + '"' + style + '>' + label + '</span>';
-  }
-
-  // Pills génériques retirées (-contact, -proposal, -won, -lost) car
-  // hors modèle métier ProspUp. Les libellés non mappés retombent sur le
-  // statut neutre `.status`.
-  function statusClass(statut) {
-    var map = {
-      "Pas d'actions": 'status-idle',
-      'Prospecté':     'status-prosp',
-      'Appelé':        'status-called',
-      'Contacté':      'status-called',
-      'Messagerie':    'status-voicemail',
-      'À rappeler':    'status-callback',
-      'Rendez-vous':   'status-rdv',
-      'Pas intéressé': 'status-cold'
-    };
-    return map[statut] || '';
+    return V30StatusPicker.badge(p.statut, {
+      id: p.id,
+      rdvDate: p.rdvDate,
+      style: extraStyle || '',
+      interactive: !plain
+    });
   }
 
   function fetchJSON(url, opts) {
@@ -498,7 +466,7 @@
           '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
           '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + esc(coName) + '</div>' +
         '</div>' +
-        (p.statut ? renderStatusBadge(p, 'font-size:10px;padding:1px 6px;') : '') +
+        (p.statut ? renderStatusBadge(p, 'font-size:10px;padding:1px 6px;', true) : '') +
       '</a>';
     }).join('');
   }
@@ -698,7 +666,6 @@
     initials: initials,
     relativeDate: relativeDate,
     shortDate: shortDate,
-    statusClass: statusClass,
     fetchJSON: fetchJSON,
     fetchPostJSON: fetchPostJSON,
     renderTable: renderTable,
@@ -2801,12 +2768,30 @@
     });
   }
 
+  // Synchronise STATE quand un badge de statut est changé inline via
+  // V30StatusPicker. Le badge est déjà repeint par le picker ; on garde
+  // juste les données cohérentes pour le tri, les filtres, le kanban
+  // et les KPI.
+  function bindStatutSync() {
+    document.addEventListener('v30:statut-changed', function (e) {
+      var d = e.detail || {};
+      var id = Number(d.id);
+      if (!id) return;
+      [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(function (x) { if (Number(x.id) === id) x.statut = d.statut; });
+      });
+      updateKpis();
+    });
+  }
+
   function init() {
     restorePersistedFilters();
     readUrlFilters();
     bindViewSwitch();
     bindSelection();
     bindSplit();
+    bindStatutSync();
     bindOpen();
     bindKanbanDnd();
     bindBulk();

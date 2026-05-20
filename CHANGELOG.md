@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.90] — 2026-05-20 · Badge de statut cliquable dans les tableaux
+
+- **Changement de statut inline** : dans tous les tableaux de prospects
+  (liste Prospects, vue Split Entreprises, Focus), le badge de statut
+  devient un bouton. Un clic ouvre un menu déroulant animé pour choisir
+  le nouveau statut sans quitter le tableau ni ouvrir la fiche.
+- **Composant partagé** : nouveau module `V30StatusPicker`
+  (`status-picker.js` + `status-picker.css`, chargés globalement). Il
+  expose `badge()` (rendu du badge cliquable), un menu accessible
+  (navigation clavier, `Escape`, `prefers-reduced-motion`) et la
+  persistance via `POST /api/prospects/bulk-edit`.
+- **UX** : mise à jour optimiste avec animation pulse, halo de survol
+  aux couleurs du statut, caret animé, menu vitré (`backdrop-filter`)
+  avec apparition scale + fade et items en cascade. Toast de
+  confirmation et intégration de l'annulation (`pushUndo`).
+- **Refactor** : `renderStatusBadge` (Prospects), `statusBadge`
+  (Entreprises) et les badges de Focus délèguent au composant partagé ;
+  les mappings de couleurs de statut dupliqués sont supprimés.
+- **Fichiers** : `static/js/v30/status-picker.js` (nouveau),
+  `static/css/v30/status-picker.css` (nouveau), `templates/v30/base.html`,
+  `static/js/v30/prospects.js`, `static/js/v30/entreprises.js`,
+  `static/js/v30/focus.js`, `routes/pages.py` (toile d'araignée mise à
+  jour : 3 nouvelles actions), `config.py`.
+
 ## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
 
 - **Tri par colonnes rétabli** : la liste des entreprises retrouve le

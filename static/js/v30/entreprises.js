@@ -189,22 +189,15 @@
     var r = String(p).replace(/[^\d]/g, '');
     return plus ? '+' + r : r;
   }
-  var STATUS_CLASS = {
-    "Pas d'actions": 'status-idle',
-    'Prospecté':     'status-prosp',
-    'Appelé':        'status-called',
-    'Contacté':      'status-called',
-    'Messagerie':    'status-voicemail',
-    'À rappeler':    'status-callback',
-    'Rendez-vous':   'status-rdv',
-    'Pas intéressé': 'status-cold',
-    'Proposition':   'status-rdv',
-    'Gagné':         'status-prosp'
-  };
-  function statusBadge(s) {
-    if (!s) return '';
-    var cls = STATUS_CLASS[s] || '';
-    return '<span class="status ' + cls + '" style="font-size:10px;padding:1px 6px;">' + esc(s) + '</span>';
+  // Badge de statut cliquable (V30StatusPicker) — change le statut du
+  // prospect directement depuis la liste de la vue Split.
+  function statusBadge(p) {
+    if (!p || !p.statut) return '';
+    return V30StatusPicker.badge(p.statut, {
+      id: p.id,
+      rdvDate: p.rdvDate,
+      style: 'font-size:10px;padding:1px 6px;'
+    });
   }
   var TEL_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
   var EMAIL_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>';
@@ -383,7 +376,7 @@
             '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
             (subline ? '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + subline + '</div>' : '') +
           '</div>' +
-          '<div class="v30-ent-prosp-row__status">' + statusBadge(p.statut) + '</div>' +
+          '<div class="v30-ent-prosp-row__status">' + statusBadge(p) + '</div>' +
           '<div class="v30-ent-prosp-row__actions">' + actTel + actEmail + actLi + actOpen + '</div>' +
         '</div>';
       }).join('');
@@ -433,9 +426,26 @@
     document.addEventListener('click', function (e) {
       var row = e.target.closest('[data-v30-ent-prosp-open]');
       if (!row) return;
-      if (e.target.closest('.v30-ent-prosp-act')) return;
+      // Le badge de statut (.v30-statpick) ouvre son propre menu — ne pas
+      // naviguer vers la fiche dans ce cas.
+      if (e.target.closest('.v30-ent-prosp-act') || e.target.closest('.v30-statpick')) return;
       var pid = row.dataset.v30EntProspOpen;
       if (pid) window.location.href = '/v30/prospect/' + encodeURIComponent(pid);
+    });
+
+    // Sync du cache split quand un badge de statut change inline.
+    document.addEventListener('v30:statut-changed', function (e) {
+      var d = e.detail || {};
+      var id = Number(d.id);
+      if (!id) return;
+      Object.keys(SPLIT_STATE.cache || {}).forEach(function (cid) {
+        var entry = SPLIT_STATE.cache[cid];
+        if (entry && Array.isArray(entry.prospects)) {
+          entry.prospects.forEach(function (p) {
+            if (Number(p.id) === id) p.statut = d.statut;
+          });
+        }
+      });
     });
 
     // Keyboard activation (Enter / Space) on a prospect row
