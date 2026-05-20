@@ -22,6 +22,8 @@
   --mp-ok-soft:     #E3F2EC;
   --mp-serif:       'Fraunces', 'Times New Roman', serif;
   --mp-mono:        'JetBrains Mono', ui-monospace, monospace;
+  --mp-scroll-thumb:       rgba(21, 23, 26, 0.22);
+  --mp-scroll-thumb-hover: rgba(21, 23, 26, 0.42);
 }
 
 /* ── Palette sombre (toggle via .mp-dark) ── */
@@ -41,6 +43,8 @@
   --mp-msg-soft:    #2C2244;
   --mp-ok:          #26A870;
   --mp-ok-soft:     #1A3628;
+  --mp-scroll-thumb:       rgba(237, 233, 226, 0.20);
+  --mp-scroll-thumb-hover: rgba(237, 233, 226, 0.40);
 }
 .mode-prosp-body.mp-dark .mp-theme-icon-moon { display: none !important; }
 .mode-prosp-body.mp-dark .mp-theme-icon-sun  { display: block !important; }
@@ -56,6 +60,27 @@
   height: 100vh; height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Scrollbars — discrètes, accordées à la palette ──────────────
+   La règle globale `body[data-v30]` de tokens.css ne s'applique pas
+   ici (Mode Prosp porte `data-v30` sur <html>, pas sur <body>), d'où
+   ce style dédié qui suit le toggle .mp-dark. */
+.mode-prosp-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mp-scroll-thumb) transparent;
+}
+.mode-prosp-body ::-webkit-scrollbar { width: 10px; height: 10px; }
+.mode-prosp-body ::-webkit-scrollbar-track { background: transparent; }
+.mode-prosp-body ::-webkit-scrollbar-thumb {
+  background-color: var(--mp-scroll-thumb);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+.mode-prosp-body ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--mp-scroll-thumb-hover);
+}
+.mode-prosp-body ::-webkit-scrollbar-corner { background: transparent; }
 
 /* ── Shell (full-page flex column) ── */
 .mp-shell {
@@ -375,13 +400,14 @@
   overflow: hidden;
 }
 
-/* Card pane (left, flex: 1) */
+/* Card pane (left, flex: 1) — la fiche flotte avec une marge égale
+   sur les 4 côtés (le bas n'est plus coupé net contre le bord). */
 .mp-card-pane {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px 16px 0;
+  padding: 16px;
   min-width: 0;
 }
 
@@ -1299,7 +1325,7 @@ textarea.mp-input {
 /* < 1100px : timeline plus étroite */
 @media (max-width: 1100px) {
   .mp-card-timeline { width: 270px; }
-  .mp-card-pane { padding: 12px 12px 0; }
+  .mp-card-pane { padding: 12px; }
   .mp-card-head { padding: 12px 16px 10px; }
   .mp-card-body { padding: 12px 16px 10px; }
 }

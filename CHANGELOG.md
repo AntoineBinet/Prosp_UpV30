@@ -2,6 +2,23 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.87] — 2026-05-20 · Mode Prosp — finitions mode sombre (scrollbars + fiche)
+
+- **Scrollbars discrètes** : `/v30/mode-prosp` affichait les scrollbars
+  système (blanches, criardes sur fond sombre) car la règle globale
+  `body[data-v30]` de `tokens.css` ne s'y applique pas — le Mode Prosp
+  porte `data-v30` sur `<html>` et non sur `<body>`. Ajout d'un style
+  de scrollbar dédié dans `mode_prosp.css`, accordé à la palette et
+  suivant le toggle `.mp-dark` : thumb semi-transparent fin, piste
+  transparente (Firefox `scrollbar-color` + WebKit `::-webkit-scrollbar`).
+- **Fiche prospect — bas non coupé** : `.mp-card-pane` n'avait aucun
+  padding bas (`16px 16px 0`), la fiche butait donc « coupée au
+  couteau » contre le bord. Padding uniformisé (`16px` sur les 4
+  côtés, `12px` en dessous de 1100 px) : la fiche flotte avec une
+  marge égale et ses coins arrondis sont entièrement visibles.
+- **Fichiers modifiés** : `static/css/v30/mode_prosp.css`. Aucun
+  changement fonctionnel — toile d'araignée non impactée.
+
 ## [32.86] — 2026-05-20 · Import prospects — zone de dépôt avec glisser-déposer
 
 - **Glisser-déposer de fichier** : l'onglet « Fichier (Excel / CSV) » de
