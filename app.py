@@ -3940,7 +3940,10 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 except Exception as _log_err:
                     logger.debug("[upsert_all] erreur log statut: %s", _log_err)
 
-            # Log "RDV pris" events for gamified goals (deduped by unique index)
+            # Event "RDV pris" (gamification) : déclenché par le passage au
+            # statut "Rendez-vous" — avec ou sans rdvDate — ou par un
+            # changement de date alors que le statut est déjà "Rendez-vous".
+            # Dédupliqué par jour via l'index unique (prospect_id, type, date).
             try:
                 now_ev = datetime.datetime.now().isoformat(timespec="seconds")
                 ev_date = now_ev[:10]
@@ -3951,8 +3954,8 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     old_row = old_prospect_map.get(pid) or {}
                     old_statut = old_row.get("statut")
                     old_rdv = old_row.get("rdvDate")
-                    if new_statut == "Rendez-vous" and new_rdv:
-                        if old_statut != "Rendez-vous" or (str(old_rdv or "").strip() != new_rdv):
+                    if new_statut == "Rendez-vous":
+                        if old_statut != "Rendez-vous" or (new_rdv and str(old_rdv or "").strip() != new_rdv):
                             cur.execute(
                                 "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
                                 (pid, ev_date, "rdv_taken", "RDV pris", None, json.dumps({"rdvDate": new_rdv}, ensure_ascii=False), now_ev),
@@ -4862,12 +4865,14 @@ def mode_prosp_save():
             f"UPDATE prospects SET {', '.join(sets)} WHERE id = ? AND owner_id = ?",
             vals
         )
-        # Log "RDV pris" event for gamified goals (same logic as upsert_all)
+        # Event "RDV pris" (gamification) — même logique que upsert_all :
+        # passage au statut "Rendez-vous" (avec ou sans rdvDate) ou
+        # changement de date sur un prospect déjà au statut "Rendez-vous".
         try:
             new_statut = str(prospect.get("statut") or "").strip()
             new_rdv = str(prospect.get("rdvDate") or "").strip()
-            if new_statut == "Rendez-vous" and new_rdv:
-                if old_statut != "Rendez-vous" or old_rdv != new_rdv:
+            if new_statut == "Rendez-vous":
+                if old_statut != "Rendez-vous" or (new_rdv and old_rdv != new_rdv):
                     now_ev = datetime.datetime.now().isoformat(timespec="seconds")
                     ev_date = now_ev[:10]
                     conn.execute(
