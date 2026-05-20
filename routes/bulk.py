@@ -1,6 +1,7 @@
 """ProspUp — Blueprint Bulk Operations (mass updates prospects)."""
 from __future__ import annotations
 
+import datetime
 import json
 from flask import Blueprint, jsonify, request
 
@@ -133,9 +134,9 @@ def api_prospects_bulk_edit():
     Accepte deux formats :
       - mode mono-champ : { ids, field, value }
       - mode multi-champs : { ids, fields: { f1: v1, f2: v2, ... } } (v31.3+)
-    Les changements de statut → "Rendez-vous" + rdvDate déclenchent un event
-    rdv_taken (KPI gamification). Tout changement de statut crée aussi un
-    event status_change dans la timeline.
+    Le passage au statut "Rendez-vous" (avec ou sans rdvDate) déclenche un
+    event rdv_taken (KPI gamification). Tout changement de statut crée aussi
+    un event status_change dans la timeline.
     """
     chk = _require_same_origin()
     if chk:
@@ -220,12 +221,14 @@ def api_prospects_bulk_edit():
             )
             updated += 1
 
-            # Event rdv_taken pour le KPI gamification.
+            # Event rdv_taken pour le KPI gamification : déclenché par la
+            # transition vers "Rendez-vous" (même sans rdvDate saisie) ou
+            # par un changement de date sur un prospect déjà "Rendez-vous".
             try:
                 new_statut = str(normalized.get("statut", old_statut) or "").strip()
                 new_rdv = str(normalized.get("rdvDate", old_rdv) or "").strip()
-                if new_statut == "Rendez-vous" and new_rdv:
-                    if old_statut != "Rendez-vous" or old_rdv != new_rdv:
+                if new_statut == "Rendez-vous":
+                    if old_statut != "Rendez-vous" or (new_rdv and old_rdv != new_rdv):
                         now_ev = datetime.datetime.now().isoformat(timespec="seconds")
                         ev_date = now_ev[:10]
                         conn.execute(

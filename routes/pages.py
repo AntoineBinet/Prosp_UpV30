@@ -514,7 +514,7 @@ def page_v30_prospects_archives():
 
 @pages_bp.get("/v30/archives")
 def page_v30_archives():
-    """Page Archives (v32.90) — corbeille douce. Deux sous-pages :
+    """Page Archives (v32.93) — corbeille douce. Deux sous-pages :
     « Prospects seuls » (prospects archivés individuellement) et
     « Entreprises » (entreprises archivées avec tous leurs prospects).
     Les données archivées sont chargées côté client via /api/data."""
@@ -814,6 +814,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["onTaskCheckbox"], "endpoints": ["POST /api/tasks/done"], "backend": ["routes/admin.py:api_tasks_done"]}},
                 {"label": "Marquer fait (relance)", "href": "/v30/focus",
                  "tools": {"handlers": ["bindFocusRowActions"], "endpoints": ["POST /api/prospect/mark_done"], "backend": ["routes/bulk.py:api_prospect_mark_done"]}},
+                {"label": "Changer le statut d'une relance (badge cliquable)", "href": "/v30/focus",
+                 "tools": {"handlers": ["V30StatusPicker.open", "bindStatutSync"], "endpoints": ["POST /api/prospects/bulk-edit"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
                 {"label": "Reporter +1j / +7j", "href": "/v30/focus",
                  "tools": {"handlers": ["bindFocusRowActions"], "endpoints": ["POST /api/prospects/bulk-update"], "backend": ["routes/bulk.py:api_prospects_bulk_update"]}},
                 {"label": "Filtrer période", "href": "/v30/focus",
@@ -907,6 +909,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["openAfterMeeting"], "endpoints": ["POST /api/prospect/<id>/summarize", "POST /api/prospect/<id>/ia-log"], "backend": ["app.py:api_prospect_summarize"]}},
                 {"label": "Modifier en masse", "href": "/v30/prospects#bulk",
                  "tools": {"handlers": ["openBulkEdit"], "endpoints": ["POST /api/prospects/bulk-edit", "POST /api/prospects/bulk-status-tags", "POST /api/prospects/bulk-field-update"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
+                {"label": "Changer le statut depuis le tableau (badge cliquable)", "href": "/v30/prospects",
+                 "tools": {"handlers": ["renderStatusBadge", "V30StatusPicker.badge", "V30StatusPicker.open", "bindStatutSync"], "endpoints": ["POST /api/prospects/bulk-edit"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
                 {"label": "Géocoder en masse", "href": "/v30/carte",
                  "tools": {"handlers": ["openGeocodeBulk"], "endpoints": ["POST /api/map/geocode", "GET /api/map/geocode/bulk"], "backend": ["routes/map.py:api_map_geocode_bulk"]}},
                 {"label": "Archiver", "href": "/v30/archives",
@@ -978,6 +982,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["switchView"], "endpoints": ["GET /api/map/markers"], "backend": ["routes/map.py:api_map_markers"]}},
                 {"label": "Vue Split (entreprise + prospects)", "href": "/v30/entreprises",
                  "tools": {"handlers": ["renderSplitList", "renderSplitDetail", "bindSplit"], "endpoints": ["GET /api/company/full"], "backend": ["routes/misc.py:api_company_full"]}},
+                {"label": "Changer le statut d'un prospect (badge cliquable, vue Split)", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["statusBadge", "V30StatusPicker.open"], "endpoints": ["POST /api/prospects/bulk-edit"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
                 {"label": "Opportunités (créer/éditer)", "href": "/v30/entreprises",
                  "tools": {"handlers": ["saveOpportunity"], "endpoints": ["POST /api/opportunities/save", "POST /api/opportunities/delete"], "backend": ["routes/misc.py:api_opportunities_save"]}},
                 {"label": "Événements entreprise", "href": "/v30/entreprises",

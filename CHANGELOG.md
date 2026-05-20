@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.90] — 2026-05-20 · Archives — page unifiée + archivage d'entreprises
+## [32.93] — 2026-05-20 · Archives — page unifiée + archivage d'entreprises
 
 - **Bouton « Archives » déplacé dans la sidebar** : il rejoint la section
   *Records*, juste sous *Candidats*. Il disparaît donc de l'en-tête de la
@@ -30,6 +30,80 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   `templates/v30/entreprises.html`, `templates/v30/archives.html` (nouveau,
   remplace `prospects_archives.html`), `static/js/v30/entreprises.js`,
   `scripts/test_sitemap_status.py`.
+
+## [32.92] — 2026-05-20 · Stats — « RDV obtenus » respecte la période sélectionnée
+
+- **Compteur RDV figé** : sur `/v30/stats`, la carte « RDV obtenus » et
+  l'en-tête affichaient le **pipeline tout-temps** (prospects actuellement
+  au statut « Rendez-vous ») au lieu des RDV obtenus sur la période choisie
+  (7 j / 30 j / 90 j / plage). Changer de période ne modifiait pas le
+  chiffre — incohérent avec les cartes Appels et Push, déjà filtrées.
+- **Correction** : `/api/stats` calcule désormais un compteur RDV borné à
+  la plage sélectionnée — events `rdv_taken` datés dans la période, plus un
+  fallback `lastContact` pour les RDV antérieurs à l'instrumentation des
+  events. Même logique que le graphe mensuel « RDV obtenus ».
+- **`statusCounts` inchangé** : le décompte par statut reste tout-temps
+  (photo du pipeline courant, pas une métrique de période).
+- **Fichiers modifiés** : `routes/dashboard.py`, `config.py`,
+  `tests/test_gamification_rdv.py`. Toile d'araignée non impactée (aucune
+  action, route ou endpoint ajouté, renommé ou supprimé).
+
+## [32.91] — 2026-05-20 · Gamification — prise de RDV de nouveau comptabilisée
+
+- **RDV non comptés** : prendre un rendez-vous avec un prospect (passage
+  au statut « Rendez-vous » depuis la fiche, le kanban ou le statut en
+  masse) n'incrémentait ni l'objectif de gamification « Prendre 1 RDV
+  Prosp » ni la carte Performance « RDV ».
+- **Cause 1 — import manquant** : `routes/bulk.py` (endpoint
+  `/api/prospects/bulk-edit`, utilisé par la fiche prospect, le kanban
+  et l'édition de statut en masse) n'importait pas `datetime`. La
+  création des events `rdv_taken` *et* `status_change`, encapsulée dans
+  un `try/except`, échouait donc silencieusement (`NameError`) — aucun
+  event n'était jamais écrit par cet endpoint.
+- **Cause 2 — date obligatoire** : même dans les chemins fonctionnels
+  (`upsert_all` / `/api/save`, Mode Prosp), l'event `rdv_taken` n'était
+  logué que si une `rdvDate` était renseignée. Déplacer un prospect en
+  « Rendez-vous » sans saisir de date n'était pas comptabilisé.
+- **Correction** : ajout de l'import `datetime` dans `routes/bulk.py` ;
+  l'event `rdv_taken` est désormais déclenché par la *transition* vers
+  le statut « Rendez-vous » — avec ou sans `rdvDate` — en plus du cas
+  déjà géré (changement de date sur un prospect déjà « Rendez-vous »).
+  Appliqué aux trois points d'écriture : `upsert_all` (`/api/save`),
+  `/api/prospects/bulk-edit` et l'enregistrement Mode Prosp.
+- **Pas de sur-comptage** : éditer un prospect déjà « Rendez-vous »
+  sans changer son statut ni sa date ne crée aucun event ; l'index
+  unique `(prospect_id, type, date)` limite à un event par jour et par
+  prospect.
+- **Test** : `tests/test_gamification_rdv.py` couvre les trois cas
+  (transition sans date, non-régression sans changement, changement de
+  date).
+- **Fichiers modifiés** : `app.py`, `routes/bulk.py`, `config.py`,
+  `tests/test_gamification_rdv.py`. Toile d'araignée non impactée
+  (aucune action, route ou endpoint ajouté, renommé ou supprimé).
+
+## [32.90] — 2026-05-20 · Badge de statut cliquable dans les tableaux
+
+- **Changement de statut inline** : dans tous les tableaux de prospects
+  (liste Prospects, vue Split Entreprises, Focus), le badge de statut
+  devient un bouton. Un clic ouvre un menu déroulant animé pour choisir
+  le nouveau statut sans quitter le tableau ni ouvrir la fiche.
+- **Composant partagé** : nouveau module `V30StatusPicker`
+  (`status-picker.js` + `status-picker.css`, chargés globalement). Il
+  expose `badge()` (rendu du badge cliquable), un menu accessible
+  (navigation clavier, `Escape`, `prefers-reduced-motion`) et la
+  persistance via `POST /api/prospects/bulk-edit`.
+- **UX** : mise à jour optimiste avec animation pulse, halo de survol
+  aux couleurs du statut, caret animé, menu vitré (`backdrop-filter`)
+  avec apparition scale + fade et items en cascade. Toast de
+  confirmation et intégration de l'annulation (`pushUndo`).
+- **Refactor** : `renderStatusBadge` (Prospects), `statusBadge`
+  (Entreprises) et les badges de Focus délèguent au composant partagé ;
+  les mappings de couleurs de statut dupliqués sont supprimés.
+- **Fichiers** : `static/js/v30/status-picker.js` (nouveau),
+  `static/css/v30/status-picker.css` (nouveau), `templates/v30/base.html`,
+  `static/js/v30/prospects.js`, `static/js/v30/entreprises.js`,
+  `static/js/v30/focus.js`, `routes/pages.py` (toile d'araignée mise à
+  jour : 3 nouvelles actions), `config.py`.
 
 ## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
 

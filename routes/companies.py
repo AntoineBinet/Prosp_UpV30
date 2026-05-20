@@ -254,7 +254,7 @@ def api_companies_delete():
 @companies_bp.post("/api/companies/bulk-archive")
 @role_required('editor')
 def api_companies_bulk_archive():
-    """v32.90 : archive (ou désarchive) des entreprises complètes.
+    """v32.93 : archive (ou désarchive) des entreprises complètes.
 
     Archiver une entreprise archive aussi TOUS ses prospects rattachés ;
     les désarchiver fait l'inverse. Body : {"ids": [int], "archive": bool}.
