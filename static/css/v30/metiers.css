@@ -1,261 +1,452 @@
-/* ProspUp v30 — Métiers (référentiel + admin custom) */
+/* ProspUp v30 — Métiers v6 (Design Piste F : arbre courbe + panneau détail) */
 
-.v30-metiers { display: flex; flex-direction: column; gap: 14px; }
+/* ─── Couleurs catégories ─── */
+:root {
+  --cat-logi: oklch(0.62 0.18 278);
+  --cat-elec: oklch(0.72 0.16 75);
+  --cat-sys:  oklch(0.66 0.12 175);
+  --cat-life: oklch(0.70 0.18 350);
+}
 
-/* ─── Search bar ─── */
-.search-bar.v30-metiers__search {
+/* ─── Conteneur page ─── */
+.v30-metiers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── Toolbar ─── */
+.v6-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: var(--r-sm);
 }
-.search-bar .input {
+
+.v6-search {
+  flex: 1;
+  min-width: 240px;
+  height: 30px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-500, var(--text-3));
+  transition: border-color .15s;
+}
+.v6-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.v6-search__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  color: var(--ink-400, var(--text-muted));
+}
+.v6-search__input {
   flex: 1;
   border: 0;
   background: transparent;
   outline: none;
-  color: var(--text);
-  font-size: 13px;
-  padding: 4px 0;
-}
-.search-bar .input::placeholder { color: var(--text-3); }
-.search-bar svg { color: var(--text-3); flex-shrink: 0; }
-
-/* ─── Filtres domaine (chips) ─── */
-.filter-chips.v30-metiers__domains {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.filter-chips .v30-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 11px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 11.5px;
-  user-select: none;
-  transition: border-color .12s, background .12s, color .12s;
-}
-.filter-chips .v30-chip:hover {
-  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
-}
-.filter-chips .v30-chip.is-active {
-  background: color-mix(in oklch, var(--accent) 14%, transparent);
-  border-color: color-mix(in oklch, var(--accent) 38%, var(--border));
-  color: var(--accent);
-}
-.filter-chips .v30-chip__dot {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-/* ─── Grille métiers ─── */
-.v30-metiers__count { font-size: 11.5px; padding: 0 2px; }
-.metiers-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-@media (max-width: 1100px) {
-  .metiers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 720px) {
-  .metiers-grid { grid-template-columns: 1fr; }
-}
-
-.metier-card {
-  appearance: none; -webkit-appearance: none;
-  text-align: left;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  padding: 14px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: transform .12s, border-color .12s, background .12s;
-  font: inherit;
-  color: inherit;
-  min-height: 130px;
-  backdrop-filter: blur(6px);
-}
-.metier-card:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklch, var(--accent) 32%, var(--border));
-  background: color-mix(in oklab, var(--surface) 92%, var(--accent));
-}
-.metier-card__head {
-  display: flex; align-items: center; gap: 8px;
-}
-.metier-card__cat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-2);
-  border: 1px solid var(--border);
-}
-.metier-card__cat-dot {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-}
-.metier-card__name {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.35;
-}
-.metier-card__desc {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-2);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.metier-card__foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 10.5px;
-  color: var(--text-3);
-}
-.metier-card__pill {
-  font-family: var(--font-mono);
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-3);
-}
-
-/* ─── Modale détail ─── */
-.v30-colgrid.v30-metier-detail {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 18px;
-}
-@media (max-width: 720px) {
-  .v30-colgrid.v30-metier-detail { grid-template-columns: 1fr; }
-}
-.v30-metier-detail__h {
-  margin: 14px 0 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
-.v30-metier-detail__h:first-child { margin-top: 0; }
-.v30-metier-detail__desc {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text);
-  line-height: 1.6;
-}
-.v30-metier-detail__skills,
-.v30-metier-detail__sectors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-.skill-chip {
-  display: inline-block;
-  font-size: 11px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  font-family: var(--font-mono);
-}
-.skill-chip--group {
-  font-family: inherit;
-  font-weight: 600;
-  color: var(--text);
-  background: color-mix(in oklch, var(--accent) 8%, var(--surface-2));
-  border-color: color-mix(in oklch, var(--accent) 25%, var(--border));
-}
-
-.v30-metier-detail__certs {
   font-size: 12px;
-  color: var(--text-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+.v6-search__input::placeholder { color: var(--ink-500, var(--text-3)); }
+.v6-search__kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-500, var(--text-3));
+  flex-shrink: 0;
 }
 
-.v30-metier-detail__stats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+/* ─── Segmented control ─── */
+.v6-seg {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  background: var(--surface-2);
-  margin-bottom: 4px;
+  gap: 0;
 }
-.v30-metier-detail__stat {
+.v6-seg button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  color: var(--ink-600, var(--text-2));
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .1s, color .1s, box-shadow .1s;
+}
+.v6-seg button:hover { color: var(--text); }
+.v6-seg button.is-on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+
+/* ─── Grille principale ─── */
+.v6-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 12px;
+  height: calc(100vh - var(--topbar-h, 48px) - 240px);
+  min-height: 520px;
+}
+
+/* ─── Panneau générique ─── */
+.v6-pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ─── Header du panneau arbre ─── */
+.v6-tree-h {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12.5px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  flex-shrink: 0;
 }
-.v30-metier-detail__stat-key {
-  color: var(--text-3);
+.v6-tree-h__ttl {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--ink-900, var(--text));
+  letter-spacing: -.2px;
+}
+.v6-tree-h__ct {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-500, var(--text-3));
+}
+.v6-tree-h__acts {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.v6-ico-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
+  color: var(--ink-600, var(--text-2));
+  cursor: pointer;
+  transition: background .1s;
+}
+.v6-ico-btn:hover { background: var(--surface-2); }
+
+/* ─── Canvas de l'arbre ─── */
+.v6-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+.v6-inner {
+  position: relative;
+  /* width et height fixés par JS */
+}
+.v6-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ─── Carte catégorie ─── */
+.v6-cat {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  user-select: none;
+}
+.v6-cat:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px oklch(0 0 0 / .06);
+}
+.v6-cat.is-on {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--cat-color);
+}
+.v6-cat__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.v6-cat__nm {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-900, var(--text));
+  flex: 1;
+  line-height: 1.2;
+}
+.v6-cat__ct {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-500, var(--text-3));
+  padding: 2px 6px;
+  background: var(--ink-100, var(--surface-2));
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* ─── Chip métier ─── */
+.v6-met {
+  position: absolute;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px 0 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, transform .15s;
+  user-select: none;
+}
+.v6-met:hover { background: var(--ink-100, var(--surface-2)); transform: translateX(2px); }
+.v6-met.is-hidden { opacity: 0.2; pointer-events: none; }
+.v6-met__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.v6-met__nm {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-800, var(--text));
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v6-met__vol {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-400, var(--text-muted));
+}
+.v6-met.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px oklch(0.58 0.17 258 / .14);
+}
+.v6-met.is-on .v6-met__nm { color: var(--accent); font-weight: 600; }
+.v6-met.is-on .v6-met__vol { color: var(--accent); }
+
+/* ─── Panneau détail ─── */
+.v6-pane--detail { /* width is 380px set by the grid column */ }
+
+.v6-det {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.v6-det-h {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.v6-crumb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-500, var(--text-3));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.v30-metier-detail__stat-val { color: var(--text); font-weight: 500; }
-.v30-metier-detail__trend {
+.v6-crumb__swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.v6-crumb__sep { color: var(--ink-300, var(--border-strong)); }
+.v6-det-title {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--ink-900, var(--text));
+  letter-spacing: -.2px;
+  margin: 0;
+}
+
+.v6-det-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.v6-sec { display: flex; flex-direction: column; }
+
+.v6-sec-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-500, var(--text-3));
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+.v6-sec-label__ct {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-400, var(--text-muted));
+  letter-spacing: 0;
+  text-transform: none;
+  margin-left: auto;
+}
+
+.v6-desc {
+  font-size: 12.5px;
+  color: var(--ink-800, var(--text));
+  line-height: 1.55;
+}
+
+/* ─── KPI Usage ─── */
+.v6-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.v6-stat {
+  background: var(--ink-100, var(--surface-2));
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  position: relative;
+}
+.v6-stat__l {
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-500, var(--text-3));
+  font-weight: 500;
+}
+.v6-stat__v {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  color: var(--ink-900, var(--text));
+  line-height: 1;
+  margin-top: 5px;
+}
+.v6-stat__tr {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* ─── Pills secteurs & mots-clés ─── */
+.v6-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.v6-pill {
+  font-size: 11px;
+  color: var(--ink-700, var(--text-2));
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.v30-metier-detail__trend-bar {
-  width: 60px;
+.v6-pill__dot {
+  display: inline-block;
+  width: 6px;
   height: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-  position: relative;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
-.v30-metier-detail__trend-bar i {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 60%, var(--success, #4ade80)));
-  width: 60%;
-  transition: width .25s;
+.v6-pill--add {
+  border-style: dashed;
+  color: var(--ink-500, var(--text-3));
 }
-.v30-metier-detail__trend-label {
-  font-size: 11.5px;
-  color: var(--text-2);
+.v6-pills--kw .v6-pill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 3px 7px;
 }
 
-/* ─── Custom métiers (admin, ancien CRUD) ─── */
+/* ─── Footer détail ─── */
+.v6-det-foot {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  gap: 6px;
+  background: var(--surface);
+  flex-shrink: 0;
+  align-items: center;
+}
+.v6-det-foot__spacer { flex: 1; }
+.v6-btn-danger { color: var(--danger) !important; }
+.v6-btn-danger:hover { background: var(--danger-soft) !important; color: var(--danger) !important; }
+
+/* ─── Responsive ─── */
+@media (max-width: 1100px) {
+  .v6-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .v6-pane { height: 520px; }
+  .v6-pane--detail { height: 480px; }
+}
+
+/* ─── Custom métiers (admin, section dépliable) ─── */
 .v30-metiers__custom-card {
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
