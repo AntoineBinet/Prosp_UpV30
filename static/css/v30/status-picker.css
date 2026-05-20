@@ -1,0 +1,194 @@
+/* ============================================================
+   ProspUp v30 — Status picker
+   Badge de statut cliquable + menu déroulant animé.
+   Voir static/js/v30/status-picker.js
+   ============================================================ */
+
+/* ─────────── Badge cliquable ─────────── */
+/* Hérite de .status (components.css) pour padding / couleurs / radius.
+   Ajoute l'affordance de bouton : caret, halo au survol, pulse. */
+.v30-statpick {
+  margin: 0;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: box-shadow 0.16s var(--ease),
+              transform 0.12s var(--ease),
+              background-color 0.35s var(--ease),
+              color 0.35s var(--ease);
+}
+.v30-statpick:hover {
+  box-shadow: 0 0 0 2px color-mix(in oklch, currentColor 22%, transparent);
+}
+.v30-statpick:active { transform: scale(0.94); }
+.v30-statpick:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface),
+              0 0 0 4px color-mix(in oklch, var(--accent) 60%, transparent);
+}
+.v30-statpick[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px color-mix(in oklch, currentColor 34%, transparent);
+}
+
+.v30-statpick__caret {
+  width: 11px;
+  height: 11px;
+  margin-left: -2px;
+  margin-right: -1px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.18s ease;
+}
+.v30-statpick:hover .v30-statpick__caret { opacity: 0.85; }
+.v30-statpick[aria-expanded="true"] .v30-statpick__caret { transform: rotate(180deg); }
+
+/* Pulse rejouée à chaque changement de statut. */
+@keyframes v30-statpick-pulse {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.13); }
+  60%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+.v30-statpick.is-justchanged {
+  animation: v30-statpick-pulse 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─────────── Scrim (capture du clic extérieur) ─────────── */
+.v30-statmenu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: transparent;
+}
+
+/* ─────────── Menu ─────────── */
+.v30-statmenu {
+  position: fixed;
+  z-index: 9501;
+  min-width: 224px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  background: color-mix(in oklch, var(--surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop),
+              0 0 0 1px color-mix(in oklch, var(--border) 40%, transparent);
+  transform-origin: var(--v30-statmenu-origin, top left);
+  opacity: 0;
+}
+.v30-statmenu.is-open {
+  animation: v30-statmenu-in 0.22s cubic-bezier(0.34, 1.4, 0.5, 1) forwards;
+}
+.v30-statmenu.is-closing {
+  animation: v30-statmenu-out 0.12s ease forwards;
+  pointer-events: none;
+}
+@keyframes v30-statmenu-in {
+  from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes v30-statmenu-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.97) translateY(-2px); }
+}
+
+.v30-statmenu__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.v30-statmenu__head svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.v30-statmenu__opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+.v30-statmenu.is-open .v30-statmenu__opt {
+  animation: v30-statmenu-opt-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 26ms + 45ms);
+}
+@keyframes v30-statmenu-opt-in {
+  from { opacity: 0; transform: translateY(7px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.v30-statmenu__opt.is-current {
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+}
+.v30-statmenu__opt:hover,
+.v30-statmenu__opt:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+.v30-statmenu__opt.is-current:hover,
+.v30-statmenu__opt.is-current:focus-visible {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+}
+.v30-statmenu__opt .status {
+  pointer-events: none;
+}
+.v30-statmenu__opt-sp {
+  flex: 1 1 auto;
+}
+.v30-statmenu__check {
+  display: flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.16s ease,
+              transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.v30-statmenu__check svg {
+  width: 100%;
+  height: 100%;
+}
+.v30-statmenu__opt.is-current .v30-statmenu__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ─────────── Accessibilité : motion réduit ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .v30-statmenu,
+  .v30-statmenu.is-open,
+  .v30-statmenu.is-closing,
+  .v30-statmenu.is-open .v30-statmenu__opt,
+  .v30-statpick.is-justchanged {
+    animation-duration: 0.01ms !important;
+  }
+  .v30-statpick,
+  .v30-statpick__caret,
+  .v30-statmenu__check {
+    transition-duration: 0.01ms !important;
+  }
+}
