@@ -1481,7 +1481,7 @@ def api_candidate_attachment_delete(att_id):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# v32.75 — Fiche entretien EC1 — export Excel pré-rempli
+# v32.81 — Fiche entretien EC1 — formulaire éditable + export Excel
 # ═══════════════════════════════════════════════════════════════════
 
 def _ec1_template_path() -> Path | None:
@@ -1528,37 +1528,105 @@ def _ec1_apply_to_cell(ws, cell_ref: str, value):
         logger.warning("[ec1] write cell %s failed: %s", target, e)
 
 
-@candidates_bp.get("/api/candidates/<int:cid>/ec1-export.xlsx")
-def api_candidate_ec1_export(cid):
-    """Génère et télécharge la fiche entretien EC1 pré-remplie pour ce candidat."""
-    uid = _uid()
-    if not uid:
-        return jsonify(ok=False, error="Non authentifié"), 401
-    if not _candidate_owned(cid):
-        return jsonify(ok=False, error="Accès refusé"), 403
+# ── Modèle de données de la fiche EC1 ──────────────────────────────
+# Clé du formulaire → colonne candidat (uniquement les champs persistés).
+_EC1_DB_FIELDS = {
+    "name": "name",
+    "phone": "phone",
+    "email": "email",
+    "source": "source",
+    "ec1_date": "entretien_date",
+    "permis_conduire": "permis_conduire",
+    "vehicule": "vehicule",
+    "permis_travail": "permis_travail",
+    "disponibilite": "disponibilite",
+    "mobilite": "mobilite",
+    "fonctions_recherchees": "fonctions_recherchees",
+    "motif_recherche": "motif_recherche",
+    "remuneration_actuelle": "remuneration_actuelle",
+    "pretentions_salariales": "pretentions_salariales",
+    "propal_a": "propal_a",
+    "avancement_recherches": "avancement_recherches",
+    "eval_technique": "eval_technique",
+    "eval_personnalite": "eval_personnalite",
+    "eval_communication": "eval_communication",
+    "langues": "langues",
+    "references_candidat": "references_candidat",
+    "avis_perso": "avis_perso",
+    "entretien_notes": "entretien_notes",
+}
+# Champs stockés en entier 0/1 (Oui/Non).
+_EC1_INT_FIELDS = {"permis_conduire", "vehicule"}
+# Cases de la checklist EC1.
+_EC1_CHECKLIST_KEYS = (
+    "mobilite_dispo_souhaits", "impression_generale", "evaluation_technique",
+    "evaluation_personnalite", "evaluation_communication", "rappel_valeurs_up",
+    "fourchette_salaire", "reponse_questions_craintes", "process_prochaines_etapes",
+)
 
+
+def _ec1_yesno_to_int(v):
+    """Convertit une valeur Oui/Non du formulaire en 0/1 (None si indéterminé)."""
+    s = str(v if v is not None else "").strip().lower()
+    if s in ("oui", "yes", "1", "true", "o"):
+        return 1
+    if s in ("non", "no", "0", "false", "n"):
+        return 0
+    return None
+
+
+def _ec1_yesno_label(v) -> str:
+    """Convertit 0/1/Oui/Non en libellé Oui/Non (chaîne vide si indéterminé)."""
+    iv = _ec1_yesno_to_int(v)
+    return "Oui" if iv == 1 else ("Non" if iv == 0 else "")
+
+
+def _ec1_fmt_date(s) -> str:
+    """Formatte une date ISO en JJ/MM/AAAA pour l'Excel."""
+    s = str(s or "").strip()
+    if not s:
+        return ""
+    try:
+        return datetime.datetime.fromisoformat(s).strftime("%d/%m/%Y")
+    except Exception:
+        return s[:10]
+
+
+def _ec1_recruteur_trigramme(user) -> str:
+    """Trigramme recruteur déduit du username."""
+    try:
+        uname = (user["username"] if user else "") or ""
+    except Exception:
+        uname = ""
+    return uname[:3].upper() if uname else "XXX"
+
+
+def _ec1_diplomes_default(c: dict) -> str:
+    """Ligne « Diplômes et expérience » déduite de la fiche candidat."""
+    dip = c.get("titre") or c.get("role") or ""
+    annees = c.get("annees_experience") or c.get("years_experience") or c.get("seniority") or ""
+    s = str(dip or "").strip()
+    if annees:
+        s = (s + f" — {annees} ans").strip(" —")
+    return s
+
+
+def _ec1_load_context(cid: int, uid: int):
+    """Charge le candidat, la checklist EC1 et l'utilisateur courant.
+
+    Retour : (candidat_dict | None, ec1_data, interview_at, user)
+    """
     with _conn() as conn:
         cand = conn.execute(
             "SELECT * FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
             (cid, uid),
         ).fetchone()
         if not cand:
-            return jsonify(ok=False, error="Candidat introuvable"), 404
+            return None, {}, None, None
         ec1_row = conn.execute(
             "SELECT interviewAt, data FROM candidate_ec1_checklists WHERE candidate_id=?;",
             (cid,),
         ).fetchone()
-
-    from utils.db import _auth_conn
-    try:
-        with _auth_conn() as aconn:
-            user = aconn.execute(
-                "SELECT username, display_name FROM users WHERE id=?;", (uid,),
-            ).fetchone()
-    except Exception:
-        user = None
-
-    c = dict(cand)
     ec1_data = {}
     if ec1_row and ec1_row["data"]:
         try:
@@ -1566,6 +1634,233 @@ def api_candidate_ec1_export(cid):
         except Exception:
             ec1_data = {}
     interview_at = ec1_row["interviewAt"] if ec1_row else None
+    user = None
+    try:
+        from utils.db import _auth_conn
+        with _auth_conn() as aconn:
+            user = aconn.execute(
+                "SELECT username, display_name FROM users WHERE id=?;", (uid,),
+            ).fetchone()
+    except Exception:
+        user = None
+    return dict(cand), ec1_data, interview_at, user
+
+
+def _ec1_data_from_db(c: dict, ec1_data: dict, user, interview_at=None) -> dict:
+    """Construit le dictionnaire plat de la fiche EC1 depuis la base."""
+    ec1_data = ec1_data or {}
+    ec1_date = c.get("entretien_date") or interview_at or ""
+    return {
+        "name": c.get("name") or "",
+        "phone": c.get("phone") or "",
+        "email": c.get("email") or "",
+        "diplomes_experience": _ec1_diplomes_default(c),
+        "date_lieu_naissance": "",
+        "etat_civil": "",
+        "source": c.get("source") or "",
+        "recruteur_trigramme": _ec1_recruteur_trigramme(user),
+        "ec1_date": str(ec1_date)[:10],
+        "permis_conduire": _ec1_yesno_label(c.get("permis_conduire")),
+        "vehicule": _ec1_yesno_label(c.get("vehicule")),
+        "permis_travail": c.get("permis_travail") or "",
+        "demarches_administratives": "",
+        "disponibilite": c.get("disponibilite") or "",
+        "mobilite": c.get("mobilite") or "",
+        "fonctions_recherchees": c.get("fonctions_recherchees") or "",
+        "motif_recherche": c.get("motif_recherche") or "",
+        "remuneration_actuelle": c.get("remuneration_actuelle") or "",
+        "pretentions_salariales": c.get("pretentions_salariales") or "",
+        "propal_a": c.get("propal_a") or "",
+        "mail_recap": "",
+        "montant_recap": "",
+        "avancement_recherches": c.get("avancement_recherches") or "",
+        "eval_technique": c.get("eval_technique") or "",
+        "eval_personnalite": c.get("eval_personnalite") or "",
+        "eval_communication": c.get("eval_communication") or "",
+        "ec1_statut": c.get("status") or "",
+        "avis_perso": c.get("avis_perso") or "",
+        "langues": c.get("langues") or "",
+        "references_candidat": c.get("references_candidat") or "",
+        "entretien_notes": c.get("entretien_notes") or "",
+        "__checklist": ec1_data,
+        "__free_note": str(ec1_data.get("__note") or "") if isinstance(ec1_data, dict) else "",
+    }
+
+
+def _ec1_fill_worksheet(ws, d: dict):
+    """Remplit la feuille « Dossier candidat » à partir du dict plat `d`."""
+    def g(k):
+        v = d.get(k)
+        return "" if v is None else str(v).strip()
+
+    # ── Identité ──
+    _ec1_apply_to_cell(ws, "A3", "Prénom Nom : " + g("name"))
+    _ec1_apply_to_cell(ws, "C4", g("phone"))
+    _ec1_apply_to_cell(ws, "C5", g("email"))
+    _ec1_apply_to_cell(ws, "C6", g("diplomes_experience"))
+    _ec1_apply_to_cell(ws, "C7", g("date_lieu_naissance"))
+    _ec1_apply_to_cell(ws, "C8", g("etat_civil"))
+    _ec1_apply_to_cell(ws, "K4", g("source"))
+
+    # ── Entête EC1 ──
+    _ec1_apply_to_cell(ws, "G6", g("recruteur_trigramme") or "XXX")
+    ec1_date = g("ec1_date")
+    _ec1_apply_to_cell(ws, "H6", "OK" if ec1_date else "")
+    _ec1_apply_to_cell(ws, "J6", _ec1_fmt_date(ec1_date))
+
+    # ── Administratif ──
+    _ec1_apply_to_cell(ws, "B9", _ec1_yesno_label(d.get("permis_conduire")))
+    _ec1_apply_to_cell(ws, "D9", _ec1_yesno_label(d.get("vehicule")))
+    _ec1_apply_to_cell(ws, "B10", g("permis_travail"))
+    _ec1_apply_to_cell(ws, "A12", g("demarches_administratives"))
+
+    # ── Disponibilité / mobilité ──
+    _ec1_apply_to_cell(ws, "G10", g("disponibilite"))
+    _ec1_apply_to_cell(ws, "I11", g("mobilite"))
+
+    # ── Recherche ──
+    _ec1_apply_to_cell(ws, "A15", g("fonctions_recherchees"))
+    _ec1_apply_to_cell(ws, "F18", g("motif_recherche"))
+
+    # ── Rémunération ──
+    _ec1_apply_to_cell(ws, "B20", g("remuneration_actuelle"))
+    _ec1_apply_to_cell(ws, "B21", g("pretentions_salariales"))
+    _ec1_apply_to_cell(ws, "B22", g("propal_a"))
+    _ec1_apply_to_cell(ws, "B23", g("mail_recap"))
+    _ec1_apply_to_cell(ws, "E23", g("montant_recap"))
+    _ec1_apply_to_cell(ws, "F21", g("avancement_recherches"))
+
+    # ── Évaluation ──
+    _ec1_apply_to_cell(ws, "B26", g("eval_technique"))
+    _ec1_apply_to_cell(ws, "B27", g("eval_personnalite"))
+    _ec1_apply_to_cell(ws, "B28", g("eval_communication"))
+    _ec1_apply_to_cell(ws, "B29", g("ec1_statut"))
+    if g("avis_perso"):
+        _ec1_apply_to_cell(ws, "D25", g("avis_perso"))
+
+    # ── Langues ──
+    _ec1_apply_to_cell(ws, "B36", g("langues"))
+
+    # ── Références ──
+    if g("references_candidat"):
+        _ec1_apply_to_cell(ws, "A42", g("references_candidat"))
+
+    # ── Checklist EC1 (cases A48-A51) ──
+    chk = d.get("__checklist") if isinstance(d.get("__checklist"), dict) else {}
+    for cell_ref, key in (
+        ("A48", "mobilite_dispo_souhaits"),
+        ("A49", "fourchette_salaire"),
+        ("A50", None),
+        ("A51", None),
+    ):
+        checked = False
+        note = ""
+        if key and isinstance(chk.get(key), dict):
+            checked = bool(chk[key].get("checked"))
+            note = str(chk[key].get("note") or "")
+        cell_val = ws[cell_ref].value or ""
+        new_val = ("[X] " if checked else "[ ] ") + str(cell_val).lstrip(" ✓✗-")
+        if note:
+            new_val += f"  — {note}"
+        _ec1_apply_to_cell(ws, cell_ref, new_val)
+
+    # ── Note libre EC1 globale ──
+    free_note = g("entretien_notes") or g("__free_note")
+    if free_note:
+        _ec1_apply_to_cell(ws, "A52", "Notes : " + free_note[:400])
+
+
+def _ec1_persist(cid: int, uid: int, fields: dict, checklist) -> None:
+    """Applique les champs EC1 éditables au candidat + enregistre la checklist."""
+    fields = fields or {}
+    sets, vals = [], []
+    for fkey, col in _EC1_DB_FIELDS.items():
+        if fkey not in fields:
+            continue
+        raw = fields.get(fkey)
+        if fkey in _EC1_INT_FIELDS:
+            iv = _ec1_yesno_to_int(raw)
+            if iv is None:
+                continue
+            sets.append(f"{col}=?")
+            vals.append(iv)
+        else:
+            v = "" if raw is None else str(raw).strip()
+            if fkey == "name" and not v:
+                continue  # ne jamais écraser le nom par du vide
+            if fkey == "ec1_date":
+                v = v[:10]
+            sets.append(f"{col}=?")
+            vals.append(v)
+    with _conn() as conn:
+        if sets:
+            conn.execute(
+                f"UPDATE candidates SET {', '.join(sets)}, updatedAt=? WHERE id=? AND owner_id=?;",
+                vals + [_now_iso(), cid, uid],
+            )
+        if isinstance(checklist, dict) and checklist:
+            row = conn.execute(
+                "SELECT interviewAt, data FROM candidate_ec1_checklists WHERE candidate_id=?;",
+                (cid,),
+            ).fetchone()
+            existing = {}
+            if row and row["data"]:
+                try:
+                    existing = json.loads(row["data"]) or {}
+                except Exception:
+                    existing = {}
+            merged = {k: {"checked": False, "note": ""} for k in _EC1_CHECKLIST_KEYS}
+            merged["__note"] = str(existing.get("__note") or "").strip()
+            for k, v in checklist.items():
+                if k in _EC1_CHECKLIST_KEYS and isinstance(v, dict):
+                    merged[k] = {
+                        "checked": bool(v.get("checked", False)),
+                        "note": str(v.get("note") or "").strip(),
+                    }
+            interview_at = (row["interviewAt"] if row else None) or _today_iso()
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                """INSERT INTO candidate_ec1_checklists (candidate_id, interviewAt, data, updatedAt)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(candidate_id)
+                   DO UPDATE SET data=excluded.data, updatedAt=excluded.updatedAt""",
+                (cid, interview_at, json.dumps(merged, ensure_ascii=False), now),
+            )
+
+
+@candidates_bp.route("/api/candidates/<int:cid>/ec1-export.xlsx", methods=["GET", "POST"])
+def api_candidate_ec1_export(cid):
+    """Génère et télécharge la fiche entretien EC1 Excel pré-remplie.
+
+    - GET  : génère depuis la fiche candidat en base.
+    - POST : génère depuis le formulaire édité ({fields, checklist}) et
+             enregistre au passage les champs persistables.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    c, ec1_data, interview_at, user = _ec1_load_context(cid, uid)
+    if c is None:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    if request.method == "POST":
+        body = request.get_json(force=True, silent=True) or {}
+        fields = body.get("fields") if isinstance(body.get("fields"), dict) else {}
+        checklist = body.get("checklist") if isinstance(body.get("checklist"), dict) else {}
+        try:
+            _ec1_persist(cid, uid, fields, checklist)
+        except Exception as e:
+            logger.warning("[ec1] persist on export failed: %s", e)
+        d = _ec1_data_from_db(c, ec1_data, user, interview_at)
+        for k, v in fields.items():
+            d[k] = v
+        d["__checklist"] = checklist or ec1_data
+        d["__free_note"] = str(fields.get("entretien_notes") or d.get("__free_note") or "")
+    else:
+        d = _ec1_data_from_db(c, ec1_data, user, interview_at)
 
     template = _ec1_template_path()
     if not template:
@@ -1579,104 +1874,7 @@ def api_candidate_ec1_export(cid):
     try:
         wb = openpyxl.load_workbook(str(template))
         ws = wb["Dossier candidat"] if "Dossier candidat" in wb.sheetnames else wb.active
-
-        # Recruteur — trigramme déduit du username ou des initiales du nom
-        recruteur_user = (user["username"] if user else "") or ""
-        trigramme = recruteur_user[:3].upper() if recruteur_user else "XXX"
-        ec1_date_fmt = ""
-        if interview_at:
-            try:
-                d = datetime.datetime.fromisoformat(interview_at)
-                ec1_date_fmt = d.strftime("%d/%m/%Y")
-            except Exception:
-                ec1_date_fmt = interview_at[:10]
-        elif c.get("entretien_date"):
-            try:
-                d = datetime.datetime.fromisoformat(c["entretien_date"])
-                ec1_date_fmt = d.strftime("%d/%m/%Y")
-            except Exception:
-                ec1_date_fmt = (c.get("entretien_date") or "")[:10]
-
-        nom_complet = c.get("name") or ""
-        if c.get("prenom") and c.get("prenom") not in nom_complet:
-            nom_complet = f"{c['prenom']} {nom_complet}".strip()
-
-        # Identité — page 1
-        _ec1_apply_to_cell(ws, "A3", "Prénom Nom : " + nom_complet)
-        _ec1_apply_to_cell(ws, "A4", "Téléphone : " + (c.get("phone") or ""))
-        _ec1_apply_to_cell(ws, "A5", "Mail : " + (c.get("email") or ""))
-
-        diplomes = c.get("titre") or c.get("role") or ""
-        annees = c.get("annees_experience") or c.get("years_experience") or c.get("seniority") or ""
-        ligne_dip = "Dîplomes et expérience : " + str(diplomes)
-        if annees:
-            ligne_dip += f" — {annees} ans"
-        _ec1_apply_to_cell(ws, "A6", ligne_dip)
-
-        _ec1_apply_to_cell(ws, "C7", c.get("source") or "")
-        _ec1_apply_to_cell(ws, "G6", trigramme)
-        _ec1_apply_to_cell(ws, "H6", "OK" if (interview_at or c.get("entretien_date")) else "")
-        _ec1_apply_to_cell(ws, "J6", ec1_date_fmt)
-
-        # Permis / disponibilité / mobilité
-        _ec1_apply_to_cell(ws, "B9", "Oui" if c.get("permis_conduire") else "Non")
-        _ec1_apply_to_cell(ws, "D9", "Oui" if c.get("vehicule") else "Non")
-        _ec1_apply_to_cell(ws, "G9", c.get("disponibilite") or "")
-        _ec1_apply_to_cell(ws, "B10", c.get("permis_travail") or "")
-        _ec1_apply_to_cell(ws, "B11", c.get("notes") or "")
-        _ec1_apply_to_cell(ws, "I11", c.get("mobilite") or "")
-
-        # Fonctions recherchées
-        _ec1_apply_to_cell(ws, "A15", c.get("fonctions_recherchees") or "")
-
-        # Motivations
-        _ec1_apply_to_cell(ws, "A18", c.get("motif_recherche") or "")
-
-        # Rémunération
-        _ec1_apply_to_cell(ws, "B20", c.get("remuneration_actuelle") or "")
-        _ec1_apply_to_cell(ws, "B21", c.get("pretentions_salariales") or "")
-        _ec1_apply_to_cell(ws, "B22", c.get("propal_a") or "")
-        _ec1_apply_to_cell(ws, "F20", c.get("avancement_recherches") or "")
-
-        # Évaluation
-        _ec1_apply_to_cell(ws, "B26", c.get("eval_technique") or "")
-        _ec1_apply_to_cell(ws, "B27", c.get("eval_personnalite") or "")
-        _ec1_apply_to_cell(ws, "B28", c.get("eval_communication") or "")
-        _ec1_apply_to_cell(ws, "B29", c.get("status") or "")
-        # Détails / commentaire libre = avis_perso
-        if c.get("avis_perso"):
-            _ec1_apply_to_cell(ws, "D25", c.get("avis_perso"))
-
-        # Langues
-        _ec1_apply_to_cell(ws, "B36", c.get("langues") or "")
-
-        # Références
-        _ec1_apply_to_cell(ws, "A45", c.get("references_candidat") or "")
-
-        # Checklist EC1 (cases A48-A51) — annoter avec ✓ si coché
-        ec1_items = [
-            ("A48", "mobilite_dispo_souhaits"),
-            ("A49", "fourchette_salaire"),
-            ("A50", None),  # "Check dossier de compétences" — info de présence DC
-            ("A51", None),  # "Prise de références"
-        ]
-        for cell_ref, key in ec1_items:
-            checked = False
-            note = ""
-            if key and isinstance(ec1_data.get(key), dict):
-                checked = bool(ec1_data[key].get("checked"))
-                note = str(ec1_data[key].get("note") or "")
-            cell_val = ws[cell_ref].value or ""
-            prefix = "[X] " if checked else "[ ] "
-            new_val = prefix + str(cell_val).lstrip(" ✓✗-")
-            if note:
-                new_val += f"  — {note}"
-            _ec1_apply_to_cell(ws, cell_ref, new_val)
-
-        # Note libre EC1 globale → ajoutée dans A52 si vide
-        free_note = (ec1_data.get("__note") if isinstance(ec1_data, dict) else "") or (c.get("entretien_notes") or "")
-        if free_note:
-            _ec1_apply_to_cell(ws, "A52", "Notes : " + free_note[:400])
+        _ec1_fill_worksheet(ws, d)
 
         from io import BytesIO
         bio = BytesIO()
@@ -1684,8 +1882,9 @@ def api_candidate_ec1_export(cid):
         bio.seek(0)
 
         safe_name = _slugify_for_filename(c.get("name") or "candidat")
+        trig = _slugify_for_filename(d.get("recruteur_trigramme") or "XXX")
         today = datetime.datetime.now().strftime("%d%m%Y")
-        download_name = f"Fiche_entretien_{safe_name}_EC1_{trigramme}_{today}.xlsx"
+        download_name = f"Fiche_entretien_{safe_name}_EC1_{trig}_{today}.xlsx"
 
         return send_file(
             bio,
@@ -1698,14 +1897,39 @@ def api_candidate_ec1_export(cid):
         return jsonify(ok=False, error=f"Erreur génération Excel : {e}"), 500
 
 
+@candidates_bp.post("/api/candidates/<int:cid>/ec1-apply")
+def api_candidate_ec1_apply(cid):
+    """Enregistre les champs édités de la fiche EC1 sur le candidat.
+
+    Body JSON : { fields: {...}, checklist: {...} }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    body = request.get_json(force=True, silent=True) or {}
+    fields = body.get("fields")
+    checklist = body.get("checklist")
+    if not isinstance(fields, dict):
+        return jsonify(ok=False, error="Payload invalide"), 400
+    try:
+        _ec1_persist(cid, uid, fields, checklist if isinstance(checklist, dict) else {})
+    except Exception as e:
+        logger.error("EC1 apply failed: %s", e)
+        return jsonify(ok=False, error=f"Erreur : {e}"), 500
+    return jsonify(ok=True, applied=True)
+
+
 @candidates_bp.post("/api/candidates/<int:cid>/ec1-from-transcript")
 def api_candidate_ec1_from_transcript(cid):
-    """Analyse une transcription d'entretien EC1 via IA pour pré-remplir la
-    fiche candidat + cocher les cases de la checklist EC1.
+    """Analyse une transcription d'entretien EC1 via IA.
 
-    Body JSON : { transcript: "...", apply: bool (false par défaut) }
-    Retour : { ok, fields: { eval_technique, eval_personnalite, ... }, checklist: {...}, notes: "..." }
-    Si apply=true, applique directement les champs en DB.
+    Body JSON : { transcript: "..." }
+    Retour : { ok, fields: {...}, checklist: {...}, candidate: {...}, meta: {...} }
+    Aucune écriture en base : l'enregistrement passe par /ec1-apply ou par
+    /ec1-export.xlsx (POST), après vérification dans le formulaire éditable.
     """
     uid = _uid()
     if not uid:
@@ -1715,7 +1939,6 @@ def api_candidate_ec1_from_transcript(cid):
 
     body = request.get_json(force=True, silent=True) or {}
     transcript = (body.get("transcript") or "").strip()
-    apply_now = bool(body.get("apply"))
     if not transcript:
         return jsonify(ok=False, error="Transcription vide"), 400
     if len(transcript) > 40000:
@@ -1730,12 +1953,18 @@ def api_candidate_ec1_from_transcript(cid):
 Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
 {{
   "fields": {{
+    "diplomes_experience": "diplômes et années d'expérience (ex: Ingénieur ESTP, 5 ans)",
+    "permis_conduire": "Oui ou Non (chaîne vide si non abordé)",
+    "vehicule": "Oui ou Non (chaîne vide si non abordé)",
+    "permis_travail": "permis / autorisation de travail (ex: Carte de séjour, UE)",
+    "demarches_administratives": "détails des démarches administratives en cours",
     "disponibilite": "date ou délai de disponibilité (ex: Immédiate, 3 mois)",
     "mobilite": "zones géographiques (ex: Lyon, Paris, Nationale)",
     "fonctions_recherchees": "postes et secteurs visés",
     "motif_recherche": "motif de départ / motivations principales",
     "remuneration_actuelle": "rémunération actuelle (fixe + variable + avantages)",
     "pretentions_salariales": "prétentions salariales",
+    "propal_a": "propositions / offres déjà reçues ailleurs",
     "avancement_recherches": "avancement des autres pistes (ED/EP/Std By/discret)",
     "eval_technique": "évaluation technique (1-2 phrases)",
     "eval_personnalite": "évaluation personnalité (1-2 phrases)",
@@ -1758,7 +1987,7 @@ Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, 
   }}
 }}
 
-Mets les champs absents à la chaîne vide. Pour la checklist, mets `checked` à true si le sujet a été abordé pendant l'entretien."""
+Mets les champs absents à la chaîne vide. Pour permis_conduire et vehicule, réponds exactement « Oui » ou « Non » (ou chaîne vide). Pour la checklist, mets `checked` à true si le sujet a été abordé pendant l'entretien."""
 
     try:
         config = _load_ai_config()
@@ -1780,52 +2009,17 @@ Mets les champs absents à la chaîne vide. Pour la checklist, mets `checked` à
         logger.warning("EC1 from-transcript IA error: %s", e)
         return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
 
-    if apply_now:
-        # Met à jour les champs candidat (fusion non destructive : ignore si vide)
-        sets, vals = [], []
-        for k in ("disponibilite", "mobilite", "fonctions_recherchees", "motif_recherche",
-                  "remuneration_actuelle", "pretentions_salariales", "avancement_recherches",
-                  "eval_technique", "eval_personnalite", "eval_communication", "langues",
-                  "references_candidat", "avis_perso", "entretien_notes"):
-            v = fields.get(k)
-            if v not in (None, ""):
-                sets.append(f"{k}=?"); vals.append(str(v).strip())
-        if sets:
-            vals.extend([_now_iso(), cid, uid])
-            with _conn() as conn:
-                conn.execute(
-                    f"UPDATE candidates SET {', '.join(sets)}, updatedAt=? WHERE id=? AND owner_id=?;",
-                    vals,
-                )
-
-        # Sauvegarde la checklist EC1
-        if isinstance(checklist, dict) and checklist:
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ec1_keys = {
-                "mobilite_dispo_souhaits", "impression_generale", "evaluation_technique",
-                "evaluation_personnalite", "evaluation_communication", "rappel_valeurs_up",
-                "fourchette_salaire", "reponse_questions_craintes", "process_prochaines_etapes",
-            }
-            merged = {k: {"checked": False, "note": ""} for k in ec1_keys}
-            merged["__note"] = ""
-            for k, v in checklist.items():
-                if k in ec1_keys and isinstance(v, dict):
-                    merged[k] = {
-                        "checked": bool(v.get("checked", False)),
-                        "note": str(v.get("note") or "").strip(),
-                    }
-            with _conn() as conn:
-                row = conn.execute(
-                    "SELECT interviewAt FROM candidate_ec1_checklists WHERE candidate_id=?;",
-                    (cid,),
-                ).fetchone()
-                interview_at = (row["interviewAt"] if row else None) or _today_iso()
-                conn.execute(
-                    """INSERT INTO candidate_ec1_checklists (candidate_id, interviewAt, data, updatedAt)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT(candidate_id)
-                       DO UPDATE SET data=excluded.data, updatedAt=excluded.updatedAt""",
-                    (cid, interview_at, json.dumps(merged, ensure_ascii=False), now),
-                )
-
-    return jsonify(ok=True, fields=fields, checklist=checklist, applied=apply_now)
+    c, ec1_data, interview_at, user = _ec1_load_context(cid, uid)
+    if c is None:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+    candidate_snapshot = _ec1_data_from_db(c, ec1_data, user, interview_at)
+    meta = {
+        "recruteur_trigramme": _ec1_recruteur_trigramme(user),
+        "ec1_date": candidate_snapshot.get("ec1_date") or _today_iso()[:10],
+    }
+    candidate_snapshot.pop("__checklist", None)
+    candidate_snapshot.pop("__free_note", None)
+    return jsonify(
+        ok=True, fields=fields, checklist=checklist,
+        candidate=candidate_snapshot, meta=meta,
+    )

@@ -361,32 +361,40 @@
   </div>
 </div>
 
-{# ─── Modal Transcription EC1 → IA ─── #}
+{# ─── Modal Transcription EC1 → fiche éditable → Excel ─── #}
 <div class="v30-modal-bd" data-v30-fc-ec1-modal hidden>
-  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-fc-ec1-modal-title" style="max-width:720px;">
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-fc-ec1-modal-title" style="max-width:900px;">
     <div class="v30-modal__head">
       <h2 class="v30-modal__title" id="v30-fc-ec1-modal-title">{{ ui.icon('sparkles', 14) }} Pré-remplir la fiche EC1 depuis une transcription</h2>
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fc-ec1-close aria-label="Fermer">×</button>
     </div>
-    <div class="v30-modal__body" style="max-height:65vh;overflow-y:auto;">
-      <div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px;line-height:1.55;">
-        Collez ci-dessous la transcription brute de l'entretien EC1. L'IA en local extrait les
-        informations clés (mobilité, motivations, évaluation, salaire…) et coche les éléments
-        traités dans la checklist EC1. Vous pourrez ensuite télécharger la fiche Excel pré-remplie.
-      </div>
-      <textarea data-v30-fc-ec1-transcript-input rows="14"
-        placeholder="Coller ici la transcription brute (texte intégral) de l'entretien EC1…"
-        style="width:100%;resize:vertical;font-size:12.5px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;line-height:1.5;"></textarea>
-      <div data-v30-fc-ec1-result style="margin-top:14px;display:none;">
-        <div style="font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">
-          Aperçu des champs extraits par l'IA
+    <div class="v30-modal__body" style="max-height:72vh;overflow-y:auto;">
+      <details class="v30-ec1-transcript" data-v30-fc-ec1-transcript-box open>
+        <summary>Transcription de l'entretien EC1</summary>
+        <div style="font-size:12.5px;color:var(--text-3);margin:8px 0 10px;line-height:1.55;">
+          Collez la transcription brute de l'entretien. L'IA en local extrait les champs de la
+          fiche (identité, mobilité, motivations, évaluation, salaire…) et coche les éléments
+          traités. Vous pourrez ensuite vérifier, compléter et corriger chaque champ avant de
+          générer l'Excel.
         </div>
-        <div data-v30-fc-ec1-fields style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12.5px;background:var(--surface-2);"></div>
-      </div>
+        <textarea data-v30-fc-ec1-transcript-input rows="9"
+          placeholder="Coller ici la transcription brute (texte intégral) de l'entretien EC1…"
+          style="width:100%;resize:vertical;font-size:12.5px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>
+      </details>
       <div data-v30-fc-ec1-loader style="margin-top:14px;display:none;padding:14px;text-align:center;color:var(--text-3);font-size:12.5px;">
         Analyse en cours via IA…
         <div class="skel" style="width:75%;height:10px;margin:8px auto;"></div>
         <div class="skel" style="width:60%;height:10px;margin:8px auto;"></div>
+      </div>
+      <div data-v30-fc-ec1-result style="margin-top:14px;display:none;">
+        <div style="font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">
+          Fiche EC1 — vérifiez et complétez les champs
+        </div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;line-height:1.5;">
+          Les champs marqués <span class="v30-ec1-badge">IA</span> ont été pré-remplis automatiquement.
+          Corrigez ou complétez librement, puis appliquez à la fiche ou générez l'Excel.
+        </div>
+        <div data-v30-fc-ec1-fields></div>
       </div>
     </div>
     <div class="v30-modal__foot">
