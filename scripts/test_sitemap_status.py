@@ -52,7 +52,7 @@ PAGES: dict[str, str] = {
     "mode-prosp": "/v30/mode-prosp",
     "parametres": "/v30/parametres",
     "sitemap": "/v30/sitemap",
-    "prospects-archives": "/v30/prospects/archives",
+    "archives": "/v30/archives",
 }
 
 API_GETS: list[str] = [

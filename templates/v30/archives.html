@@ -1,0 +1,374 @@
+{% extends "v30/base.html" %}
+{% block title %}Archives — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-archives{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospects.css?v={{ static_hash('css/v30/prospects.css') }}">
+<style>
+  .arch-co{
+    border:1px solid var(--border, rgba(127,127,127,.22));
+    border-radius:12px; margin-bottom:10px; overflow:hidden;
+  }
+  .arch-co__head{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 12px 8px 8px;
+  }
+  .arch-co__toggle{
+    display:flex; align-items:center; gap:10px; flex:1; min-width:0;
+    background:none; border:0; cursor:pointer; color:inherit; font:inherit;
+    text-align:left; padding:6px; border-radius:8px;
+  }
+  .arch-co__toggle:hover{ background:var(--surface-2, rgba(127,127,127,.08)); }
+  .arch-co__id{ flex:1; min-width:0; }
+  .arch-co__name{ font-weight:600; font-size:13.5px; }
+  .arch-co__meta{ font-size:11.5px; color:var(--muted, #8a8a8a); margin-top:1px; }
+  .arch-co__chev{ color:var(--muted, #8a8a8a); transition:transform .15s ease; flex-shrink:0; }
+  .arch-co.is-open .arch-co__chev{ transform:rotate(90deg); }
+  .arch-co__actions{ flex-shrink:0; }
+  .arch-co__body{ border-top:1px solid var(--border, rgba(127,127,127,.18)); }
+  .arch-co__prow{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 14px 8px 16px; font-size:12.5px;
+  }
+  .arch-co__prow + .arch-co__prow{ border-top:1px solid var(--border, rgba(127,127,127,.10)); }
+  .arch-co__prow a{ color:inherit; text-decoration:none; font-weight:500; }
+  .arch-co__prow a:hover{ text-decoration:underline; }
+  .arch-co__pmeta{ color:var(--muted, #8a8a8a); }
+  .arch-co__empty{ padding:12px 16px; font-size:12px; color:var(--muted, #8a8a8a); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-pp" data-v30-archives>
+
+  {# ─── Page header ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <p class="page-eyebrow">Corbeille douce</p>
+      <h1 class="page-title">Archives.</h1>
+      <p class="page-sub" data-arch-sub>Chargement des archives…</p>
+    </div>
+    <div class="page-header__actions">
+      <div class="segmented" role="tablist" data-v30-arch-tabs>
+        <button type="button" class="active" data-tab="prospects" role="tab" aria-selected="true">
+          {{ ui.icon('users', 13) }} Prospects seuls<span data-arch-count="prospects"></span>
+        </button>
+        <button type="button" data-tab="entreprises" role="tab" aria-selected="false">
+          {{ ui.icon('building', 13) }} Entreprises<span data-arch-count="entreprises"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Sous-page : Prospects seuls ─── #}
+  <div data-v30-arch-panel="prospects">
+    <div class="v30-pp-table-wrap" style="margin-top:16px;">
+      <div class="v30-pp-table-scroll">
+        <table class="table v30-pp-table">
+          <thead>
+            <tr>
+              <th style="padding-left:14px;">Nom</th>
+              <th>Entreprise</th>
+              <th>Statut</th>
+              <th>Tags</th>
+              <th>Dernier contact</th>
+              <th style="width:180px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody data-v30-arch-prospects-rows>
+            <tr><td colspan="6"><div class="v30-pp-empty">Chargement des archives…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Sous-page : Entreprises ─── #}
+  <div data-v30-arch-panel="entreprises" hidden>
+    <div data-v30-arch-companies style="margin-top:16px;">
+      <div class="v30-pp-empty">Chargement des archives…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CHEV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="m9 6 6 6-6 6"/></svg>';
+
+  function esc(s) {
+    var t = document.createElement('span');
+    t.textContent = s == null ? '' : String(s);
+    return t.innerHTML;
+  }
+  function initials(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '??';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+  function parseTags(tags) {
+    if (!tags) return [];
+    if (typeof tags === 'string') {
+      try { tags = JSON.parse(tags); } catch (_) { tags = tags.split(','); }
+    }
+    return (tags || []).map(function (t) { return String(t).trim(); }).filter(Boolean);
+  }
+  function fetchJSON(url, opts) {
+    return fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json' } }, opts || {}))
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function toast(msg, type) {
+    if (typeof window.showToast === 'function') window.showToast(msg, type || 'info');
+  }
+  function plural(n) { return n > 1 ? 's' : ''; }
+
+  var SOLO = [];        // prospects archivés individuellement (entreprise non archivée)
+  var COMPANIES = [];   // entreprises archivées : { id, groupe, site, prospects:[] }
+  var COMP_NAME = {};   // id entreprise -> nom
+
+  // ─── Onglets ────────────────────────────────────────────
+  function currentTab() {
+    var p = new URLSearchParams(location.search).get('tab');
+    return p === 'entreprises' ? 'entreprises' : 'prospects';
+  }
+  function setTab(tab) {
+    document.querySelectorAll('[data-v30-arch-tabs] button').forEach(function (b) {
+      var on = b.dataset.tab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-v30-arch-panel]').forEach(function (p) {
+      p.hidden = p.dataset.v30ArchPanel !== tab;
+    });
+    history.replaceState(null, '', location.pathname + '?tab=' + tab);
+  }
+  function bindTabs() {
+    var bar = document.querySelector('[data-v30-arch-tabs]');
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-tab]');
+      if (btn) setTab(btn.dataset.tab);
+    });
+  }
+
+  // ─── Rendu : prospects seuls ────────────────────────────
+  function renderProspects() {
+    var tbody = document.querySelector('[data-v30-arch-prospects-rows]');
+    if (!tbody) return;
+    if (!SOLO.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="v30-pp-empty">'
+        + 'Aucun prospect archivé individuellement.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = SOLO.map(function (p) {
+      var coName = (p.company_groupe || COMP_NAME[p.company_id] || '').trim();
+      var tagsHtml = parseTags(p.tags).slice(0, 3).map(function (t) {
+        return '<span class="v30-tag">' + esc(t) + '</span>';
+      }).join('');
+      return '<tr data-pid="' + p.id + '">'
+        + '<td style="padding-left:14px;">'
+        +   '<div style="display:flex;align-items:center;gap:8px;">'
+        +     '<span class="avatar">' + esc(initials(p.name)) + '</span>'
+        +     '<a href="/v30/prospect/' + p.id + '" style="color:inherit;text-decoration:none;">'
+        +       esc(p.name || '—') + '</a>'
+        +   '</div>'
+        + '</td>'
+        + '<td>' + esc(coName || '—') + '</td>'
+        + '<td>' + esc(p.statut || '—') + '</td>'
+        + '<td><div style="display:flex;gap:3px;flex-wrap:wrap;">' + tagsHtml + '</div></td>'
+        + '<td>' + esc((p.lastContact || '').slice(0, 10) || '—') + '</td>'
+        + '<td>'
+        +   '<button type="button" class="btn btn-sm" data-arch-p-restore="' + p.id + '">Désarchiver</button> '
+        +   '<button type="button" class="btn btn-sm btn-danger" data-arch-p-delete="' + p.id + '">Supprimer</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  // ─── Rendu : entreprises archivées ──────────────────────
+  function renderCompanies() {
+    var wrap = document.querySelector('[data-v30-arch-companies]');
+    if (!wrap) return;
+    if (!COMPANIES.length) {
+      wrap.innerHTML = '<div class="v30-pp-empty">Aucune entreprise archivée.</div>';
+      return;
+    }
+    wrap.innerHTML = COMPANIES.map(function (c) {
+      var n = c.prospects.length;
+      var sub = (c.site ? esc(c.site) + ' · ' : '') + n + ' prospect' + plural(n) + ' archivé' + plural(n);
+      var rows = n
+        ? c.prospects.map(function (p) {
+            return '<div class="arch-co__prow">'
+              + '<span class="avatar">' + esc(initials(p.name)) + '</span>'
+              + '<a href="/v30/prospect/' + p.id + '">' + esc(p.name || '—') + '</a>'
+              + '<span class="arch-co__pmeta">' + esc(p.fonction || '') + '</span>'
+              + '<span style="flex:1;"></span>'
+              + '<span class="arch-co__pmeta">' + esc(p.statut || '') + '</span>'
+              + '</div>';
+          }).join('')
+        : '<div class="arch-co__empty">Aucun prospect rattaché.</div>';
+      return '<div class="arch-co" data-cid="' + c.id + '">'
+        + '<div class="arch-co__head">'
+        +   '<button type="button" class="arch-co__toggle" data-arch-co-toggle aria-expanded="false">'
+        +     '<span class="avatar">' + esc(initials(c.groupe)) + '</span>'
+        +     '<span class="arch-co__id">'
+        +       '<div class="arch-co__name">' + esc(c.groupe || '—') + '</div>'
+        +       '<div class="arch-co__meta">' + sub + '</div>'
+        +     '</span>'
+        +     '<span class="arch-co__chev">' + CHEV + '</span>'
+        +   '</button>'
+        +   '<span class="arch-co__actions">'
+        +     '<button type="button" class="btn btn-sm" data-arch-co-restore="' + c.id + '">Désarchiver</button>'
+        +   '</span>'
+        + '</div>'
+        + '<div class="arch-co__body" hidden>' + rows + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // ─── Compteurs ──────────────────────────────────────────
+  function updateCounts() {
+    var cp = document.querySelector('[data-arch-count="prospects"]');
+    var ce = document.querySelector('[data-arch-count="entreprises"]');
+    if (cp) cp.textContent = ' (' + SOLO.length + ')';
+    if (ce) ce.textContent = ' (' + COMPANIES.length + ')';
+    var sub = document.querySelector('[data-arch-sub]');
+    if (sub) {
+      sub.textContent = SOLO.length + ' prospect' + plural(SOLO.length) + ' seul' + plural(SOLO.length)
+        + ' · ' + COMPANIES.length + ' entreprise' + plural(COMPANIES.length) + ' archivée' + plural(COMPANIES.length)
+        + '. Un archivage est réversible : tu peux tout désarchiver à tout moment.';
+    }
+  }
+
+  // ─── Actions ────────────────────────────────────────────
+  function bindActions() {
+    var ptbody = document.querySelector('[data-v30-arch-prospects-rows]');
+    if (ptbody) ptbody.addEventListener('click', function (e) {
+      var rb = e.target.closest('[data-arch-p-restore]');
+      var db = e.target.closest('[data-arch-p-delete]');
+      if (rb) {
+        var rid = Number(rb.dataset.archPRestore);
+        rb.disabled = true;
+        post('/api/prospects/bulk-archive', { ids: [rid], archive: false })
+          .then(function (r) {
+            if (!r || !r.ok) throw new Error((r && r.error) || 'Erreur');
+            toast('Prospect désarchivé', 'success');
+            SOLO = SOLO.filter(function (p) { return p.id !== rid; });
+            renderProspects(); updateCounts();
+          })
+          .catch(function (err) { rb.disabled = false; toast('Erreur : ' + err.message, 'error'); });
+      } else if (db) {
+        var did = Number(db.dataset.archPDelete);
+        if (!confirm('Supprimer définitivement ce prospect archivé ? Cette action est irréversible.')) return;
+        db.disabled = true;
+        post('/api/prospects/delete', { id: did })
+          .then(function (r) {
+            if (!r || !r.ok) throw new Error((r && r.error) || 'Erreur');
+            toast('Prospect supprimé', 'success');
+            SOLO = SOLO.filter(function (p) { return p.id !== did; });
+            renderProspects(); updateCounts();
+          })
+          .catch(function (err) { db.disabled = false; toast('Erreur : ' + err.message, 'error'); });
+      }
+    });
+
+    var cwrap = document.querySelector('[data-v30-arch-companies]');
+    if (cwrap) cwrap.addEventListener('click', function (e) {
+      var restore = e.target.closest('[data-arch-co-restore]');
+      if (restore) {
+        var cid = Number(restore.dataset.archCoRestore);
+        var co = COMPANIES.filter(function (c) { return c.id === cid; })[0];
+        var pn = co ? co.prospects.length : 0;
+        if (!confirm('Désarchiver cette entreprise' + (pn ? ' et ses ' + pn + ' prospect' + plural(pn) : '') + ' ?')) return;
+        restore.disabled = true;
+        post('/api/companies/bulk-archive', { ids: [cid], archive: false })
+          .then(function (r) {
+            if (!r || !r.ok) throw new Error((r && r.error) || 'Erreur');
+            toast('Entreprise désarchivée', 'success');
+            COMPANIES = COMPANIES.filter(function (c) { return c.id !== cid; });
+            renderCompanies(); updateCounts();
+          })
+          .catch(function (err) { restore.disabled = false; toast('Erreur : ' + err.message, 'error'); });
+        return;
+      }
+      var toggle = e.target.closest('[data-arch-co-toggle]');
+      if (toggle) {
+        var card = toggle.closest('.arch-co');
+        if (!card) return;
+        var body = card.querySelector('.arch-co__body');
+        var open = card.classList.toggle('is-open');
+        if (body) body.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+    });
+  }
+
+  // ─── Chargement ─────────────────────────────────────────
+  function load() {
+    fetchJSON('/api/data')
+      .then(function (res) {
+        var allProspects = (res && res.prospects) || [];
+        var allCompanies = (res && res.companies) || [];
+        COMP_NAME = {};
+        var compSite = {};
+        allCompanies.forEach(function (c) {
+          COMP_NAME[c.id] = (c.groupe || c.name || '').trim();
+          compSite[c.id] = (c.site || '').trim();
+        });
+        var archivedCompanies = allCompanies.filter(function (c) { return c.is_archived; });
+        var archCo = {};
+        archivedCompanies.forEach(function (c) { archCo[c.id] = true; });
+        var archivedProspects = allProspects.filter(function (p) { return p.is_archived && !p.deleted_at; });
+
+        SOLO = archivedProspects.filter(function (p) { return !archCo[p.company_id]; });
+        COMPANIES = archivedCompanies.map(function (c) {
+          return {
+            id: c.id,
+            groupe: COMP_NAME[c.id] || '—',
+            site: compSite[c.id] || '',
+            prospects: archivedProspects.filter(function (p) { return p.company_id === c.id; })
+          };
+        }).sort(function (a, b) { return a.groupe.localeCompare(b.groupe); });
+
+        renderProspects();
+        renderCompanies();
+        updateCounts();
+      })
+      .catch(function (err) {
+        console.error('[v30 archives]', err);
+        var tb = document.querySelector('[data-v30-arch-prospects-rows]');
+        if (tb) tb.innerHTML = '<tr><td colspan="6"><div class="v30-pp-empty">Erreur de chargement.</div></td></tr>';
+        var cw = document.querySelector('[data-v30-arch-companies]');
+        if (cw) cw.innerHTML = '<div class="v30-pp-empty">Erreur de chargement.</div>';
+      });
+  }
+
+  function init() {
+    bindTabs();
+    bindActions();
+    setTab(currentTab());
+    load();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+{% endblock %}

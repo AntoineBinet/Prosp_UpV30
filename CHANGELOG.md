@@ -2,6 +2,35 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.90] — 2026-05-20 · Archives — page unifiée + archivage d'entreprises
+
+- **Bouton « Archives » déplacé dans la sidebar** : il rejoint la section
+  *Records*, juste sous *Candidats*. Il disparaît donc de l'en-tête de la
+  page Prospects pour alléger la barre d'actions.
+- **Archivage d'entreprise complète** : la barre d'actions groupées de la
+  page Entreprises gagne un bouton **Archiver**. Archiver une (ou
+  plusieurs) entreprise(s) archive automatiquement **tous les prospects
+  rattachés**. L'entreprise sort alors de la liste, du compteur sidebar
+  et de l'autocomplete. Action entièrement réversible.
+- **Page Archives à deux sous-pages** : la nouvelle page `/v30/archives`
+  propose un sélecteur **Prospects seuls** / **Entreprises**. « Prospects
+  seuls » liste les prospects archivés individuellement (entreprise
+  active) ; « Entreprises » liste les entreprises archivées sous forme de
+  cartes dépliables affichant leurs prospects. Désarchiver une entreprise
+  restaure l'entreprise et tous ses prospects d'un seul geste.
+- **Backend** : nouvelle colonne `companies.is_archived` (migration DB
+  principale + DB multi-user) et endpoint `POST /api/companies/bulk-archive`
+  (archive/désarchive en cascade entreprise + prospects).
+- **Compat** : l'ancienne URL `/v30/prospects/archives` redirige vers
+  `/v30/archives`.
+- **Fichiers modifiés** : `config.py`, `app.py`, `utils/db.py`,
+  `routes/companies.py`, `routes/pages.py` (toile d'araignée : nouvelle
+  page « Archives » + action d'archivage entreprise),
+  `templates/_partials/v30/sidebar.html`, `templates/v30/prospects.html`,
+  `templates/v30/entreprises.html`, `templates/v30/archives.html` (nouveau,
+  remplace `prospects_archives.html`), `static/js/v30/entreprises.js`,
+  `scripts/test_sitemap_status.py`.
+
 ## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
 
 - **Tri par colonnes rétabli** : la liste des entreprises retrouve le
