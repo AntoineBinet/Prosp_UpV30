@@ -114,7 +114,8 @@ def _sidebar_counts(uid=None) -> dict:
                 ).fetchone()[0],
                 "entreprises": conn.execute(
                     "SELECT COUNT(*) FROM companies WHERE owner_id=? "
-                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                    "AND (deleted_at IS NULL OR deleted_at='') "
+                    "AND (is_archived IS NULL OR is_archived=0);", (uid,)
                 ).fetchone()[0],
                 "candidats": conn.execute(
                     "SELECT COUNT(*) FROM candidates WHERE owner_id=? "

@@ -1295,6 +1295,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("companies", "careers_url", "TEXT")
         if "locations" not in ccols:
             _add_col("companies", "locations", "TEXT")
+        # v32.93 — archivage entreprise complète (entreprise + ses prospects)
+        if "is_archived" not in ccols:
+            _add_col("companies", "is_archived", "INTEGER")
 
         # Prospects (v4→v6)
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospects);").fetchall()]
@@ -2116,6 +2119,14 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "deleted_at" not in cols:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN deleted_at TEXT;")
                 conn.commit()
+        # Migration: is_archived sur companies (per-user DBs) — archivage entreprise (v32.93)
+        try:
+            co_cols = [r["name"] for r in conn.execute("PRAGMA table_info(companies);").fetchall()]
+            if co_cols and "is_archived" not in co_cols:
+                conn.execute("ALTER TABLE companies ADD COLUMN is_archived INTEGER;")
+                conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration is_archived companies ({db_path}): {e}")
         # Migration: is_contact → is_archived pour prospects (per-user DBs)
         try:
             pros_cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospects);").fetchall()]

@@ -508,8 +508,16 @@ def page_v30_prospects():
 
 @pages_bp.get("/v30/prospects/archives")
 def page_v30_prospects_archives():
-    """BUG 29 : page des prospects archivés. Liste lecture seule avec action
-    Désarchiver. Utilise /api/data pour récupérer les archivés côté client."""
+    """Ancienne URL des archives — redirige vers la page Archives unifiée."""
+    return redirect("/v30/archives")
+
+
+@pages_bp.get("/v30/archives")
+def page_v30_archives():
+    """Page Archives (v32.93) — corbeille douce. Deux sous-pages :
+    « Prospects seuls » (prospects archivés individuellement) et
+    « Entreprises » (entreprises archivées avec tous leurs prospects).
+    Les données archivées sont chargées côté client via /api/data."""
     uid = _uid()
     if not uid:
         return redirect('/login')
@@ -520,24 +528,11 @@ def page_v30_prospects_archives():
         parts = [p for p in dn.split() if p]
         user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
 
-    counts = _sidebar_counts()
-    archived_count = 0
-    try:
-        with _conn() as conn:
-            archived_count = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') AND is_archived=1;",
-                (uid,),
-            ).fetchone()[0]
-    except Exception:
-        pass
-
     return render_template(
-        "v30/prospects_archives.html",
-        active="prospects",
-        crumbs=["Prosp'Up", "Prospects", "Archives"],
-        counts=counts,
-        archived_count=archived_count,
+        "v30/archives.html",
+        active="archives",
+        crumbs=["Prosp'Up", "Archives"],
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -751,7 +746,7 @@ def _build_sitemap_data(is_admin: bool) -> dict:
     Renvoie un dict avec :
       - root : nœud Connexion (point d'entrée)
       - categories : 5 catégories (navigate, records, outils, admin, autres)
-      - pages : 21 pages avec leurs actions (filtré selon le rôle)
+      - pages : 22 pages avec leurs actions (filtré selon le rôle)
       - chaque action porte `tools` (handlers JS, endpoints API, backend Python)
         et un `status` ∈ {ok, warn, ko, unknown} calculé depuis
         data/sitemap_status.json (généré par scripts/test_sitemap_status.py).
@@ -918,11 +913,11 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["renderStatusBadge", "V30StatusPicker.badge", "V30StatusPicker.open", "bindStatutSync"], "endpoints": ["POST /api/prospects/bulk-edit"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
                 {"label": "Géocoder en masse", "href": "/v30/carte",
                  "tools": {"handlers": ["openGeocodeBulk"], "endpoints": ["POST /api/map/geocode", "GET /api/map/geocode/bulk"], "backend": ["routes/map.py:api_map_geocode_bulk"]}},
-                {"label": "Archiver", "href": "/v30/prospects/archives",
+                {"label": "Archiver", "href": "/v30/archives",
                  "tools": {"handlers": ["bulkArchive"], "endpoints": ["POST /api/prospects/bulk-archive"], "backend": ["routes/bulk.py:api_prospects_bulk_archive"]}},
                 {"label": "Supprimer (soft)", "href": "/v30/prospects",
                  "tools": {"handlers": ["bulkDelete"], "endpoints": ["POST /api/prospects/delete"], "backend": ["app.py:api_prospects_delete"]}},
-                {"label": "Désarchiver / restaurer", "href": "/v30/prospects/archives",
+                {"label": "Désarchiver / restaurer", "href": "/v30/archives",
                  "tools": {"handlers": ["unarchive"], "endpoints": ["POST /api/soft-deleted/restore"], "backend": ["routes/misc.py:api_soft_deleted_restore"]}},
                 {"label": "Exporter VCF / XLSX", "href": "/v30/prospects",
                  "tools": {"handlers": ["exportSelection"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
@@ -975,6 +970,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["mergeCompanies"], "endpoints": ["POST /api/companies/merge"], "backend": ["app.py:api_companies_merge"]}},
                 {"label": "Supprimer une entreprise", "href": "/v30/entreprises",
                  "tools": {"handlers": ["deleteCompany"], "endpoints": ["POST /api/companies/delete"], "backend": ["routes/companies.py:api_companies_delete"]}},
+                {"label": "Archiver l'entreprise (+ tous ses prospects)", "href": "/v30/archives",
+                 "tools": {"handlers": ["bindBulk"], "endpoints": ["POST /api/companies/bulk-archive"], "backend": ["routes/companies.py:api_companies_bulk_archive"]}},
                 {"label": "Filtrer / rechercher", "href": "/v30/entreprises",
                  "tools": {"handlers": ["filterEntreprises"], "endpoints": ["GET /api/search"], "backend": ["app.py:api_search"]}},
                 {"label": "Trier le tableau (colonnes cliquables)", "href": "/v30/entreprises",
@@ -1042,6 +1039,25 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["renderEc1Form", "collectEc1Form", "applyEc1Form"], "endpoints": ["POST /api/candidates/<id>/ec1-apply"], "backend": ["routes/candidates.py:api_candidate_ec1_apply"]}},
                 {"label": "Transcription EC1 → IA pré-remplit la fiche", "href": "/v30/candidat/<id>",
                  "tools": {"handlers": ["analyzeEc1Transcript", "buildEc1State"], "endpoints": ["POST /api/candidates/<id>/ec1-from-transcript"], "backend": ["routes/candidates.py:api_candidate_ec1_from_transcript"]}},
+            ],
+        },
+        {
+            "id": "archives", "label": "Archives", "cat": "records",
+            "icon": "🗄️", "href": "/v30/archives",
+            "summary": "Corbeille douce — prospects et entreprises archivés, restauration réversible.",
+            "actions": [
+                {"label": "Charger les archives", "href": "/v30/archives",
+                 "tools": {"handlers": ["load", "render"], "endpoints": ["GET /api/data"], "backend": ["routes/misc.py:api_data"]}},
+                {"label": "Sous-page Prospects seuls", "href": "/v30/archives?tab=prospects",
+                 "tools": {"handlers": ["switchTab", "renderProspects"], "endpoints": [], "backend": []}},
+                {"label": "Sous-page Entreprises", "href": "/v30/archives?tab=entreprises",
+                 "tools": {"handlers": ["switchTab", "renderCompanies"], "endpoints": [], "backend": []}},
+                {"label": "Désarchiver un prospect", "href": "/v30/archives",
+                 "tools": {"handlers": ["restoreProspect"], "endpoints": ["POST /api/prospects/bulk-archive"], "backend": ["routes/bulk.py:api_prospects_bulk_archive"]}},
+                {"label": "Supprimer un prospect archivé", "href": "/v30/archives",
+                 "tools": {"handlers": ["deleteProspect"], "endpoints": ["POST /api/prospects/delete"], "backend": ["app.py:api_prospects_delete"]}},
+                {"label": "Désarchiver une entreprise (+ ses prospects)", "href": "/v30/archives",
+                 "tools": {"handlers": ["restoreCompany"], "endpoints": ["POST /api/companies/bulk-archive"], "backend": ["routes/companies.py:api_companies_bulk_archive"]}},
             ],
         },
 

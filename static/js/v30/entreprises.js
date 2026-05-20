@@ -1667,6 +1667,20 @@
             .then(function () { i++; next(); });
         }
         next();
+      } else if (action === 'archive') {
+        var word = ids.length > 1 ? 'entreprises' : 'entreprise';
+        if (!confirm('Archiver ' + ids.length + ' ' + word + ' ?\n\nTous les prospects rattachés seront archivés en même temps. Action réversible depuis la page Archives.')) return;
+        fetchPost('/api/companies/bulk-archive', { ids: ids, archive: true })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Archivage impossible');
+            var n = res.companies || 0;
+            var msg = n + (n > 1 ? ' entreprises archivées' : ' entreprise archivée');
+            if (res.prospects) msg += ' · ' + res.prospects + ' prospect(s)';
+            toast(msg, 'success');
+            STATE.selected.clear();
+            reload();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); });
       }
     });
     var swap = document.querySelector('[data-v30-ent-merge-swap]');
@@ -1709,7 +1723,8 @@
   // ─── Orchestration ───────────────────────────────────────
   function reload() {
     return fetchJSON('/api/data').then(function (res) {
-      STATE.companies = (res && res.companies) || [];
+      // Les entreprises archivées sont exclues de la liste — visibles dans /v30/archives.
+      STATE.companies = ((res && res.companies) || []).filter(function (c) { return !c.is_archived; });
       STATE.prospects = (res && res.prospects) || [];
       STATE.rows = buildRows();
       STATE.selected.clear();

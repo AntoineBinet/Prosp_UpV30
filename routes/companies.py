@@ -166,6 +166,7 @@ def api_companies_list():
         rows = conn.execute(
             "SELECT id, groupe, site FROM companies "
             "WHERE owner_id=? AND deleted_at IS NULL "
+            "AND (is_archived IS NULL OR is_archived=0) "
             "ORDER BY LOWER(groupe), LOWER(COALESCE(site,''));",
             (uid,)
         ).fetchall()
@@ -248,6 +249,56 @@ def api_companies_delete():
     _audit_log("soft_delete", "company", int(cid))
     log_activity('delete', 'entreprise', int(cid), _name)
     return jsonify(ok=True)
+
+
+@companies_bp.post("/api/companies/bulk-archive")
+@role_required('editor')
+def api_companies_bulk_archive():
+    """v32.93 : archive (ou désarchive) des entreprises complètes.
+
+    Archiver une entreprise archive aussi TOUS ses prospects rattachés ;
+    les désarchiver fait l'inverse. Body : {"ids": [int], "archive": bool}.
+    Retourne {ok, companies, prospects} = nombres effectivement modifiés.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    raw_ids = payload.get("ids")
+    archive = 1 if payload.get("archive", True) else 0
+    if not raw_ids or not isinstance(raw_ids, list):
+        return jsonify(ok=False, error="ids (array) required"), 400
+    try:
+        ids = [int(x) for x in raw_ids if x is not None]
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="ids must be integers"), 400
+    if not ids:
+        return jsonify(ok=False, error="Aucune entreprise fournie"), 400
+
+    companies_n = 0
+    prospects_n = 0
+    with _conn() as conn:
+        for cid in ids:
+            row = conn.execute(
+                "SELECT id FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                (cid, uid)
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute(
+                "UPDATE companies SET is_archived=? WHERE id=? AND owner_id=?;",
+                (archive, cid, uid)
+            )
+            companies_n += 1
+            cur = conn.execute(
+                "UPDATE prospects SET is_archived=? "
+                "WHERE company_id=? AND owner_id=? AND deleted_at IS NULL;",
+                (archive, cid, uid)
+            )
+            prospects_n += cur.rowcount or 0
+    _audit_log("bulk_archive", "company",
+               new_value=json.dumps({"ids": ids[:20], "archive": archive}))
+    return jsonify(ok=True, companies=companies_n, prospects=prospects_n)
 
 
 @companies_bp.post("/api/companies/<int:cid>/enrich")
