@@ -1078,50 +1078,76 @@
 
   // ─── Enrichissement fiche depuis DC (IA) ─────────────────
   var ENRICH_FIELDS = [
-    { key: 'name',             label: 'Nom complet' },
-    { key: 'role',             label: 'Rôle / Poste' },
-    { key: 'location',         label: 'Localisation' },
-    { key: 'years_experience', label: 'Expérience',
+    { key: 'name',                   label: 'Nom complet' },
+    { key: 'prenom',                 label: 'Prénom' },
+    { key: 'role',                   label: 'Rôle / Poste' },
+    { key: 'location',               label: 'Localisation' },
+    { key: 'sector',                 label: 'Secteur' },
+    { key: 'domaine_principal',      label: 'Domaine principal' },
+    { key: 'tech',                   label: 'Compétences tech' },
+    { key: 'years_experience',       label: 'Expérience (années)',
       getValue: function(c) { return c.years_experience || c.annees_experience || c.seniority || ''; } },
-    { key: 'sector',           label: 'Secteur' },
-    { key: 'tech',             label: 'Compétences tech' },
-    { key: 'phone',            label: 'Téléphone' },
-    { key: 'email',            label: 'Email' },
-    { key: 'linkedin',         label: 'LinkedIn' },
-    { key: 'domaine_principal',label: 'Domaine principal' },
+    { key: 'phone',                  label: 'Téléphone' },
+    { key: 'email',                  label: 'Email' },
+    { key: 'linkedin',               label: 'LinkedIn' },
+    { key: 'langues',                label: 'Langues' },
+    { key: 'disponibilite',          label: 'Disponibilité' },
+    { key: 'mobilite',               label: 'Mobilité' },
+    { key: 'permis_travail',         label: 'Permis de travail' },
+    { key: 'pretentions_salariales', label: 'Prétentions salariales' },
+    { key: 'remuneration_actuelle',  label: 'Rémunération actuelle' },
+    { key: 'motif_recherche',        label: 'Motif de recherche' },
+    { key: 'fonctions_recherchees',  label: 'Fonctions recherchées' },
+    { key: 'eval_technique',         label: 'Évaluation technique' },
+    { key: 'eval_personnalite',      label: 'Évaluation personnalité' },
+    { key: 'eval_communication',     label: 'Évaluation communication' },
   ];
 
-  function openDcEnrichModal() {
+  // Modale générique d'enrichissement : analyse un document (DC ou pièce
+  // jointe) via IA puis affiche une comparaison champ par champ.
+  function openEnrichModal(url, titleText) {
     var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
     if (!modal) return;
+    var titleEl = modal.querySelector('[data-v30-fc-enrich-title-text]');
+    if (titleEl) titleEl.textContent = titleText || 'Enrichir la fiche depuis un document';
     var body = modal.querySelector('[data-v30-fc-dc-enrich-body]');
     if (body) body.innerHTML =
       '<div style="padding:28px 0;text-align:center;color:var(--text-3);font-size:13px;">' +
-        'Analyse du DC en cours via IA…<br><br>' +
+        'Analyse du document en cours via IA…<br><br>' +
         '<div class="skel" style="width:80%;height:12px;margin:6px auto;"></div>' +
         '<div class="skel" style="width:65%;height:12px;margin:6px auto;"></div>' +
         '<div class="skel" style="width:72%;height:12px;margin:6px auto;"></div>' +
       '</div>';
+    STATE.enrichFields = null;
     modal.hidden = false;
     requestAnimationFrame(function () { modal.classList.add('is-open'); });
     var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
     if (applyBtn) applyBtn.disabled = true;
-    fetch('/api/candidates/' + CID + '/dc-enrich', {
+    fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+      headers: { 'Accept': 'application/json' }
     }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      return r.json().then(
+        function (j) { return { httpOk: r.ok, body: j }; },
+        function () { return { httpOk: false, body: { error: 'HTTP ' + r.status } }; }
+      );
     }).then(function (res) {
-      if (!res.ok) throw new Error(res.error || 'Erreur IA');
-      renderDcEnrichFields(res.fields);
+      if (!res.httpOk || !res.body || !res.body.ok) {
+        throw new Error((res.body && res.body.error) || 'Erreur IA');
+      }
+      STATE.enrichFields = res.body.fields || {};
+      renderDcEnrichFields(STATE.enrichFields);
       if (applyBtn) applyBtn.disabled = false;
     }).catch(function (err) {
       if (body) body.innerHTML =
         '<div style="padding:28px;text-align:center;color:var(--danger);font-size:13px;">' +
           'Erreur : ' + esc(String(err.message)) + '</div>';
     });
+  }
+
+  function openDcEnrichModal() {
+    openEnrichModal('/api/candidates/' + CID + '/dc-enrich', 'Enrichir la fiche depuis le DC');
   }
 
   function renderDcEnrichFields(fields) {
@@ -1152,8 +1178,7 @@
       html +=
         '<div style="display:grid;grid-template-columns:24px 1fr 1fr;gap:10px;align-items:start;padding:10px 12px;' +
           (i > 0 ? 'border-top:1px solid var(--border);' : '') + '">' +
-          '<input type="checkbox" name="enrich-' + f.key + '" data-enrich-key="' + f.key +
-            '" value="' + esc(extracted) + '"' + checked + ' style="margin-top:3px;">' +
+          '<input type="checkbox" data-enrich-key="' + f.key + '"' + checked + ' style="margin-top:3px;">' +
           '<div>' +
             '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">' + esc(f.label) + ' · actuel</div>' +
             '<div style="font-size:12.5px;color:var(--text-2);">' +
@@ -1173,9 +1198,11 @@
   function applyDcEnrich() {
     var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
     if (!modal) return;
+    var src = STATE.enrichFields || {};
     var payload = {};
     modal.querySelectorAll('[data-enrich-key]:checked').forEach(function (cb) {
-      payload[cb.dataset.enrichKey] = cb.value;
+      var k = cb.dataset.enrichKey;
+      if (src[k] != null && String(src[k]).trim() !== '') payload[k] = String(src[k]);
     });
     if (!Object.keys(payload).length) { closeDcEnrichModal(); return; }
     var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
@@ -1192,6 +1219,7 @@
       Object.assign(STATE.candidate, payload);
       renderHeader(STATE.candidate);
       renderInfo(STATE.candidate);
+      renderSectionFields(STATE.candidate);
       closeDcEnrichModal();
       flashSaved();
       var n = Object.keys(payload).length;
@@ -1276,6 +1304,7 @@
       var name = a.title || a.original_name || 'Fichier';
       var kindLbl = ATT_KIND_LABELS[a.kind] || 'Autre';
       var fileUrl = '/api/candidate-attachments/' + a.id + '/file';
+      var enrichable = _attEnrichable(a);
       return '<div class="v30-fc-att-row">' +
         '<span class="badge" style="font-size:10.5px;">' + esc(kindLbl) + '</span>' +
         '<div class="v30-fc-att-row__name">' +
@@ -1283,6 +1312,11 @@
           '<div class="v30-fc-att-row__meta">' + esc(a.original_name) + ' · ' + fmtSize(a.size) + ' · ' + esc(fmtAttDate(a.createdAt)) + '</div>' +
         '</div>' +
         '<div class="v30-fc-att-row__actions">' +
+          (enrichable ?
+            '<button type="button" class="btn btn-ghost btn-sm v30-fc-att-enrich" data-v30-fc-att-enrich="' + a.id + '" title="Analyser ce document via IA et enrichir la fiche">' +
+              '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/></svg>' +
+            '</button>' : '') +
           '<a class="btn btn-ghost btn-sm" href="' + esc(fileUrl) + '" target="_blank" rel="noopener" title="Télécharger">' +
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
               '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
@@ -1385,6 +1419,13 @@
     return 'autre';
   }
 
+  // Pièce jointe dont le texte est exploitable par l'IA (sinon pas de bouton).
+  function _attEnrichable(a) {
+    var nm = (a && (a.original_name || a.filename) || '');
+    var ext = (nm.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    return /^\.(pdf|docx|txt|xlsx|csv)$/.test(ext);
+  }
+
   function bindAttachmentsCard() {
     var card = document.querySelector('[data-v30-fc-att-card]');
     if (!card) return;
@@ -1394,6 +1435,14 @@
       if (e.target.closest('[data-v30-fc-att-upload-btn]') ||
           e.target.closest('[data-v30-fc-att-dropzone]')) {
         if (fileInput) fileInput.click();
+        return;
+      }
+      var enrichBtn = e.target.closest('[data-v30-fc-att-enrich]');
+      if (enrichBtn) {
+        var aid = enrichBtn.dataset.v30FcAttEnrich;
+        var att = (STATE.attachments || []).find(function (a) { return String(a.id) === String(aid); });
+        var nm = att ? (att.title || att.original_name || 'document') : 'document';
+        openEnrichModal('/api/candidate-attachments/' + aid + '/enrich', 'Enrichir depuis : ' + nm);
         return;
       }
       var renameBtn = e.target.closest('[data-v30-fc-att-rename]');
@@ -1463,46 +1512,197 @@
     setTimeout(function () { document.body.removeChild(a); }, 100);
   }
 
-  var EC1_FIELD_LABELS = {
-    disponibilite: 'Disponibilité',
-    mobilite: 'Mobilité',
-    fonctions_recherchees: 'Fonctions recherchées',
-    motif_recherche: 'Motif / motivations',
-    remuneration_actuelle: 'Rémunération actuelle',
-    pretentions_salariales: 'Prétentions',
-    avancement_recherches: 'Avancement des recherches',
-    eval_technique: 'Éval. technique',
-    eval_personnalite: 'Éval. personnalité',
-    eval_communication: 'Éval. communication',
-    langues: 'Langues',
-    references_candidat: 'Références',
-    avis_perso: 'Avis perso',
-    entretien_notes: 'Notes entretien'
-  };
+  // ─── Modèle du formulaire EC1 (calé sur le template Excel) ───
+  var EC1_FORM_SECTIONS = [
+    { title: 'Identité', fields: [
+      { key: 'name', label: 'Prénom Nom', type: 'text' },
+      { key: 'phone', label: 'Téléphone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'diplomes_experience', label: 'Diplômes et expérience', type: 'text', full: true },
+      { key: 'date_lieu_naissance', label: 'Date et lieu de naissance', type: 'text' },
+      { key: 'etat_civil', label: 'État civil', type: 'text' },
+      { key: 'source', label: 'Source CV', type: 'text' },
+      { key: 'recruteur_trigramme', label: 'Recruteur (trigramme)', type: 'text' },
+      { key: 'ec1_date', label: 'Date EC1', type: 'date' }
+    ]},
+    { title: 'Administratif', fields: [
+      { key: 'permis_conduire', label: 'Permis de conduire', type: 'bool' },
+      { key: 'vehicule', label: 'Véhicule', type: 'bool' },
+      { key: 'permis_travail', label: 'Permis de travail', type: 'text' },
+      { key: 'demarches_administratives', label: 'Détails démarches administratives', type: 'textarea', full: true }
+    ]},
+    { title: 'Disponibilité & mobilité', fields: [
+      { key: 'disponibilite', label: 'Disponibilité', type: 'text' },
+      { key: 'domicile', label: 'Domicile', type: 'text' },
+      { key: 'mobilite', label: 'Zones de mobilité', type: 'zones', full: true }
+    ]},
+    { title: 'Recherche', fields: [
+      { key: 'fonctions_recherchees', label: 'Fonctions recherchées', type: 'textarea', full: true },
+      { key: 'motif_recherche', label: 'Motif / motivations', type: 'textarea', full: true }
+    ]},
+    { title: 'Rémunération', fields: [
+      { key: 'remuneration_actuelle', label: 'Rémunération actuelle', type: 'text' },
+      { key: 'pretentions_salariales', label: 'Prétentions salariales', type: 'text' },
+      { key: 'propal_a', label: 'Propal à', type: 'text' },
+      { key: 'mail_recap', label: 'Mail récap envoyé', type: 'text' },
+      { key: 'montant_recap', label: 'Montant', type: 'text' },
+      { key: 'avancement_recherches', label: 'Avancement des recherches', type: 'textarea', full: true }
+    ]},
+    { title: 'Évaluation', fields: [
+      { key: 'eval_technique', label: 'Éval. technique', type: 'textarea', full: true },
+      { key: 'eval_personnalite', label: 'Éval. personnalité', type: 'textarea', full: true },
+      { key: 'eval_communication', label: 'Éval. communication', type: 'textarea', full: true },
+      { key: 'avis_perso', label: 'Avis / synthèse perso', type: 'textarea', full: true },
+      { key: 'ec1_statut', label: 'Statut EC1', type: 'text' }
+    ]},
+    { title: 'Langues', fields: [
+      { key: 'langues', label: 'Langues', type: 'text', full: true }
+    ]},
+    { title: 'Références', fields: [
+      { key: 'references_candidat', label: 'Références transmises', type: 'textarea', full: true }
+    ]},
+    { title: 'Notes EC1', fields: [
+      { key: 'entretien_notes', label: 'Compte-rendu / notes EC1', type: 'textarea', full: true }
+    ]}
+  ];
+  var EC1_CHECKLIST_ITEMS = [
+    ['mobilite_dispo_souhaits', 'Infos : mobilité, disponibilité, souhaits'],
+    ['impression_generale', 'Impression générale / debrief candidat'],
+    ['evaluation_technique', 'Évaluation technique'],
+    ['evaluation_personnalite', 'Évaluation personnalité'],
+    ['evaluation_communication', 'Évaluation communication'],
+    ['rappel_valeurs_up', 'Rappel usages / valeurs Up'],
+    ['fourchette_salaire', "Annonce d'une fourchette de salaire"],
+    ['reponse_questions_craintes', 'Réponses aux questions / craintes'],
+    ['process_prochaines_etapes', 'Détail du process et prochaines étapes']
+  ];
+  // Zones de mobilité — calquées sur les cases à cocher du template Excel.
+  var EC1_MOBILITY_ZONES = [
+    'Banlieue parisienne', 'Lyon', 'Aix', 'Sophia', 'Paris', 'Grenoble',
+    'Toulon', 'Province', 'Nationale', 'Valence', 'Montpellier', 'Rennes',
+    'Internationale'
+  ];
+  function ec1ZoneSet(str) {
+    var set = {};
+    String(str || '').split(',').forEach(function (p) {
+      var t = p.trim().toLowerCase();
+      if (t) set[t] = true;
+    });
+    return set;
+  }
+  function ec1IsTrue(v) {
+    return /^(oui|1|true|on|yes)$/i.test(String(v == null ? '' : v).trim());
+  }
 
-  function renderEc1Fields(fields, checklist) {
+  // Fusionne la réponse serveur en état de formulaire (valeurs + provenance IA).
+  function buildEc1State(res) {
+    var ai = (res && res.fields) || {};
+    var cand = (res && res.candidate) || {};
+    var meta = (res && res.meta) || {};
+    var values = {}, aiKeys = {};
+    EC1_FORM_SECTIONS.forEach(function (sec) {
+      sec.fields.forEach(function (f) {
+        var v = cand[f.key];
+        values[f.key] = (v == null ? '' : String(v));
+      });
+    });
+    Object.keys(ai).forEach(function (k) {
+      var v = ai[k];
+      if (v == null || String(v).trim() === '') return;
+      if (Object.prototype.hasOwnProperty.call(values, k)) {
+        values[k] = String(v);
+        aiKeys[k] = true;
+      }
+    });
+    if (meta.recruteur_trigramme && !values.recruteur_trigramme) values.recruteur_trigramme = meta.recruteur_trigramme;
+    if (meta.ec1_date && !values.ec1_date) values.ec1_date = meta.ec1_date;
+    return { values: values, aiKeys: aiKeys, checklist: (res && res.checklist) || {} };
+  }
+
+  function renderEc1Form(st) {
     var host = document.querySelector('[data-v30-fc-ec1-fields]');
     if (!host) return;
-    var rows = '';
-    Object.keys(EC1_FIELD_LABELS).forEach(function (k) {
-      var v = (fields && fields[k]) || '';
-      if (!v) return;
-      rows += '<div style="margin-bottom:8px;">' +
-        '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">' + esc(EC1_FIELD_LABELS[k]) + '</div>' +
-        '<div style="font-size:12.5px;white-space:pre-wrap;">' + esc(String(v)) + '</div>' +
-      '</div>';
+    var html = '';
+    EC1_FORM_SECTIONS.forEach(function (sec) {
+      html += '<div class="v30-ec1-sec">';
+      html += '<div class="v30-ec1-sec__title">' + esc(sec.title) + '</div>';
+      html += '<div class="v30-ec1-grid">';
+      sec.fields.forEach(function (f) {
+        var val = st.values[f.key] || '';
+        var isAi = !!st.aiKeys[f.key];
+        html += '<div class="v30-ec1-field' + (f.full ? ' is-full' : '') + '">';
+        html += '<label class="v30-ec1-field__label" for="ec1f-' + f.key + '">' + esc(f.label);
+        if (isAi) html += ' <span class="v30-ec1-badge" title="Pré-rempli par l\'IA">IA</span>';
+        html += '</label>';
+        if (f.type === 'textarea') {
+          html += '<textarea id="ec1f-' + f.key + '" class="v30-ec1-input" rows="3" data-ec1-field="' + f.key + '">' + esc(val) + '</textarea>';
+        } else if (f.type === 'select') {
+          html += '<select id="ec1f-' + f.key + '" class="v30-ec1-input" data-ec1-field="' + f.key + '">';
+          (f.options || []).forEach(function (o) {
+            html += '<option value="' + esc(o) + '"' + (String(val) === String(o) ? ' selected' : '') + '>' + esc(o || '—') + '</option>';
+          });
+          html += '</select>';
+        } else if (f.type === 'bool') {
+          html += '<label class="v30-ec1-check v30-ec1-bool"><input type="checkbox" data-ec1-field="' + f.key + '" data-ec1-bool="1"' + (ec1IsTrue(val) ? ' checked' : '') + '><span>Oui</span></label>';
+        } else if (f.type === 'zones') {
+          var zset = ec1ZoneSet(val);
+          html += '<div class="v30-ec1-zones">';
+          EC1_MOBILITY_ZONES.forEach(function (z) {
+            html += '<label class="v30-ec1-check"><input type="checkbox" data-ec1-zone="' + esc(z) + '"' + (zset[z.toLowerCase()] ? ' checked' : '') + '><span>' + esc(z) + '</span></label>';
+          });
+          html += '</div>';
+        } else {
+          var t = (f.type === 'date') ? 'date' : 'text';
+          html += '<input type="' + t + '" id="ec1f-' + f.key + '" class="v30-ec1-input" data-ec1-field="' + f.key + '" value="' + esc(val) + '">';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
     });
-    if (!rows) rows = '<div style="font-size:12.5px;color:var(--text-3);">L\'IA n\'a pas extrait de champs exploitables.</div>';
-    var chk = '';
-    if (checklist && typeof checklist === 'object') {
-      var checked = Object.keys(checklist).filter(function (k) { return checklist[k] && checklist[k].checked; });
-      if (checked.length) {
-        chk = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-2);">' +
-          'Checklist EC1 : ' + checked.length + ' point(s) cochés' +
-        '</div>';
-      }
+    var done = 0;
+    EC1_CHECKLIST_ITEMS.forEach(function (it) {
+      if (st.checklist[it[0]] && st.checklist[it[0]].checked) done++;
+    });
+    html += '<div class="v30-ec1-sec">';
+    html += '<div class="v30-ec1-sec__title">Checklist EC1 <span class="v30-ec1-count" data-ec1-count>' + done + '/' + EC1_CHECKLIST_ITEMS.length + '</span></div>';
+    html += '<div class="v30-ec1-checklist">';
+    EC1_CHECKLIST_ITEMS.forEach(function (it) {
+      var ck = st.checklist[it[0]] && st.checklist[it[0]].checked;
+      html += '<label class="v30-ec1-check"><input type="checkbox" data-ec1-check="' + it[0] + '"' + (ck ? ' checked' : '') + '><span>' + esc(it[1]) + '</span></label>';
+    });
+    html += '</div></div>';
+    host.innerHTML = html;
+    host.querySelectorAll('[data-ec1-check]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var n = host.querySelectorAll('[data-ec1-check]:checked').length;
+        var badge = host.querySelector('[data-ec1-count]');
+        if (badge) badge.textContent = n + '/' + EC1_CHECKLIST_ITEMS.length;
+      });
+    });
+  }
+
+  function collectEc1Form() {
+    var modal = document.querySelector('[data-v30-fc-ec1-modal]');
+    var fields = {}, checklist = {};
+    if (modal) {
+      modal.querySelectorAll('[data-ec1-field]').forEach(function (el) {
+        var key = el.getAttribute('data-ec1-field');
+        if (el.getAttribute('data-ec1-bool')) {
+          fields[key] = el.checked ? 'Oui' : 'Non';
+        } else {
+          fields[key] = el.value;
+        }
+      });
+      var zones = [];
+      modal.querySelectorAll('[data-ec1-zone]').forEach(function (el) {
+        if (el.checked) zones.push(el.getAttribute('data-ec1-zone'));
+      });
+      fields.mobilite = zones.join(', ');
+      modal.querySelectorAll('[data-ec1-check]').forEach(function (el) {
+        checklist[el.getAttribute('data-ec1-check')] = { checked: !!el.checked, note: '' };
+      });
     }
-    host.innerHTML = rows + chk;
+    return { fields: fields, checklist: checklist };
   }
 
   function analyzeEc1Transcript() {
@@ -1528,18 +1728,22 @@
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: transcript, apply: false })
+      body: JSON.stringify({ transcript: transcript })
     }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).then(function (res) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        return { ok: r.ok, body: j };
+      });
+    }).then(function (w) {
       if (loader) loader.style.display = 'none';
-      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur IA');
-      STATE.ec1Preview = res;
-      renderEc1Fields(res.fields, res.checklist);
+      var res = w.body;
+      if (!w.ok || !res || !res.ok) throw new Error((res && res.error) || 'Erreur IA');
+      STATE.ec1Preview = buildEc1State(res);
+      renderEc1Form(STATE.ec1Preview);
       if (result) result.style.display = '';
       if (applyBtn) applyBtn.disabled = false;
       if (applyDlBtn) applyDlBtn.disabled = false;
+      var box = modal.querySelector('[data-v30-fc-ec1-transcript-box]');
+      if (box) box.open = false;
     }).catch(function (err) {
       if (loader) loader.style.display = 'none';
       if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
@@ -1547,50 +1751,76 @@
     });
   }
 
-  function applyEc1Transcript(doDownload) {
+  function afterEc1Apply() {
+    flashSaved();
+    closeEc1Modal();
+    fetchJSON('/api/candidates/' + CID).then(function (data) {
+      var cand = data && (data.candidate || data);
+      if (cand) {
+        STATE.candidate = cand;
+        renderHeader(STATE.candidate);
+        renderInfo(STATE.candidate);
+        renderSectionFields(STATE.candidate);
+        updateEc1CardVisibility();
+      }
+    }).catch(function () {});
+  }
+
+  function applyEc1Form(doDownload) {
     var modal = document.querySelector('[data-v30-fc-ec1-modal]');
     if (!modal) return;
-    var textarea = modal.querySelector('[data-v30-fc-ec1-transcript-input]');
-    var transcript = (textarea && textarea.value || '').trim();
-    if (!transcript) {
-      if (window.showToast) window.showToast('Transcription vide', 'warning', 2000);
-      return;
-    }
+    var payload = collectEc1Form();
     var applyBtn = modal.querySelector('[data-v30-fc-ec1-apply]');
     var applyDlBtn = modal.querySelector('[data-v30-fc-ec1-apply-download]');
     if (applyBtn) applyBtn.disabled = true;
     if (applyDlBtn) applyDlBtn.disabled = true;
-    fetch('/api/candidates/' + CID + '/ec1-from-transcript', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: transcript, apply: true })
-    }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).then(function (res) {
-      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur IA');
-      if (window.showToast) window.showToast('Fiche EC1 mise à jour', 'success', 2500);
-      flashSaved();
-      closeEc1Modal();
-      // Reload candidate data to display new fields
-      return fetchJSON('/api/candidates/' + CID).then(function (data) {
-        var cand = data && (data.candidate || data);
-        if (cand) {
-          STATE.candidate = cand;
-          renderHeader(STATE.candidate);
-          renderInfo(STATE.candidate);
-          renderSectionFields(STATE.candidate);
-          updateEc1CardVisibility();
-        }
-        if (doDownload) downloadEc1Excel();
-      });
-    }).catch(function (err) {
+    var reEnable = function () {
       if (applyBtn) applyBtn.disabled = false;
       if (applyDlBtn) applyDlBtn.disabled = false;
-      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
-      else alert('Erreur : ' + err.message);
-    });
+    };
+
+    if (doDownload) {
+      if (window.showToast) window.showToast('Génération de la fiche Excel…', 'info', 1800);
+      fetch('/api/candidates/' + CID + '/ec1-export.xlsx', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        if (!r.ok) {
+          return r.json().then(
+            function (j) { throw new Error((j && j.error) || ('HTTP ' + r.status)); },
+            function () { throw new Error('HTTP ' + r.status); }
+          );
+        }
+        return r.blob();
+      }).then(function (blob) {
+        var name = ((STATE.candidate && STATE.candidate.name) || 'candidat').replace(/[^A-Za-z0-9]+/g, '_');
+        var u = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = u;
+        a.download = 'Fiche_entretien_' + name + '_EC1.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(u); }, 200);
+        if (window.showToast) window.showToast('Fiche EC1 générée', 'success', 2500);
+        afterEc1Apply();
+      }).catch(function (err) {
+        reEnable();
+        if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
+        else alert('Erreur : ' + err.message);
+      });
+    } else {
+      fetchPostJSON('/api/candidates/' + CID + '/ec1-apply', payload).then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (window.showToast) window.showToast('Fiche EC1 mise à jour', 'success', 2500);
+        afterEc1Apply();
+      }).catch(function (err) {
+        reEnable();
+        if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3500);
+        else alert('Erreur : ' + err.message);
+      });
+    }
   }
 
   function openEc1Modal() {
@@ -1602,10 +1832,15 @@
     if (loader) loader.style.display = 'none';
     var result = modal.querySelector('[data-v30-fc-ec1-result]');
     if (result) result.style.display = 'none';
+    var fields = modal.querySelector('[data-v30-fc-ec1-fields]');
+    if (fields) fields.innerHTML = '';
+    var box = modal.querySelector('[data-v30-fc-ec1-transcript-box]');
+    if (box) box.open = true;
     var applyBtn = modal.querySelector('[data-v30-fc-ec1-apply]');
     var applyDlBtn = modal.querySelector('[data-v30-fc-ec1-apply-download]');
     if (applyBtn) applyBtn.disabled = true;
     if (applyDlBtn) applyDlBtn.disabled = true;
+    STATE.ec1Preview = null;
     modal.hidden = false;
     requestAnimationFrame(function () { modal.classList.add('is-open'); });
     if (textarea) textarea.focus();
@@ -1619,15 +1854,14 @@
   }
 
   function bindEc1Card() {
-    // Délégation globale : capture les clics sur les actions EC1 où qu'elles soient
-    // (carte Entretien, ou autre slot futur).
+    // Délégation globale : capture les clics sur les actions EC1 où qu'elles soient.
     document.addEventListener('click', function (e) {
       if (e.target.closest('[data-v30-fc-ec1-download]')) { downloadEc1Excel(); return; }
       if (e.target.closest('[data-v30-fc-ec1-transcript]')) { openEc1Modal(); return; }
       if (e.target.closest('[data-v30-fc-ec1-close]')) { closeEc1Modal(); return; }
       if (e.target.closest('[data-v30-fc-ec1-analyze]')) { analyzeEc1Transcript(); return; }
-      if (e.target.closest('[data-v30-fc-ec1-apply-download]')) { applyEc1Transcript(true); return; }
-      if (e.target.closest('[data-v30-fc-ec1-apply]')) { applyEc1Transcript(false); return; }
+      if (e.target.closest('[data-v30-fc-ec1-apply-download]')) { applyEc1Form(true); return; }
+      if (e.target.closest('[data-v30-fc-ec1-apply]')) { applyEc1Form(false); return; }
       var modal = document.querySelector('[data-v30-fc-ec1-modal]');
       if (modal && !modal.hidden && e.target === modal) closeEc1Modal();
     });

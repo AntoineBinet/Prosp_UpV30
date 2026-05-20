@@ -4728,16 +4728,27 @@ def api_prospects_quick_filter():
     try:
         with _conn() as conn:
             if preset == 'push_ready':
-                rows = conn.execute(
+                # `exclude` : IDs deja proposes pendant une session de
+                # « rattrapage de push » — le bouton flottant « Suivant » de la
+                # fiche les passe pour ne jamais reproposer le meme prospect.
+                exclude_ids = [
+                    int(x) for x in request.args.get('exclude', '').split(',')
+                    if x.strip().isdigit()
+                ]
+                sql = (
                     "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
                     "AND (is_archived IS NULL OR is_archived=0) "
                     "AND (pushEmailSentAt IS NULL OR pushEmailSentAt='') "
                     "AND (pushLinkedInSentAt IS NULL OR pushLinkedInSentAt='') "
                     "AND email IS NOT NULL AND email!='' "
                     "AND (telephone IS NULL OR telephone='') "
-                    "ORDER BY RANDOM() LIMIT 1",
-                    (uid,)
-                ).fetchall()
+                )
+                params = [uid]
+                if exclude_ids:
+                    sql += "AND id NOT IN (" + ",".join(["?"] * len(exclude_ids)) + ") "
+                    params.extend(exclude_ids)
+                sql += "ORDER BY RANDOM() LIMIT 1"
+                rows = conn.execute(sql, params).fetchall()
             elif preset == 'rdv_ready':
                 rows = conn.execute(
                     "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
@@ -5597,11 +5608,19 @@ def api_prospect_best_candidates(prospect_id: int):
                     if cat_dict.get("keywords"):
                         category_keywords = _parse_json_str_list(cat_dict["keywords"])
 
+        # Piste 6: fonction du prospect + secteur de l'entreprise comme mots-clés
+        # (jusqu'ici chargés mais jamais exploités → prospects sans tags ne
+        # matchaient aucun candidat).
+        fonction_keywords = _keywords_from_notes(prospect_fonction)
+        industry_keywords = _keywords_from_notes(company_industry)
+
         all_sources = (
             [t.lower() for t in prospect_tags_effective]
             + [t.lower() for t in company_tags]
             + [t.lower() for t in category_keywords]
             + notes_keywords_lower
+            + [k.lower() for k in fonction_keywords]
+            + [k.lower() for k in industry_keywords]
         )
         if not all_sources:
             return jsonify(ok=True, candidates=[], prospect_tags=prospect_tags)

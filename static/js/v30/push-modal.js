@@ -2,14 +2,25 @@
  *
  * Exposé sur window.V30PushModal.open(prospectId, channel='email'|'linkedin').
  *
- * Utilise /api/push-categories, /api/prospect/<id>/best-candidates,
- * /api/users/for-push, /api/push-logs/add, /api/pushs/open, /api/settings,
- * /api/candidates/<id>/dossier-competence, /api/ollama/generate-stream.
+ * Utilise /api/push-categories, /api/prospect/<id>/push-ai-plan (SSE),
+ * /api/prospect/<id>/best-candidates, /api/users/for-push, /api/push-logs/add,
+ * /api/pushs/open, /api/settings, /api/candidates/<id>/dossier-competence,
+ * /api/ollama/generate-stream.
  */
 (function () {
   'use strict';
 
   var MODAL_ID = 'v30PushModal';
+
+  // Étapes du plan IA (panneau « Analyse IA » — pipeline transparent).
+  var STEP_ORDER = ['profil', 'web', 'secteur', 'categorie', 'candidats'];
+  var STEP_TITLES = {
+    profil:    'Analyse du profil',
+    web:       'Recherche web',
+    secteur:   'Détection du secteur',
+    categorie: 'Choix de la catégorie',
+    candidats: 'Sélection des consultants'
+  };
 
   var STATE = {
     prospectId: null,
@@ -21,7 +32,15 @@
     users: [],            // liste des consultants
     currentUserId: null,
     activeTab: 'classique',
-    callNote: ''
+    callNote: '',
+    // ─ Plan IA (panneau « Analyse IA »)
+    aiPlanSteps: {},      // { key: {status,label,detail,sources} }
+    aiPlanES: null,       // EventSource du flux SSE en cours
+    aiPlanStartTs: 0,
+    aiPlanTimer: null,
+    aiPlanCollapsed: false,
+    catPreset: false,     // une catégorie était présélectionnée à l'ouverture
+    userPickedCat: false  // l'utilisateur a changé la catégorie manuellement
   };
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -117,16 +136,22 @@
           '<section class="v30pm-section">' +
             '<div class="v30pm-section__label">' + ic('clipboard', 11) + ' Contexte</div>' +
             '<label class="v30-field">' +
-              '<span class="v30-field__label">Catégorie push</span>' +
+              '<span class="v30-field__label">Catégorie push' +
+                '<span class="v30pm-cat-aibadge" data-v30pm-cat-aibadge hidden>' + ic('robot', 10) + ' Suggérée par l\'IA</span>' +
+              '</span>' +
               '<select class="v30-input v30-input--lg" data-v30pm-cat aria-label="Catégorie push"></select>' +
             '</label>' +
 
-            // Barre IA (progression scoring + réordonnancement candidats)
-            '<div class="v30pm-ia-bar" data-v30pm-iabar>' +
-              '<span class="v30pm-ai-progress__pulse"></span>' +
-              '<span class="v30pm-ia-bar__msg" data-v30pm-iabar-msg>Calcul des scores de pertinence…</span>' +
-              '<a href="#" class="v30pm-ia-bar__toggle" data-v30pm-iabar-toggle hidden></a>' +
-              '<span class="v30pm-ia-bar__stats" data-v30pm-iabar-stats></span>' +
+            // Panneau « Analyse IA » — pipeline transparent (secteur → catégorie → candidats).
+            // Chaque étape du raisonnement IA s\'affiche en direct.
+            '<div class="v30pm-aiplan" data-v30pm-aiplan hidden>' +
+              '<div class="v30pm-aiplan__head">' +
+                '<span class="v30pm-aiplan__pulse" data-v30pm-aiplan-pulse aria-hidden="true"></span>' +
+                '<span class="v30pm-aiplan__title">' + ic('robot', 12) + ' Analyse IA du push</span>' +
+                '<span class="v30pm-aiplan__time" data-v30pm-aiplan-time></span>' +
+                '<button type="button" class="v30pm-aiplan__toggle" data-v30pm-aiplan-toggle aria-expanded="true">Masquer</button>' +
+              '</div>' +
+              '<div class="v30pm-aiplan__steps" data-v30pm-aiplan-steps></div>' +
             '</div>' +
 
             '<div class="v30-field" data-v30pm-cand-section>' +
@@ -184,6 +209,8 @@
       // Onglets
       var tabBtn = e.target.closest('[data-v30pm-tab]');
       if (tabBtn) { setActiveTab(tabBtn.dataset.v30pmTab); return; }
+      // Panneau « Analyse IA » : replier / déplier
+      if (e.target.closest('[data-v30pm-aiplan-toggle]')) { toggleAIPlan(); return; }
       // Générer accroche appel
       if (e.target.closest('[data-v30pm-callnote-gen]')) { generateCallNote(); return; }
       // Lien optionnel "Enrichir le profil" (affiché après génération si peu de données)
@@ -220,14 +247,13 @@
     });
     bd.addEventListener('change', function (e) {
       if (e.target.closest('[data-v30pm-cat]')) {
-        // Nouvelle passe IA pour la catégorie choisie
         var cat = $sel('data-v30pm-cat');
         var catId = cat && cat.value ? cat.value : null;
+        STATE.userPickedCat = true;
+        var aibadge = $sel('data-v30pm-cat-aibadge');
+        if (aibadge) aibadge.hidden = true;
         applyCategoryChange(catId);
-        // Skip AI suggestions si la catégorie est "sans consultant"
-        var catObj = findCategory(catId);
-        if (catObj && catObj.no_candidates) return;
-        loadAISuggestions(catId);
+        onCategoryPicked(catId);
       }
     });
     // Auto-save description candidat (onBlur)
@@ -257,6 +283,7 @@
   }
 
   function close() {
+    stopAIPlan();
     var bd = document.getElementById(MODAL_ID);
     if (bd) closeBd(bd);
     STATE.prospectId = null;
@@ -267,6 +294,9 @@
     STATE.users = [];
     STATE.activeTab = 'classique';
     STATE.callNote = '';
+    STATE.aiPlanSteps = {};
+    STATE.catPreset = false;
+    STATE.userPickedCat = false;
   }
 
   // ─── Fetch helpers ────────────────────────────────────────
@@ -402,7 +432,6 @@
       // Reset des candidats sélectionnés (pas envoyés au backend)
       STATE.selectedCand = { 1: null, 2: null };
       STATE.aiSuggestions = [];
-      hideIABar();
     }
   }
 
@@ -724,44 +753,92 @@
     });
   }
 
-  // ─── Barre IA (scoring + réordonnancement candidats) ──────
-  // Préférence persistée : IA activée par défaut, désactivable via toggle dans la barre.
-  function isAIRankingEnabled() {
-    try {
-      var v = localStorage.getItem('prospup.push_ai_ranking');
-      return v === null ? true : v === '1';
-    } catch (_) { return true; }
+  // ─── Panneau « Analyse IA » (pipeline transparent) ────────
+  // Affiche en direct chaque étape du raisonnement IA : profil → recherche web
+  // → secteur → catégorie → candidats. Reste visible après l'analyse pour que
+  // l'utilisateur garde la trace de ce que l'IA a trouvé.
+  function showAIPlan() {
+    var panel = $sel('data-v30pm-aiplan');
+    if (panel) panel.hidden = false;
   }
-  function setAIRankingEnabled(on) {
-    try { localStorage.setItem('prospup.push_ai_ranking', on ? '1' : '0'); } catch (_) {}
+  function resetAIPlan() {
+    STATE.aiPlanSteps = {};
+    STATE.aiPlanCollapsed = false;
+    var panel = $sel('data-v30pm-aiplan');
+    if (panel) panel.classList.remove('is-collapsed');
+    var pulse = $sel('data-v30pm-aiplan-pulse');
+    if (pulse) pulse.classList.remove('is-done');
+    var btn = $sel('data-v30pm-aiplan-toggle');
+    if (btn) { btn.textContent = 'Masquer'; btn.setAttribute('aria-expanded', 'true'); }
+    var time = $sel('data-v30pm-aiplan-time');
+    if (time) time.textContent = '';
+    renderAIPlan();
   }
-  function showIABar(msg) {
-    var bar = $sel('data-v30pm-iabar');
-    if (bar) bar.classList.add('is-active');
-    var m = $sel('data-v30pm-iabar-msg');
-    if (m) m.textContent = msg || 'Calcul des scores de pertinence…';
-    updateIABarStats(0);
+  function toggleAIPlan() {
+    STATE.aiPlanCollapsed = !STATE.aiPlanCollapsed;
+    var panel = $sel('data-v30pm-aiplan');
+    var btn = $sel('data-v30pm-aiplan-toggle');
+    if (panel) panel.classList.toggle('is-collapsed', STATE.aiPlanCollapsed);
+    if (btn) {
+      btn.textContent = STATE.aiPlanCollapsed ? 'Détails' : 'Masquer';
+      btn.setAttribute('aria-expanded', STATE.aiPlanCollapsed ? 'false' : 'true');
+    }
   }
-  function updateIABarMsg(msg) {
-    var m = $sel('data-v30pm-iabar-msg');
-    if (m) m.textContent = msg;
+  function updateAIPlanTime() {
+    var el = $sel('data-v30pm-aiplan-time');
+    if (el && STATE.aiPlanStartTs) {
+      el.textContent = ((Date.now() - STATE.aiPlanStartTs) / 1000).toFixed(1) + ' s';
+    }
   }
-  function updateIABarStats(secs) {
-    var s = $sel('data-v30pm-iabar-stats');
-    if (s) s.textContent = secs ? secs.toFixed(1) + ' s' : '';
+  function aiStepMarker(status) {
+    if (status === 'running') return '<span class="v30pm-aiplan-spin" aria-hidden="true"></span>';
+    if (status === 'done')    return '<span class="v30pm-aiplan-mk v30pm-aiplan-mk--done">' + ic('checkCircle', 12) + '</span>';
+    if (status === 'warn')    return '<span class="v30pm-aiplan-mk v30pm-aiplan-mk--warn">!</span>';
+    if (status === 'error')   return '<span class="v30pm-aiplan-mk v30pm-aiplan-mk--error">' + ic('x', 11) + '</span>';
+    if (status === 'skipped') return '<span class="v30pm-aiplan-mk v30pm-aiplan-mk--skip">–</span>';
+    return '<span class="v30pm-aiplan-mk v30pm-aiplan-mk--pending"></span>';
   }
-  function setIABarToggleLink(label, onClick) {
-    var t = $sel('data-v30pm-iabar-toggle');
-    if (!t) return;
-    if (!label) { t.hidden = true; t.textContent = ''; t.onclick = null; return; }
-    t.hidden = false;
-    t.textContent = label;
-    t.onclick = function (e) { e.preventDefault(); onClick && onClick(); };
+  function renderAIPlan() {
+    var host = $sel('data-v30pm-aiplan-steps');
+    if (!host) return;
+    host.innerHTML = STEP_ORDER.map(function (key) {
+      var s = STATE.aiPlanSteps[key] || { status: 'pending', label: STEP_TITLES[key] };
+      var detail = s.detail
+        ? '<div class="v30pm-aiplan-step__detail">' + esc(s.detail) + '</div>' : '';
+      var sources = '';
+      if (s.sources && s.sources.length) {
+        sources = '<div class="v30pm-aiplan-step__sources">' +
+          s.sources.map(function (src) {
+            var label = src.title || src.url || '';
+            return '<a class="v30pm-aiplan-step__src" href="' + esc(src.url || '#') + '"' +
+              ' target="_blank" rel="noopener" title="' + esc(src.url || '') + '">' + esc(label) + '</a>';
+          }).join('') + '</div>';
+      }
+      return '<div class="v30pm-aiplan-step is-' + esc(s.status || 'pending') + '">' +
+        '<span class="v30pm-aiplan-step__marker">' + aiStepMarker(s.status) + '</span>' +
+        '<div class="v30pm-aiplan-step__body">' +
+          '<div class="v30pm-aiplan-step__label">' + esc(s.label || STEP_TITLES[key]) + '</div>' +
+          detail + sources +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
-  function hideIABar() {
-    var bar = $sel('data-v30pm-iabar');
-    if (bar) bar.classList.remove('is-active');
-    setIABarToggleLink('', null);
+  function upsertStep(evt) {
+    if (!evt || !evt.key) return;
+    STATE.aiPlanSteps[evt.key] = {
+      status: evt.status || 'done',
+      label: evt.label || STEP_TITLES[evt.key],
+      detail: evt.detail || '',
+      sources: evt.sources || null
+    };
+    renderAIPlan();
+  }
+  function stopAIPlan() {
+    if (STATE.aiPlanES) {
+      try { STATE.aiPlanES.close(); } catch (_) {}
+      STATE.aiPlanES = null;
+    }
+    if (STATE.aiPlanTimer) { clearInterval(STATE.aiPlanTimer); STATE.aiPlanTimer = null; }
   }
 
   // ─── Loaders ──────────────────────────────────────────────
@@ -779,104 +856,173 @@
     });
   }
 
-  function loadAISuggestions(catId) {
-    // Pipeline : (1) scoring déterministe instantané côté serveur, puis si
-    // mode IA activé (2) réordonnancement Ollama + (3) explications batch.
-    // Le message UX change à 1.5s pour refléter la transition scoring → IA.
-    var p = STATE.prospect || {};
-    var aiOn = isAIRankingEnabled();
-    var initialMsg = 'Calcul des scores de pertinence…';
-    showIABar(initialMsg);
-    var startTs = Date.now();
-    var tick = setInterval(function () { updateIABarStats((Date.now() - startTs) / 1000); }, 150);
+  // ─── Plan IA : flux SSE /api/prospect/<id>/push-ai-plan ───
+  // Lance l'analyse complète (profil → web → secteur → catégorie → candidats)
+  // et affiche chaque étape en direct dans le panneau « Analyse IA ».
+  function runAIPlan(presetCatId) {
+    if (!STATE.prospectId) return;
+    stopAIPlan();
+    resetAIPlan();
+    showAIPlan();
+    STATE.aiPlanStartTs = Date.now();
+    STATE.aiPlanTimer = setInterval(updateAIPlanTime, 200);
 
-    // Bascule à la phase « IA » après 1.5 s (le calcul SQL est terminé,
-    // l'attente vient désormais d'Ollama).
-    var phaseTimer = null;
-    if (aiOn) {
-      phaseTimer = setTimeout(function () {
-        var who = p.name ? esc(p.name) : 'ce prospect';
-        updateIABarMsg('L\'IA contextualise les candidats pour ' + who + '…');
-      }, 1500);
-      setIABarToggleLink('Mode rapide', function () {
-        setAIRankingEnabled(false);
-        toast('Mode rapide activé — l\'IA ne sera plus utilisée pour le classement', 'info', 3500);
-      });
+    var url = '/api/prospect/' + encodeURIComponent(STATE.prospectId) + '/push-ai-plan';
+    if (presetCatId) url += '?category_id=' + encodeURIComponent(presetCatId);
+
+    var es;
+    try { es = new EventSource(url); }
+    catch (e) { onAIPlanError('Flux IA indisponible'); return; }
+    STATE.aiPlanES = es;
+    var finished = false;
+
+    es.onmessage = function (ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      if (msg.type === 'done')  { finished = true; stopAIPlan(); finishAIPlan(); return; }
+      if (msg.type === 'error') { finished = true; stopAIPlan(); onAIPlanError(msg.message); return; }
+      applyPlanEvent(msg);
+    };
+    // EventSource tente de se reconnecter quand le serveur clôt le flux ;
+    // on ferme nous-mêmes dès 'done' pour éviter de relancer tout le pipeline.
+    es.onerror = function () {
+      if (finished) return;
+      finished = true;
+      stopAIPlan();
+      onAIPlanError('Connexion au flux IA interrompue');
+    };
+  }
+
+  function applyPlanEvent(msg) {
+    if (msg.type === 'step') {
+      upsertStep(msg);
+      if (msg.key === 'categorie' && msg.status === 'done' && msg.category_id) {
+        maybeApplyAICategory(msg);
+      }
+      return;
     }
+    if (msg.type === 'result') {
+      applyCandidatesResult(msg.candidates || []);
+    }
+  }
 
+  // Applique la catégorie suggérée par l'IA — sauf si l'utilisateur a déjà
+  // choisi (manuellement ou via présélection).
+  function maybeApplyAICategory(msg) {
+    if (STATE.userPickedCat || STATE.catPreset || msg.category_origin === 'preset') return;
+    var sel = $sel('data-v30pm-cat');
+    if (!sel) return;
+    if (String(sel.value) === String(msg.category_id)) return;
+    sel.value = String(msg.category_id);
+    applyCategoryChange(sel.value || null);
+    var badge = $sel('data-v30pm-cat-aibadge');
+    if (badge) badge.hidden = false;
+  }
+
+  function finishAIPlan() {
+    updateAIPlanTime();
+    var pulse = $sel('data-v30pm-aiplan-pulse');
+    if (pulse) pulse.classList.add('is-done');
+  }
+
+  function onAIPlanError(message) {
+    // Marque les étapes non abouties en erreur pour rester transparent.
+    STEP_ORDER.forEach(function (k) {
+      var s = STATE.aiPlanSteps[k];
+      if (!s || s.status === 'pending' || s.status === 'running') {
+        STATE.aiPlanSteps[k] = { status: 'error', label: STEP_TITLES[k], detail: '' };
+      }
+    });
+    renderAIPlan();
+    var pulse = $sel('data-v30pm-aiplan-pulse');
+    if (pulse) pulse.classList.add('is-done');
+    if (message) toast('Analyse IA : ' + message, 'warning', 4000);
+    // Repli déterministe : on tente un classement rapide des candidats sans IA.
+    quickRescoreCandidates(($sel('data-v30pm-cat') || {}).value || null, true);
+  }
+
+  // Choix manuel de catégorie : l'utilisateur prime sur le plan IA en cours.
+  function onCategoryPicked(catId) {
+    stopAIPlan();
+    var pulse = $sel('data-v30pm-aiplan-pulse');
+    if (pulse) pulse.classList.add('is-done');
+    showAIPlan();
+    var catObj = findCategory(catId);
+    if (catObj && catObj.no_candidates) {
+      upsertStep({ key: 'categorie', status: 'done',
+        label: 'Catégorie : ' + (catObj.name || ''),
+        detail: 'Catégorie « sans consultant » — choisie manuellement.' });
+      upsertStep({ key: 'candidats', status: 'skipped',
+        label: 'Catégorie « sans consultant »',
+        detail: 'Aucun candidat ni dossier ne sera attaché.' });
+      return;
+    }
+    upsertStep({ key: 'categorie', status: 'done',
+      label: 'Catégorie : ' + (catObj ? catObj.name : '— Aucune —'),
+      detail: 'Choisie manuellement.' });
+    quickRescoreCandidates(catId, false);
+  }
+
+  // Re-score des candidats pour une catégorie donnée (changement manuel ou
+  // repli). deterministicOnly=true → best-candidates sans Ollama (rapide).
+  function quickRescoreCandidates(catId, deterministicOnly) {
+    upsertStep({ key: 'candidats', status: 'running',
+      label: 'Mise à jour des consultants…' });
     var qs = [];
     if (catId) qs.push('push_category_id=' + encodeURIComponent(catId));
-    if (aiOn) { qs.push('use_ollama=1'); qs.push('ai_explanations=1'); }
-    var url = '/api/prospect/' + STATE.prospectId + '/best-candidates' + (qs.length ? ('?' + qs.join('&')) : '');
-
+    if (!deterministicOnly) { qs.push('use_ollama=1'); qs.push('ai_explanations=1'); }
+    var url = '/api/prospect/' + STATE.prospectId + '/best-candidates' +
+      (qs.length ? ('?' + qs.join('&')) : '');
     return fetchJSON(url).then(function (j) {
       var arr = (j && j.candidates) || [];
-      // Top 5 conservés avec leur score (relevance_pct 0-100) ET l'explication IA si fournie.
-      STATE.aiSuggestions = arr.slice(0, 5).map(function (c) {
-        return {
-          id: c.id,
-          pct: (c.relevance_pct != null ? c.relevance_pct : c.pct) || 0,
-          explanation: c.ai_explanation || ''
-        };
+      applyCandidatesResult(arr);
+      upsertStep({
+        key: 'candidats',
+        status: arr.length ? 'done' : 'warn',
+        label: arr.length
+          ? (arr.length + ' consultant(s) pertinent(s) trouvé(s)')
+          : 'Aucun consultant pertinent',
+        detail: deterministicOnly
+          ? 'Classement rapide (IA indisponible).'
+          : 'Catégorie mise à jour.'
       });
-      // Cache global des explications (utilisé pour affichage dans les cartes candidats)
-      STATE.aiExplanations = STATE.aiExplanations || {};
-      arr.forEach(function (c) {
-        if (c.ai_explanation) STATE.aiExplanations[String(c.id)] = c.ai_explanation;
-      });
-      // Si certains candidats suggérés ne sont pas dans allCandidates (filtrage
-      // serveur différent), on les ajoute pour pouvoir les afficher.
-      arr.forEach(function (c) {
-        if (!findCandidate(c.id)) STATE.allCandidates.push(c);
-      });
-      // Auto-sélection des 2 meilleurs candidats AVEC DC (si l'user
-      // n'a pas encore fait son propre choix). On saute les candidats sans DC
-      // pour la pré-sélection automatique, car la description IA ne peut pas
-      // être générée sans DC.
-      if (!STATE.selectedCand[1] && !STATE.selectedCand[2]) {
-        var withDc = arr.filter(function (c) {
-          var full = findCandidate(c.id);
-          return full && full.has_dc;
-        });
-        var pick1 = withDc[0] || arr[0];
-        var pick2 = withDc[1] || arr[1];
-        if (pick1) STATE.selectedCand[1] = pick1.id;
-        if (pick2 && (!pick1 || pick2.id !== pick1.id)) STATE.selectedCand[2] = pick2.id;
-      }
-      renderCombos();
-      renderCandCards();
-      autoGenerateSelectedDescriptions();
-      clearInterval(tick);
-      if (phaseTimer) clearTimeout(phaseTimer);
-      var elapsed = (Date.now() - startTs) / 1000;
-      if (arr.length) {
-        var doneMsg = aiOn
-          ? '✨ ' + arr.length + ' candidats classés par l\'IA'
-          : '✓ ' + arr.length + ' candidats triés par pertinence';
-        updateIABarMsg(doneMsg);
-        updateIABarStats(elapsed);
-        // Toggle « Réactiver l'IA » si l'user est en mode rapide
-        if (!aiOn) {
-          setIABarToggleLink('Activer l\'IA', function () {
-            setAIRankingEnabled(true);
-            toast('Mode IA réactivé — rechargez le push pour voir le classement IA', 'info', 3500);
-          });
-        } else {
-          setIABarToggleLink('', null);
-        }
-        setTimeout(hideIABar, 2800);
-      } else {
-        updateIABarMsg('Aucune suggestion trouvée');
-        setTimeout(hideIABar, 2000);
-      }
     }).catch(function () {
-      clearInterval(tick);
-      if (phaseTimer) clearTimeout(phaseTimer);
-      STATE.aiSuggestions = [];
-      renderCombos();
-      updateIABarMsg('Impossible de calculer les suggestions');
-      setTimeout(hideIABar, 2000);
+      upsertStep({ key: 'candidats', status: 'error',
+        label: 'Échec du classement des consultants', detail: '' });
     });
+  }
+
+  // Applique une liste de candidats classés (résultat SSE ou best-candidates).
+  function applyCandidatesResult(arr) {
+    arr = arr || [];
+    STATE.aiSuggestions = arr.slice(0, 5).map(function (c) {
+      return {
+        id: c.id,
+        pct: (c.relevance_pct != null ? c.relevance_pct : c.pct) || 0,
+        explanation: c.ai_explanation || ''
+      };
+    });
+    STATE.aiExplanations = STATE.aiExplanations || {};
+    arr.forEach(function (c) {
+      if (c.ai_explanation) STATE.aiExplanations[String(c.id)] = c.ai_explanation;
+      // Candidat suggéré absent de allCandidates → on l'ajoute pour l'afficher.
+      if (!findCandidate(c.id)) STATE.allCandidates.push(c);
+    });
+    // Auto-sélection des 2 meilleurs candidats AVEC DC, si l'utilisateur n'a pas
+    // encore choisi (la description IA ne peut se générer que depuis un DC).
+    if (!STATE.selectedCand[1] && !STATE.selectedCand[2]) {
+      var withDc = arr.filter(function (c) {
+        var full = findCandidate(c.id);
+        return full && full.has_dc;
+      });
+      var pick1 = withDc[0] || arr[0];
+      var pick2 = withDc[1] || arr[1];
+      if (pick1) STATE.selectedCand[1] = pick1.id;
+      if (pick2 && (!pick1 || pick2.id !== pick1.id)) STATE.selectedCand[2] = pick2.id;
+    }
+    renderCombos();
+    renderCandCards();
+    autoGenerateSelectedDescriptions();
   }
 
   function loadCurrentUser() {
@@ -1439,6 +1585,9 @@
     STATE.categories = [];
     STATE.activeTab = 'classique';
     STATE.callNote = '';
+    STATE.aiPlanSteps = {};
+    STATE.catPreset = false;
+    STATE.userPickedCat = false;
     var bd = ensureModal();
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
@@ -1448,7 +1597,8 @@
     renderSelectLoading(bd.querySelector('[data-v30pm-cat]'), '…');
     renderCombos();      // affiche l'état vide « aucun candidat disponible »
     renderCandCards();   // affiche le hint « sélectionne un candidat… »
-    hideIABar();
+    var aiPanel = bd.querySelector('[data-v30pm-aiplan]');
+    if (aiPanel) aiPanel.hidden = true;
     setActiveTab('classique');
     // Vider l'accroche de la session précédente
     var cnTa = bd.querySelector('[data-v30pm-callnote]');
@@ -1478,15 +1628,16 @@
         loadAllCandidates(),
         loadCurrentUser()
       ]).then(function () {
-        // Déclencher la passe IA inconditionnellement : même sans catégorie,
-        // l'endpoint best-candidates score sur les tags/notes/fonction du prospect.
-        // Si une catégorie est pré-sélectionnée, elle sera utilisée pour raffiner.
+        // Lancer le plan IA : profil → recherche web → secteur → catégorie →
+        // candidats, diffusé en SSE et affiché étape par étape. Si une catégorie
+        // est déjà choisie, le plan la conserve plutôt que de la deviner.
         var catSel = $sel('data-v30pm-cat');
         var catId = catSel && catSel.value ? catSel.value : null;
-        // Skip si la catégorie est "sans consultant" — les combos sont cachées
+        STATE.catPreset = !!catId;
         var catObj = findCategory(catId);
         if (catObj && catObj.no_candidates) return null;
-        return loadAISuggestions(catId);
+        runAIPlan(catId);
+        return null;
       });
     }).catch(function (e) {
       if (e && e.message === 'no_email') return;

@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.80] — 2026-05-20 · Mode Prosp — finitions mode sombre (scrollbars + fiche)
+## [32.87] — 2026-05-20 · Mode Prosp — finitions mode sombre (scrollbars + fiche)
 
 - **Scrollbars discrètes** : `/v30/mode-prosp` affichait les scrollbars
   système (blanches, criardes sur fond sombre) car la règle globale
@@ -18,6 +18,163 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   marge égale et ses coins arrondis sont entièrement visibles.
 - **Fichiers modifiés** : `static/css/v30/mode_prosp.css`. Aucun
   changement fonctionnel — toile d'araignée non impactée.
+
+## [32.86] — 2026-05-20 · Import prospects — zone de dépôt avec glisser-déposer
+
+- **Glisser-déposer de fichier** : l'onglet « Fichier (Excel / CSV) » de
+  la modale d'import accepte désormais un fichier déposé directement
+  depuis l'explorateur. La zone se surligne pendant le survol et
+  l'import se lance au dépôt, exactement comme via le sélecteur.
+- **Zone de dépôt redessinée** : l'ancien champ `<input type="file">`
+  natif est remplacé par une zone au style v30 (bordure pointillée,
+  icône d'upload, formats acceptés) — cohérente avec le reste du
+  design system, en mode clair comme sombre.
+- **Retour visuel** : une pastille affiche le nom du fichier
+  sélectionné une fois celui-ci chargé.
+- **Garde-fous** : les fichiers d'un format non supporté sont rejetés
+  avec un message clair ; un dépôt à côté de la zone n'ouvre plus le
+  fichier dans le navigateur.
+
+## [32.85] — 2026-05-20 · Enrichissement de la fiche candidat depuis les documents (IA)
+
+- **Bouton « Enrichir » sur chaque pièce jointe** : dans la fiche
+  candidat, chaque document analysable (PDF, DOCX, XLSX, TXT) de la
+  section « Pièces jointes » affiche un bouton ✨ qui envoie son contenu
+  à l'IA locale pour en extraire les informations du candidat — CV,
+  fiches d'entretien, dossiers de compétences, profils LinkedIn exportés
+  en PDF.
+- **Vérification manuelle obligatoire** : les champs détectés (identité,
+  poste, compétences, coordonnées, mobilité, disponibilité, prétentions
+  salariales, évaluations…) sont présentés dans une fenêtre de
+  comparaison « valeur actuelle / valeur extraite ». Rien n'est appliqué
+  sans cocher explicitement les champs voulus.
+- **Section DC** : le bouton « Enrichir » du dossier de compétences
+  utilise désormais la même extraction enrichie (jusqu'à 22 champs).
+- **Formats** : PDF, DOCX, XLSX, TXT et CSV sont analysés. Les images et
+  captures d'écran ne le sont pas — pour un profil LinkedIn, l'exporter
+  en PDF avant de le joindre.
+- API : `POST /api/candidate-attachments/<id>/enrich`.
+
+## [32.84] — 2026-05-20 · Push — assistant IA transparent (secteur, catégorie, candidats)
+
+- **Plan IA du push, étape par étape** : à l'ouverture de la modale
+  « Pousser », un nouveau panneau « Analyse IA » remplace l'ancienne barre
+  de progression opaque. Il déroule en direct le raisonnement de l'IA :
+  analyse du profil → recherche web → détection du secteur → choix de la
+  catégorie → sélection des consultants. Chaque étape affiche son résultat
+  (secteur identifié, sources web consultées, raison du choix de catégorie),
+  pour que l'utilisateur voie *ce que fait l'IA* au lieu d'un simple spinner.
+- **Détection du secteur via Tavily + Ollama** : l'IA recherche l'entreprise
+  et la fonction du prospect sur le web (si Tavily est configuré), en déduit
+  le **secteur d'activité réel** (ex : un poste de maintenance caténaire chez
+  un énergéticien → secteur « Transport ferroviaire ») et les **mots-clés
+  métier** des consultants à proposer.
+- **Catégorie de push suggérée automatiquement** : l'IA choisit la catégorie
+  la plus adaptée parmi celles configurées et la pré-sélectionne dans la
+  modale (badge « Suggérée par l'IA », modifiable à tout moment). Si aucune
+  ne correspond, le panneau l'indique clairement.
+- **Matching candidats plus pertinent** : le scoring exploite désormais la
+  **fonction du prospect** et le **secteur de l'entreprise** comme critères
+  (ils étaient chargés mais jamais utilisés — un prospect sans tags ne
+  matchait aucun candidat), enrichis des mots-clés métier déduits par l'IA.
+- **Nouvelle route** : `GET /api/prospect/<id>/push-ai-plan` (flux SSE) —
+  voir [services/push_ai.py](services/push_ai.py).
+
+## [32.83] — 2026-05-20 · Fiche EC1 — mobilité en cases à cocher + Excel fidèle au template
+
+- **Mobilité en cases à cocher** : dans le formulaire EC1 (modale de
+  pré-remplissage), le champ « Mobilité » devient une grille de cases à
+  cocher reprenant exactement les zones du template Excel (Banlieue
+  parisienne, Lyon, Aix, Sophia, Paris, Grenoble, Toulon, Province,
+  Nationale, Valence, Montpellier, Rennes, Internationale) + un champ
+  « Domicile ». Permis de conduire et Véhicule passent aussi en cases à
+  cocher.
+- **Excel fidèle au template** : la génération de la fiche EC1 ne passe
+  plus par openpyxl (qui supprimait toutes les cases à cocher, images et
+  mises en forme) mais **modifie directement le `.xlsx` template** (zip).
+  Le fichier produit conserve donc **les 35 cases à cocher**, les images,
+  la mise en forme et les formules des 4 pages.
+- **Cases cochées automatiquement** : à l'export, les cases du template
+  sont **réellement cochées** selon la fiche — zones de mobilité, permis
+  de conduire, véhicule et checklist EC1 — pour ne plus avoir à corriger
+  l'Excel après génération.
+- **Robustesse** : les cellules sont écrites en inline strings, les
+  formules des pages 2-4 sont recalculées à l'ouverture
+  (`fullCalcOnLoad`), et les zones sans case dans le template (Valence,
+  Montpellier, Rennes, Internationale) sont préfixées d'un « ✓ ».
+- **Fichiers** : `routes/candidates.py` (`_ec1_build_xlsx`,
+  `_ec1_resolve_checkboxes`), `static/js/v30/candidate_detail.js`,
+  `static/css/v30/candidate_detail.css`.
+
+## [32.82] — 2026-05-20 · Bouton « Suivant » de rattrapage — ancrage à droite
+
+- **Repositionnement** : le bouton flottant « Suivant » (rattrapage de
+  push) passe du bord gauche au **bord droit** de l'écran — il ne
+  chevauche plus la barre latérale.
+- **Style aligné v30** : fond `--surface`, fine bordure `--border`,
+  libellé en `--text` et logo dé en `--accent` (au lieu d'une pastille
+  pleine accent, trop voyante). Ombre, rayons, durées et courbes
+  d'animation tirés des tokens du design system ; apparition glissée
+  depuis la droite.
+- **Périmètre** : `static/css/v30/prospect_detail.css` uniquement — la
+  logique du tirage aléatoire et le JS sont inchangés.
+
+## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
+
+- **Suite d'un EC1 plus propre** : après l'analyse IA d'une transcription
+  d'entretien EC1, la modale « Pré-remplir la fiche EC1 » n'affiche plus un
+  simple aperçu en lecture seule mais un **formulaire éditable complet**
+  reprenant **tous les champs de la fiche Excel** (modèle
+  `exemples/Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx`),
+  groupés par section : Identité, Administratif, Disponibilité & mobilité,
+  Recherche, Rémunération, Évaluation, Langues, Références, Notes, Checklist.
+- **Vides + pré-remplis, tous modifiables** : les champs détectés par l'IA
+  sont marqués d'un badge « IA » ; les champs vides restent saisissables.
+  L'utilisateur vérifie, corrige et complète chaque valeur avant de générer
+  l'Excel.
+- **Extraction IA étendue** : le prompt EC1 extrait désormais aussi les
+  champs administratifs (permis de conduire, véhicule, permis de travail),
+  les diplômes/expérience, les démarches administratives et les
+  propositions reçues — en plus des champs de contenu existants.
+- **Génération Excel fidèle** : le mapping des cellules a été corrigé pour
+  un rendu « propre » sur les 4 pages du template (téléphone → `C4`, mail →
+  `C5`, diplômes → `C6`, source CV → `K4`, motivations → `F18`, avancement
+  des recherches → `F21`, références → table `A42`, disponibilité → `G10`).
+  L'Excel est généré à partir des **valeurs exactes du formulaire**.
+- **Boutons** : « Appliquer à la fiche » enregistre les champs sur le
+  candidat ; « Appliquer & télécharger Excel » enregistre puis génère
+  l'Excel — sans relancer l'IA (les valeurs vérifiées font foi).
+- **Backend** : nouvel endpoint `POST /api/candidates/<id>/ec1-apply` ;
+  `…/ec1-export.xlsx` accepte désormais `POST` (génération depuis le
+  formulaire) ; `…/ec1-from-transcript` renvoie aussi un instantané de la
+  fiche candidat pour pré-remplir les champs non extraits par l'IA.
+- **Fichiers** : `routes/candidates.py`, `static/js/v30/candidate_detail.js`,
+  `templates/v30/candidate_detail.html`, `static/css/v30/candidate_detail.css`.
+- **Toile d'araignée** : actions EC1 mises à jour (`routes/pages.py`).
+
+## [32.80] — 2026-05-20 · Bouton « Suivant » de rattrapage de push
+
+- **Re-tirage aléatoire d'un prospect à pousser** : quand on ouvre une
+  fiche prospect depuis l'objectif « push » du jour (tirage aléatoire),
+  un **bouton flottant « Suivant »** (logo dé) apparaît sur le bord
+  gauche de l'écran. Un clic propose **un autre prospect éligible au
+  hasard** — pratique quand le prospect tiré ne convient pas.
+- **Pas de doublon** : les prospects déjà proposés pendant la session de
+  rattrapage sont mémorisés (`sessionStorage`) et exclus du tirage ; une
+  fois toute la liste parcourue, un nouveau tour redémarre.
+- **Visible en rattrapage uniquement** : le bouton n'apparaît que si la
+  fiche est ouverte via le mécanisme de rattrapage de push (URL
+  `?push=rattrapage`) — invisible en navigation normale.
+- **Backend** : `GET /api/prospects/quick-filter?preset=push_ready`
+  accepte désormais un paramètre `exclude` (liste d'IDs à écarter) —
+  [app.py](app.py) `api_prospects_quick_filter`.
+- **Fichiers** : nouveau `static/js/v30/push_rattrapage.js` ;
+  `static/js/v30/dashboard.js` (`handleObjPush`),
+  `templates/v30/prospect_detail.html`,
+  `static/css/v30/prospect_detail.css`.
+- **Toile d'araignée** : nouvelles actions « Objectif push → fiche
+  aléatoire » (Dashboard) et « Rattrapage de push — bouton Suivant »
+  (fiche prospect).
 
 ## [32.79] — 2026-05-20 · Mode Prosp — rail et barre de commande masquables au survol
 
