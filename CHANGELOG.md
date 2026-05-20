@@ -2,6 +2,31 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.82] — 2026-05-20 · Push — assistant IA transparent (secteur, catégorie, candidats)
+
+- **Plan IA du push, étape par étape** : à l'ouverture de la modale
+  « Pousser », un nouveau panneau « Analyse IA » remplace l'ancienne barre
+  de progression opaque. Il déroule en direct le raisonnement de l'IA :
+  analyse du profil → recherche web → détection du secteur → choix de la
+  catégorie → sélection des consultants. Chaque étape affiche son résultat
+  (secteur identifié, sources web consultées, raison du choix de catégorie),
+  pour que l'utilisateur voie *ce que fait l'IA* au lieu d'un simple spinner.
+- **Détection du secteur via Tavily + Ollama** : l'IA recherche l'entreprise
+  et la fonction du prospect sur le web (si Tavily est configuré), en déduit
+  le **secteur d'activité réel** (ex : un poste de maintenance caténaire chez
+  un énergéticien → secteur « Transport ferroviaire ») et les **mots-clés
+  métier** des consultants à proposer.
+- **Catégorie de push suggérée automatiquement** : l'IA choisit la catégorie
+  la plus adaptée parmi celles configurées et la pré-sélectionne dans la
+  modale (badge « Suggérée par l'IA », modifiable à tout moment). Si aucune
+  ne correspond, le panneau l'indique clairement.
+- **Matching candidats plus pertinent** : le scoring exploite désormais la
+  **fonction du prospect** et le **secteur de l'entreprise** comme critères
+  (ils étaient chargés mais jamais utilisés — un prospect sans tags ne
+  matchait aucun candidat), enrichis des mots-clés métier déduits par l'IA.
+- **Nouvelle route** : `GET /api/prospect/<id>/push-ai-plan` (flux SSE) —
+  voir [services/push_ai.py](services/push_ai.py).
+
 ## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
 
 - **Suite d'un EC1 plus propre** : après l'analyse IA d'une transcription
