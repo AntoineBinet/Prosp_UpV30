@@ -782,6 +782,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["openGoalsDetailModal", "renderGoalsDetail"], "endpoints": ["GET /api/dashboard"], "backend": ["app.py:api_dashboard"]}},
                 {"label": "Report d'objectifs (jour ouvré suivant)", "href": "/v30/dashboard#objs",
                  "tools": {"handlers": ["renderObjectifs"], "endpoints": ["GET /api/dashboard"], "backend": ["app.py:api_dashboard", "services/dashboard_goals.py:compute_daily_carryover"]}},
+                {"label": "Objectif « push » → fiche prospect tirée au hasard (rattrapage de push)", "href": "/v30/dashboard#objs",
+                 "tools": {"handlers": ["bindObjItemClicks", "handleObjPush"], "endpoints": ["GET /api/prospects/quick-filter"], "backend": ["app.py:api_prospects_quick_filter"]}},
                 {"label": "Priorités IA", "href": "/v30/dashboard#priorities",
                  "tools": {"handlers": ["hydratePriorities", "bindObjItemClicks"], "endpoints": ["GET /api/dashboard", "GET /api/dashboard/adaptive"], "backend": ["app.py:api_dashboard", "routes/collab.py:api_dashboard_adaptive"]}},
                 {"label": "Pipeline visuel", "href": "/v30/dashboard#pipeline",
@@ -942,6 +944,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["mountProspectCard"], "endpoints": ["POST /api/ai/next-action/<id>/refresh"], "backend": ["routes/next_action_ai.py:api_next_action_refresh", "services/next_action_ai.py:generate_for_prospect"]}},
                 {"label": "Démarrer une séquence push (modal)", "href": "/v30/prospect/<id>",
                  "tools": {"handlers": ["openEnrollModal", "mountProspectButton"], "endpoints": ["GET /api/push/sequences", "POST /api/push/sequences/<id>/enroll"], "backend": ["routes/push_sequences.py:api_sequences_enroll", "services/push_sequences.py:enroll"]}},
+                {"label": "Rattrapage de push — bouton flottant « Suivant » (re-tirage aléatoire)", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["pickNext"], "endpoints": ["GET /api/prospects/quick-filter"], "backend": ["app.py:api_prospects_quick_filter"]}},
             ],
         },
         {

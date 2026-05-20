@@ -4728,16 +4728,27 @@ def api_prospects_quick_filter():
     try:
         with _conn() as conn:
             if preset == 'push_ready':
-                rows = conn.execute(
+                # `exclude` : IDs deja proposes pendant une session de
+                # « rattrapage de push » — le bouton flottant « Suivant » de la
+                # fiche les passe pour ne jamais reproposer le meme prospect.
+                exclude_ids = [
+                    int(x) for x in request.args.get('exclude', '').split(',')
+                    if x.strip().isdigit()
+                ]
+                sql = (
                     "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
                     "AND (is_archived IS NULL OR is_archived=0) "
                     "AND (pushEmailSentAt IS NULL OR pushEmailSentAt='') "
                     "AND (pushLinkedInSentAt IS NULL OR pushLinkedInSentAt='') "
                     "AND email IS NOT NULL AND email!='' "
                     "AND (telephone IS NULL OR telephone='') "
-                    "ORDER BY RANDOM() LIMIT 1",
-                    (uid,)
-                ).fetchall()
+                )
+                params = [uid]
+                if exclude_ids:
+                    sql += "AND id NOT IN (" + ",".join(["?"] * len(exclude_ids)) + ") "
+                    params.extend(exclude_ids)
+                sql += "ORDER BY RANDOM() LIMIT 1"
+                rows = conn.execute(sql, params).fetchall()
             elif preset == 'rdv_ready':
                 rows = conn.execute(
                     "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "

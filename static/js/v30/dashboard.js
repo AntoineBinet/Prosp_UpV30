@@ -947,7 +947,14 @@
         if (typeof showToast === 'function') showToast('Aucun prospect éligible au push (email dispo, pas de tél, push non envoyé)', 'info');
         return;
       }
-      window.location.href = '/v30/prospect/' + res.ids[0];
+      var pid = res.ids[0];
+      // Démarre une session de « rattrapage de push » : on mémorise le
+      // prospect tiré pour que le bouton « Suivant » de la fiche ne le
+      // repropose pas, et on marque l'arrivée via ?push=rattrapage.
+      try {
+        sessionStorage.setItem('prospup:pushRattrapageSeen', JSON.stringify([pid]));
+      } catch (e) { /* sessionStorage indispo : le bouton refera un tirage neuf */ }
+      window.location.href = '/v30/prospect/' + pid + '?push=rattrapage';
     }).catch(function () {
       if (typeof showToast === 'function') showToast('Erreur lors du filtrage', 'error');
     });

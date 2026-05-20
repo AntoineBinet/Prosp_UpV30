@@ -1894,3 +1894,75 @@ a.btn[aria-disabled="true"] {
 .v30-fp-na-ai .v30-na-type.na-type--rdv      { background: #a855f7; }
 .v30-fp-na-ai .v30-na-type.na-type--wait     { background: #6b7280; }
 .v30-fp-na-ai .v30-na-type.na-type--other    { background: #94a3b8; }
+
+/* ─── Rattrapage de push — bouton flottant « Suivant » ─────────────
+   Injecté par static/js/v30/push_rattrapage.js, uniquement sur une
+   fiche ouverte via le tirage aléatoire de l'objectif « push » du jour
+   (URL ?push=rattrapage). z-index 58 : au-dessus du chrome, sous les
+   modales (.v30-modal-bd = 80) et la palette de commandes (61). */
+.v30-pr-fab {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 58;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 13px 17px 13px 14px;
+  border: 1px solid var(--accent);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--accent);
+  color: var(--accent-fg, #fff);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+  animation: v30-pr-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 0.22s both;
+  transition: padding-right 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+.v30-pr-fab:hover {
+  padding-right: 22px;
+  background: var(--accent-hover, var(--accent));
+  box-shadow: 0 9px 28px rgba(0, 0, 0, 0.34);
+}
+.v30-pr-fab:active { transform: translateY(-50%) scale(0.96); }
+.v30-pr-fab:focus-visible {
+  outline: 2px solid var(--accent-fg, #fff);
+  outline-offset: -5px;
+}
+.v30-pr-fab:disabled { cursor: progress; }
+.v30-pr-fab__icon {
+  flex: 0 0 auto;
+  transition: transform 0.25s ease;
+}
+.v30-pr-fab:hover .v30-pr-fab__icon { transform: rotate(-22deg); }
+.v30-pr-fab.is-loading .v30-pr-fab__icon { animation: v30-pr-spin 0.55s linear infinite; }
+.v30-pr-fab__label { white-space: nowrap; letter-spacing: 0.01em; }
+
+@keyframes v30-pr-pop {
+  from { opacity: 0; margin-left: -130px; }
+  to   { opacity: 1; margin-left: 0; }
+}
+@keyframes v30-pr-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .v30-pr-fab {
+    padding: 11px 14px 11px 12px;
+    font-size: 12px;
+  }
+  .v30-pr-fab__icon { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v30-pr-fab { animation: none; }
+  .v30-pr-fab.is-loading .v30-pr-fab__icon { animation: none; }
+  .v30-pr-fab,
+  .v30-pr-fab__icon { transition: none; }
+}
