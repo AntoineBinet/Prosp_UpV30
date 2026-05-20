@@ -2,6 +2,23 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.92] — 2026-05-20 · Stats — « RDV obtenus » respecte la période sélectionnée
+
+- **Compteur RDV figé** : sur `/v30/stats`, la carte « RDV obtenus » et
+  l'en-tête affichaient le **pipeline tout-temps** (prospects actuellement
+  au statut « Rendez-vous ») au lieu des RDV obtenus sur la période choisie
+  (7 j / 30 j / 90 j / plage). Changer de période ne modifiait pas le
+  chiffre — incohérent avec les cartes Appels et Push, déjà filtrées.
+- **Correction** : `/api/stats` calcule désormais un compteur RDV borné à
+  la plage sélectionnée — events `rdv_taken` datés dans la période, plus un
+  fallback `lastContact` pour les RDV antérieurs à l'instrumentation des
+  events. Même logique que le graphe mensuel « RDV obtenus ».
+- **`statusCounts` inchangé** : le décompte par statut reste tout-temps
+  (photo du pipeline courant, pas une métrique de période).
+- **Fichiers modifiés** : `routes/dashboard.py`, `config.py`,
+  `tests/test_gamification_rdv.py`. Toile d'araignée non impactée (aucune
+  action, route ou endpoint ajouté, renommé ou supprimé).
+
 ## [32.91] — 2026-05-20 · Gamification — prise de RDV de nouveau comptabilisée
 
 - **RDV non comptés** : prendre un rendez-vous avec un prospect (passage

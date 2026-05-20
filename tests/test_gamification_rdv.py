@@ -8,6 +8,9 @@ comptent les events `rdv_taken`. Deux bugs empêchaient leur création via
      un `try/except`, échouait silencieusement (NameError) ;
   2. l'event n'était logué que si une `rdvDate` était renseignée — déplacer
      un prospect en « Rendez-vous » sans date n'était pas comptabilisé.
+
+Couvre aussi `/api/stats` : la page Stats doit compter les RDV obtenus sur
+la période sélectionnée, et non le pipeline tout-temps.
 """
 import datetime
 import importlib
@@ -122,3 +125,24 @@ def test_rdv_taken_logged_on_rdv_date_change(authed_client):
     )
     assert resp.status_code == 200
     assert _count_rdv_taken(1) == 1
+
+
+def test_stats_rdv_count_respects_selected_period(authed_client):
+    """/api/stats doit compter les RDV de la période choisie, pas le total."""
+    today = datetime.date.today().isoformat()
+    d60 = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+    with sqlite3.connect(os.environ["PROSPECTION_DB"]) as conn:
+        # Un RDV pris aujourd'hui, un autre il y a 60 jours.
+        conn.execute(
+            "INSERT INTO prospect_events (prospect_id, date, type, title, createdAt) "
+            "VALUES (1, ?, 'rdv_taken', 'RDV pris', ?);",
+            (today, today),
+        )
+        conn.execute(
+            "INSERT INTO prospect_events (prospect_id, date, type, title, createdAt) "
+            "VALUES (2, ?, 'rdv_taken', 'RDV pris', ?);",
+            (d60, d60),
+        )
+    # Fenêtre 7 jours : seul le RDV du jour ; fenêtre 90 jours : les deux.
+    assert authed_client.get("/api/stats?days=7").get_json()["rdv"] == 1
+    assert authed_client.get("/api/stats?days=90").get_json()["rdv"] == 2

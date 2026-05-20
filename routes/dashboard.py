@@ -97,6 +97,45 @@ def api_stats():
         rdv_total = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous';", (uid,)).fetchone()["n"]
         recall_total = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='À rappeler';", (uid,)).fetchone()["n"]
 
+        # RDV obtenus DANS LA PÉRIODE sélectionnée (≠ rdv_total, qui est le
+        # pipeline tout-temps). Source : events rdv_taken datés dans la plage
+        # + fallback lastContact pour les RDV pris avant l'instrumentation des
+        # events. Même logique que le graphe « RDV obtenus » (rdvPerMonth).
+        if mode == "all":
+            rdv_obtained = conn.execute(
+                """SELECT COUNT(DISTINCT pid) AS n FROM (
+                     SELECT e.prospect_id AS pid FROM prospect_events e
+                     JOIN prospects p ON p.id=e.prospect_id
+                     WHERE p.owner_id=? AND e.type='rdv_taken'
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     UNION
+                     SELECT p.id AS pid FROM prospects p
+                     WHERE p.owner_id=? AND p.statut='Rendez-vous'
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                       AND NOT EXISTS (SELECT 1 FROM prospect_events e2
+                                       WHERE e2.prospect_id=p.id AND e2.type='rdv_taken')
+                   );""",
+                (uid, uid),
+            ).fetchone()["n"]
+        else:
+            rdv_obtained = conn.execute(
+                """SELECT COUNT(DISTINCT pid) AS n FROM (
+                     SELECT e.prospect_id AS pid FROM prospect_events e
+                     JOIN prospects p ON p.id=e.prospect_id
+                     WHERE p.owner_id=? AND e.type='rdv_taken'
+                       AND substr(e.date,1,10)>=? AND substr(e.date,1,10)<=?
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     UNION
+                     SELECT p.id AS pid FROM prospects p
+                     WHERE p.owner_id=? AND p.statut='Rendez-vous'
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                       AND substr(p.lastContact,1,10)>=? AND substr(p.lastContact,1,10)<=?
+                       AND NOT EXISTS (SELECT 1 FROM prospect_events e2
+                                       WHERE e2.prospect_id=p.id AND e2.type='rdv_taken')
+                   );""",
+                (uid, start_iso, end_iso, uid, start_iso, end_iso),
+            ).fetchone()["n"]
+
         # followups (always relative to today)
         late = conn.execute(
             "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ?;",
@@ -232,7 +271,9 @@ def api_stats():
         "hotCompanies": hot,
         # legacy fields (compat)
         "total_prospects": total_prospects,
-        "rdv": rdv_total,
+        # RDV obtenus dans la période sélectionnée (et non le pipeline
+        # tout-temps) — la page Stats affiche cette valeur sous « RDV obtenus ».
+        "rdv": rdv_obtained,
         "pushes": pushes,
         "calls": call_notes,
         "overdue": late,
