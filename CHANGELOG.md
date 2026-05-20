@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.82] — 2026-05-20 · Fiche EC1 — mobilité en cases à cocher + Excel fidèle au template
+## [32.83] — 2026-05-20 · Fiche EC1 — mobilité en cases à cocher + Excel fidèle au template
 
 - **Mobilité en cases à cocher** : dans le formulaire EC1 (modale de
   pré-remplissage), le champ « Mobilité » devient une grille de cases à
@@ -27,6 +27,19 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - **Fichiers** : `routes/candidates.py` (`_ec1_build_xlsx`,
   `_ec1_resolve_checkboxes`), `static/js/v30/candidate_detail.js`,
   `static/css/v30/candidate_detail.css`.
+
+## [32.82] — 2026-05-20 · Bouton « Suivant » de rattrapage — ancrage à droite
+
+- **Repositionnement** : le bouton flottant « Suivant » (rattrapage de
+  push) passe du bord gauche au **bord droit** de l'écran — il ne
+  chevauche plus la barre latérale.
+- **Style aligné v30** : fond `--surface`, fine bordure `--border`,
+  libellé en `--text` et logo dé en `--accent` (au lieu d'une pastille
+  pleine accent, trop voyante). Ombre, rayons, durées et courbes
+  d'animation tirés des tokens du design system ; apparition glissée
+  depuis la droite.
+- **Périmètre** : `static/css/v30/prospect_detail.css` uniquement — la
+  logique du tirage aléatoire et le JS sont inchangés.
 
 ## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
 

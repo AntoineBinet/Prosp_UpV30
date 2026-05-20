@@ -1481,7 +1481,7 @@ def api_candidate_attachment_delete(att_id):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# v32.82 — Fiche entretien EC1 — formulaire éditable + export Excel
+# v32.83 — Fiche entretien EC1 — formulaire éditable + export Excel
 # Génération par manipulation directe du template .xlsx (zip) : préserve
 # les cases à cocher, images, mise en forme et formules des 4 pages.
 # ═══════════════════════════════════════════════════════════════════
