@@ -22,21 +22,6 @@
     var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()];
     return jour + ' ' + d.getDate() + ' ' + mois;
   }
-  // Mapping aligné sur prospects.js (statuts ProspUp réels) — Phase 1.2.
-  function statusClass(statut) {
-    var m = {
-      'Rendez-vous':   'status-rdv',
-      'Prospecté':     'status-prosp',
-      'Contacté':      'status-called',
-      'Appelé':        'status-called',
-      'Messagerie':    'status-voicemail',
-      'À rappeler':    'status-callback',
-      'Pas intéressé': 'status-cold',
-      "Pas d'actions": 'status-idle'
-    };
-    return m[statut] || 'status-idle';
-  }
-
   function row(p, meta) {
     return '<div class="v30-ac__row" data-v30-focus-row data-pid="' + p.id + '">' +
       '<a href="/v30/prospect/' + p.id + '" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;text-decoration:none;color:inherit;">' +
@@ -46,7 +31,7 @@
           '<div class="v30-ac__sub truncate">' + esc(meta || '') + '</div>' +
         '</div>' +
       '</a>' +
-      (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '<span></span>') +
+      (p.statut ? V30StatusPicker.badge(p.statut, { id: p.id, rdvDate: p.rdvDate }) : '<span></span>') +
       '<div style="display:flex;gap:4px;">' +
         '<button type="button" class="btn btn-ghost btn-sm" data-v30-focus-bump="1" title="Reporter +1 jour">+1j</button>' +
         '<button type="button" class="btn btn-ghost btn-sm" data-v30-focus-bump="7" title="Reporter +7 jours">+7j</button>' +
@@ -637,7 +622,7 @@
             '<div class="v30-ac__sub truncate">' + esc(sub) + '</div>' +
           '</div>' +
         '</a>' +
-        (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '<span></span>') +
+        (p.statut ? V30StatusPicker.badge(p.statut, { id: p.id, rdvDate: p.rdvDate }) : '<span></span>') +
         '<button type="button" class="btn btn-sm" data-v30-push-relance="' + p.id + '" title="Envoyer un push de relance">' +
           '✉ Relancer' +
         '</button>' +
@@ -707,6 +692,18 @@
     });
   }
 
+  // Sync local quand un badge de statut change inline (V30StatusPicker).
+  function bindStatutSync() {
+    document.addEventListener('v30:statut-changed', function (e) {
+      var d = e.detail || {};
+      var id = Number(d.id);
+      if (!id) return;
+      PUSH_RELANCES.items.forEach(function (p) {
+        if (Number(p.id) === id) p.statut = d.statut;
+      });
+    });
+  }
+
   function init() {
     bindExportAlert();
     bindTasks();
@@ -715,6 +712,7 @@
     bindFocusRowActions();
     bindRelancesFilter();
     bindPushRelances();
+    bindStatutSync();
     bindRdvReview();
     loadRdvReview();
     loadRelances();

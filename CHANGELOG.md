@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.89] — 2026-05-20 · Gamification — prise de RDV de nouveau comptabilisée
+## [32.91] — 2026-05-20 · Gamification — prise de RDV de nouveau comptabilisée
 
 - **RDV non comptés** : prendre un rendez-vous avec un prospect (passage
   au statut « Rendez-vous » depuis la fiche, le kanban ou le statut en
@@ -34,6 +34,47 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 - **Fichiers modifiés** : `app.py`, `routes/bulk.py`, `config.py`,
   `tests/test_gamification_rdv.py`. Toile d'araignée non impactée
   (aucune action, route ou endpoint ajouté, renommé ou supprimé).
+
+## [32.90] — 2026-05-20 · Badge de statut cliquable dans les tableaux
+
+- **Changement de statut inline** : dans tous les tableaux de prospects
+  (liste Prospects, vue Split Entreprises, Focus), le badge de statut
+  devient un bouton. Un clic ouvre un menu déroulant animé pour choisir
+  le nouveau statut sans quitter le tableau ni ouvrir la fiche.
+- **Composant partagé** : nouveau module `V30StatusPicker`
+  (`status-picker.js` + `status-picker.css`, chargés globalement). Il
+  expose `badge()` (rendu du badge cliquable), un menu accessible
+  (navigation clavier, `Escape`, `prefers-reduced-motion`) et la
+  persistance via `POST /api/prospects/bulk-edit`.
+- **UX** : mise à jour optimiste avec animation pulse, halo de survol
+  aux couleurs du statut, caret animé, menu vitré (`backdrop-filter`)
+  avec apparition scale + fade et items en cascade. Toast de
+  confirmation et intégration de l'annulation (`pushUndo`).
+- **Refactor** : `renderStatusBadge` (Prospects), `statusBadge`
+  (Entreprises) et les badges de Focus délèguent au composant partagé ;
+  les mappings de couleurs de statut dupliqués sont supprimés.
+- **Fichiers** : `static/js/v30/status-picker.js` (nouveau),
+  `static/css/v30/status-picker.css` (nouveau), `templates/v30/base.html`,
+  `static/js/v30/prospects.js`, `static/js/v30/entreprises.js`,
+  `static/js/v30/focus.js`, `routes/pages.py` (toile d'araignée mise à
+  jour : 3 nouvelles actions), `config.py`.
+
+## [32.89] — 2026-05-20 · Entreprises — tri du tableau par colonnes cliquables
+
+- **Tri par colonnes rétabli** : la liste des entreprises retrouve le
+  tri interactif, comme le tableau Prospects. Les en-têtes **Entreprise**,
+  **Site**, **Prospects**, **RDV / Propale**, **Gagnés** et **Dernier
+  contact** sont cliquables : un premier clic trie en ordre croissant,
+  un second bascule en décroissant. La colonne active affiche une flèche
+  ↑/↓, les autres une flèche neutre ↕.
+- **Persistance** : le tri choisi est mémorisé dans `localStorage`
+  (`v30.entreprises.sort`) et restauré au rechargement de la page.
+- **Tri par défaut conservé** : sans colonne sélectionnée, l'ordre
+  intelligent historique reste appliqué (en pipeline → total prospects
+  → nom). Le tri s'applique aussi aux vues Cartes et Split.
+- **Fichiers modifiés** : `static/js/v30/entreprises.js`,
+  `templates/v30/entreprises.html`, `routes/pages.py` (toile d'araignée :
+  nouvelle action « Trier le tableau »), `config.py`.
 
 ## [32.88] — 2026-05-20 · Liste — coches de sélection au style v30
 
