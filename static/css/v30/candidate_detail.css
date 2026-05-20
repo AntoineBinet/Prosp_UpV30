@@ -412,6 +412,17 @@ textarea.v30-ec1-input { resize: vertical; min-height: 54px; }
   cursor: pointer;
 }
 .v30-ec1-check input { margin: 2px 0 0; flex: none; }
+.v30-ec1-bool { margin-top: 2px; }
+.v30-ec1-zones {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
 @media (max-width: 720px) {
   .v30-ec1-grid, .v30-ec1-checklist { grid-template-columns: 1fr; }
+  .v30-ec1-zones { grid-template-columns: 1fr 1fr; }
 }

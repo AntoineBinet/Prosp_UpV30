@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.82] — 2026-05-20 · Push — assistant IA transparent (secteur, catégorie, candidats)
+## [32.84] — 2026-05-20 · Push — assistant IA transparent (secteur, catégorie, candidats)
 
 - **Plan IA du push, étape par étape** : à l'ouverture de la modale
   « Pousser », un nouveau panneau « Analyse IA » remplace l'ancienne barre
@@ -26,6 +26,45 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   matchait aucun candidat), enrichis des mots-clés métier déduits par l'IA.
 - **Nouvelle route** : `GET /api/prospect/<id>/push-ai-plan` (flux SSE) —
   voir [services/push_ai.py](services/push_ai.py).
+
+## [32.83] — 2026-05-20 · Fiche EC1 — mobilité en cases à cocher + Excel fidèle au template
+
+- **Mobilité en cases à cocher** : dans le formulaire EC1 (modale de
+  pré-remplissage), le champ « Mobilité » devient une grille de cases à
+  cocher reprenant exactement les zones du template Excel (Banlieue
+  parisienne, Lyon, Aix, Sophia, Paris, Grenoble, Toulon, Province,
+  Nationale, Valence, Montpellier, Rennes, Internationale) + un champ
+  « Domicile ». Permis de conduire et Véhicule passent aussi en cases à
+  cocher.
+- **Excel fidèle au template** : la génération de la fiche EC1 ne passe
+  plus par openpyxl (qui supprimait toutes les cases à cocher, images et
+  mises en forme) mais **modifie directement le `.xlsx` template** (zip).
+  Le fichier produit conserve donc **les 35 cases à cocher**, les images,
+  la mise en forme et les formules des 4 pages.
+- **Cases cochées automatiquement** : à l'export, les cases du template
+  sont **réellement cochées** selon la fiche — zones de mobilité, permis
+  de conduire, véhicule et checklist EC1 — pour ne plus avoir à corriger
+  l'Excel après génération.
+- **Robustesse** : les cellules sont écrites en inline strings, les
+  formules des pages 2-4 sont recalculées à l'ouverture
+  (`fullCalcOnLoad`), et les zones sans case dans le template (Valence,
+  Montpellier, Rennes, Internationale) sont préfixées d'un « ✓ ».
+- **Fichiers** : `routes/candidates.py` (`_ec1_build_xlsx`,
+  `_ec1_resolve_checkboxes`), `static/js/v30/candidate_detail.js`,
+  `static/css/v30/candidate_detail.css`.
+
+## [32.82] — 2026-05-20 · Bouton « Suivant » de rattrapage — ancrage à droite
+
+- **Repositionnement** : le bouton flottant « Suivant » (rattrapage de
+  push) passe du bord gauche au **bord droit** de l'écran — il ne
+  chevauche plus la barre latérale.
+- **Style aligné v30** : fond `--surface`, fine bordure `--border`,
+  libellé en `--text` et logo dé en `--accent` (au lieu d'une pastille
+  pleine accent, trop voyante). Ombre, rayons, durées et courbes
+  d'animation tirés des tokens du design system ; apparition glissée
+  depuis la droite.
+- **Périmètre** : `static/css/v30/prospect_detail.css` uniquement — la
+  logique du tirage aléatoire et le JS sont inchangés.
 
 ## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
 
