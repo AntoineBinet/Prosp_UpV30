@@ -257,6 +257,8 @@
   gap: 4px;
   flex-shrink: 0;
 }
+.v30-fc-att-enrich { color: var(--accent); }
+.v30-fc-att-enrich:hover { color: var(--accent); }
 
 /* ─── Drop zone pièces jointes (réutilise le style DC) ─── */
 .v30-fc-att-dropzone {

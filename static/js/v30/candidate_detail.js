@@ -1078,50 +1078,76 @@
 
   // ─── Enrichissement fiche depuis DC (IA) ─────────────────
   var ENRICH_FIELDS = [
-    { key: 'name',             label: 'Nom complet' },
-    { key: 'role',             label: 'Rôle / Poste' },
-    { key: 'location',         label: 'Localisation' },
-    { key: 'years_experience', label: 'Expérience',
+    { key: 'name',                   label: 'Nom complet' },
+    { key: 'prenom',                 label: 'Prénom' },
+    { key: 'role',                   label: 'Rôle / Poste' },
+    { key: 'location',               label: 'Localisation' },
+    { key: 'sector',                 label: 'Secteur' },
+    { key: 'domaine_principal',      label: 'Domaine principal' },
+    { key: 'tech',                   label: 'Compétences tech' },
+    { key: 'years_experience',       label: 'Expérience (années)',
       getValue: function(c) { return c.years_experience || c.annees_experience || c.seniority || ''; } },
-    { key: 'sector',           label: 'Secteur' },
-    { key: 'tech',             label: 'Compétences tech' },
-    { key: 'phone',            label: 'Téléphone' },
-    { key: 'email',            label: 'Email' },
-    { key: 'linkedin',         label: 'LinkedIn' },
-    { key: 'domaine_principal',label: 'Domaine principal' },
+    { key: 'phone',                  label: 'Téléphone' },
+    { key: 'email',                  label: 'Email' },
+    { key: 'linkedin',               label: 'LinkedIn' },
+    { key: 'langues',                label: 'Langues' },
+    { key: 'disponibilite',          label: 'Disponibilité' },
+    { key: 'mobilite',               label: 'Mobilité' },
+    { key: 'permis_travail',         label: 'Permis de travail' },
+    { key: 'pretentions_salariales', label: 'Prétentions salariales' },
+    { key: 'remuneration_actuelle',  label: 'Rémunération actuelle' },
+    { key: 'motif_recherche',        label: 'Motif de recherche' },
+    { key: 'fonctions_recherchees',  label: 'Fonctions recherchées' },
+    { key: 'eval_technique',         label: 'Évaluation technique' },
+    { key: 'eval_personnalite',      label: 'Évaluation personnalité' },
+    { key: 'eval_communication',     label: 'Évaluation communication' },
   ];
 
-  function openDcEnrichModal() {
+  // Modale générique d'enrichissement : analyse un document (DC ou pièce
+  // jointe) via IA puis affiche une comparaison champ par champ.
+  function openEnrichModal(url, titleText) {
     var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
     if (!modal) return;
+    var titleEl = modal.querySelector('[data-v30-fc-enrich-title-text]');
+    if (titleEl) titleEl.textContent = titleText || 'Enrichir la fiche depuis un document';
     var body = modal.querySelector('[data-v30-fc-dc-enrich-body]');
     if (body) body.innerHTML =
       '<div style="padding:28px 0;text-align:center;color:var(--text-3);font-size:13px;">' +
-        'Analyse du DC en cours via IA…<br><br>' +
+        'Analyse du document en cours via IA…<br><br>' +
         '<div class="skel" style="width:80%;height:12px;margin:6px auto;"></div>' +
         '<div class="skel" style="width:65%;height:12px;margin:6px auto;"></div>' +
         '<div class="skel" style="width:72%;height:12px;margin:6px auto;"></div>' +
       '</div>';
+    STATE.enrichFields = null;
     modal.hidden = false;
     requestAnimationFrame(function () { modal.classList.add('is-open'); });
     var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
     if (applyBtn) applyBtn.disabled = true;
-    fetch('/api/candidates/' + CID + '/dc-enrich', {
+    fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+      headers: { 'Accept': 'application/json' }
     }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      return r.json().then(
+        function (j) { return { httpOk: r.ok, body: j }; },
+        function () { return { httpOk: false, body: { error: 'HTTP ' + r.status } }; }
+      );
     }).then(function (res) {
-      if (!res.ok) throw new Error(res.error || 'Erreur IA');
-      renderDcEnrichFields(res.fields);
+      if (!res.httpOk || !res.body || !res.body.ok) {
+        throw new Error((res.body && res.body.error) || 'Erreur IA');
+      }
+      STATE.enrichFields = res.body.fields || {};
+      renderDcEnrichFields(STATE.enrichFields);
       if (applyBtn) applyBtn.disabled = false;
     }).catch(function (err) {
       if (body) body.innerHTML =
         '<div style="padding:28px;text-align:center;color:var(--danger);font-size:13px;">' +
           'Erreur : ' + esc(String(err.message)) + '</div>';
     });
+  }
+
+  function openDcEnrichModal() {
+    openEnrichModal('/api/candidates/' + CID + '/dc-enrich', 'Enrichir la fiche depuis le DC');
   }
 
   function renderDcEnrichFields(fields) {
@@ -1152,8 +1178,7 @@
       html +=
         '<div style="display:grid;grid-template-columns:24px 1fr 1fr;gap:10px;align-items:start;padding:10px 12px;' +
           (i > 0 ? 'border-top:1px solid var(--border);' : '') + '">' +
-          '<input type="checkbox" name="enrich-' + f.key + '" data-enrich-key="' + f.key +
-            '" value="' + esc(extracted) + '"' + checked + ' style="margin-top:3px;">' +
+          '<input type="checkbox" data-enrich-key="' + f.key + '"' + checked + ' style="margin-top:3px;">' +
           '<div>' +
             '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">' + esc(f.label) + ' · actuel</div>' +
             '<div style="font-size:12.5px;color:var(--text-2);">' +
@@ -1173,9 +1198,11 @@
   function applyDcEnrich() {
     var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
     if (!modal) return;
+    var src = STATE.enrichFields || {};
     var payload = {};
     modal.querySelectorAll('[data-enrich-key]:checked').forEach(function (cb) {
-      payload[cb.dataset.enrichKey] = cb.value;
+      var k = cb.dataset.enrichKey;
+      if (src[k] != null && String(src[k]).trim() !== '') payload[k] = String(src[k]);
     });
     if (!Object.keys(payload).length) { closeDcEnrichModal(); return; }
     var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
@@ -1192,6 +1219,7 @@
       Object.assign(STATE.candidate, payload);
       renderHeader(STATE.candidate);
       renderInfo(STATE.candidate);
+      renderSectionFields(STATE.candidate);
       closeDcEnrichModal();
       flashSaved();
       var n = Object.keys(payload).length;
@@ -1276,6 +1304,7 @@
       var name = a.title || a.original_name || 'Fichier';
       var kindLbl = ATT_KIND_LABELS[a.kind] || 'Autre';
       var fileUrl = '/api/candidate-attachments/' + a.id + '/file';
+      var enrichable = _attEnrichable(a);
       return '<div class="v30-fc-att-row">' +
         '<span class="badge" style="font-size:10.5px;">' + esc(kindLbl) + '</span>' +
         '<div class="v30-fc-att-row__name">' +
@@ -1283,6 +1312,11 @@
           '<div class="v30-fc-att-row__meta">' + esc(a.original_name) + ' · ' + fmtSize(a.size) + ' · ' + esc(fmtAttDate(a.createdAt)) + '</div>' +
         '</div>' +
         '<div class="v30-fc-att-row__actions">' +
+          (enrichable ?
+            '<button type="button" class="btn btn-ghost btn-sm v30-fc-att-enrich" data-v30-fc-att-enrich="' + a.id + '" title="Analyser ce document via IA et enrichir la fiche">' +
+              '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/></svg>' +
+            '</button>' : '') +
           '<a class="btn btn-ghost btn-sm" href="' + esc(fileUrl) + '" target="_blank" rel="noopener" title="Télécharger">' +
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
               '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
@@ -1385,6 +1419,13 @@
     return 'autre';
   }
 
+  // Pièce jointe dont le texte est exploitable par l'IA (sinon pas de bouton).
+  function _attEnrichable(a) {
+    var nm = (a && (a.original_name || a.filename) || '');
+    var ext = (nm.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    return /^\.(pdf|docx|txt|xlsx|csv)$/.test(ext);
+  }
+
   function bindAttachmentsCard() {
     var card = document.querySelector('[data-v30-fc-att-card]');
     if (!card) return;
@@ -1394,6 +1435,14 @@
       if (e.target.closest('[data-v30-fc-att-upload-btn]') ||
           e.target.closest('[data-v30-fc-att-dropzone]')) {
         if (fileInput) fileInput.click();
+        return;
+      }
+      var enrichBtn = e.target.closest('[data-v30-fc-att-enrich]');
+      if (enrichBtn) {
+        var aid = enrichBtn.dataset.v30FcAttEnrich;
+        var att = (STATE.attachments || []).find(function (a) { return String(a.id) === String(aid); });
+        var nm = att ? (att.title || att.original_name || 'document') : 'document';
+        openEnrichModal('/api/candidate-attachments/' + aid + '/enrich', 'Enrichir depuis : ' + nm);
         return;
       }
       var renameBtn = e.target.closest('[data-v30-fc-att-rename]');
