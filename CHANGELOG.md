@@ -2,6 +2,39 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.81] — 2026-05-20 · Fiche EC1 — formulaire éditable avant export Excel
+
+- **Suite d'un EC1 plus propre** : après l'analyse IA d'une transcription
+  d'entretien EC1, la modale « Pré-remplir la fiche EC1 » n'affiche plus un
+  simple aperçu en lecture seule mais un **formulaire éditable complet**
+  reprenant **tous les champs de la fiche Excel** (modèle
+  `exemples/Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx`),
+  groupés par section : Identité, Administratif, Disponibilité & mobilité,
+  Recherche, Rémunération, Évaluation, Langues, Références, Notes, Checklist.
+- **Vides + pré-remplis, tous modifiables** : les champs détectés par l'IA
+  sont marqués d'un badge « IA » ; les champs vides restent saisissables.
+  L'utilisateur vérifie, corrige et complète chaque valeur avant de générer
+  l'Excel.
+- **Extraction IA étendue** : le prompt EC1 extrait désormais aussi les
+  champs administratifs (permis de conduire, véhicule, permis de travail),
+  les diplômes/expérience, les démarches administratives et les
+  propositions reçues — en plus des champs de contenu existants.
+- **Génération Excel fidèle** : le mapping des cellules a été corrigé pour
+  un rendu « propre » sur les 4 pages du template (téléphone → `C4`, mail →
+  `C5`, diplômes → `C6`, source CV → `K4`, motivations → `F18`, avancement
+  des recherches → `F21`, références → table `A42`, disponibilité → `G10`).
+  L'Excel est généré à partir des **valeurs exactes du formulaire**.
+- **Boutons** : « Appliquer à la fiche » enregistre les champs sur le
+  candidat ; « Appliquer & télécharger Excel » enregistre puis génère
+  l'Excel — sans relancer l'IA (les valeurs vérifiées font foi).
+- **Backend** : nouvel endpoint `POST /api/candidates/<id>/ec1-apply` ;
+  `…/ec1-export.xlsx` accepte désormais `POST` (génération depuis le
+  formulaire) ; `…/ec1-from-transcript` renvoie aussi un instantané de la
+  fiche candidat pour pré-remplir les champs non extraits par l'IA.
+- **Fichiers** : `routes/candidates.py`, `static/js/v30/candidate_detail.js`,
+  `templates/v30/candidate_detail.html`, `static/css/v30/candidate_detail.css`.
+- **Toile d'araignée** : actions EC1 mises à jour (`routes/pages.py`).
+
 ## [32.80] — 2026-05-20 · Bouton « Suivant » de rattrapage de push
 
 - **Re-tirage aléatoire d'un prospect à pousser** : quand on ouvre une
