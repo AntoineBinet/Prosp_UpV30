@@ -2297,6 +2297,10 @@
     if (run) { run.hidden = true; run.textContent = 'Importer'; run.disabled = false; }
     var file = document.querySelector('[data-v30-imp-file]');
     if (file) file.value = '';
+    var drop = document.querySelector('[data-v30-imp-drop]');
+    if (drop) drop.classList.remove('has-file', 'is-dragover');
+    var dropFile = document.querySelector('[data-v30-imp-drop-file]');
+    if (dropFile) dropFile.hidden = true;
     var paste = document.querySelector('[data-v30-imp-paste-text]');
     if (paste) paste.value = '';
     var pHint = document.querySelector('[data-v30-imp-paste-hint]');
@@ -2416,6 +2420,63 @@
     next();
   }
 
+  function showImportDropFile(f) {
+    // Affiche le nom du fichier sélectionné dans la zone de dépôt.
+    var drop = document.querySelector('[data-v30-imp-drop]');
+    var wrap = document.querySelector('[data-v30-imp-drop-file]');
+    var nameEl = document.querySelector('[data-v30-imp-drop-file-name]');
+    if (drop) drop.classList.add('has-file');
+    if (nameEl) nameEl.textContent = (f && f.name) || 'Fichier sélectionné';
+    if (wrap) wrap.hidden = false;
+  }
+  function handleImportFile(f) {
+    // Traite un fichier (input OU drag & drop) : CSV → texte, Excel → SheetJS.
+    if (!f) return;
+    var nameLower = (f.name || '').toLowerCase();
+    var isCsv = /\.csv$/.test(nameLower);
+    var isExcel = /\.xlsx?$/.test(nameLower);
+    if (!isCsv && !isExcel) {
+      toast('Format non supporté — choisis un fichier .xlsx, .xls ou .csv', 'warning');
+      return;
+    }
+    showImportDropFile(f);
+    toast('Chargement du fichier…', 'info');
+
+    if (isCsv) {
+      readFileAsText(f).then(function (txt) {
+        var raw = parseDelimitedText(txt, {});
+        if (!raw || !raw.rows.length) { toast('CSV vide ou illisible', 'warning'); return; }
+        IMP.headers = raw.headers;
+        IMP.rows = raw.rows;
+        IMP.mapping = {};
+        IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function (r) { return r[i]; })); });
+        showMappingStep();
+      }).catch(function (err) { toast('Lecture CSV impossible : ' + err.message, 'error'); });
+      return;
+    }
+
+    // Excel
+    ensureXLSX().then(function () {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var wb = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var sheet = wb.Sheets[wb.SheetNames[0]];
+          var rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+          if (!rows.length) { toast('Fichier vide', 'warning'); return; }
+          IMP.headers = (rows[0] || []).map(function (h) { return String(h || '').trim(); });
+          IMP.rows = rows.slice(1).filter(function (r) { return r.some(function (v) { return String(v || '').trim(); }); });
+          IMP.mapping = {};
+          IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function (r) { return r[i]; })); });
+          showMappingStep();
+        } catch (err) {
+          toast('Lecture impossible : ' + err.message, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(f);
+    }).catch(function (err) { toast(err.message, 'error'); });
+  }
+
   function bindImport() {
     var btn = document.querySelector('[data-v30-import]');
     if (btn) btn.addEventListener('click', function () {
@@ -2441,46 +2502,45 @@
     // Onglet fichier : Excel OU CSV selon extension
     var file = document.querySelector('[data-v30-imp-file]');
     if (file) file.addEventListener('change', function () {
-      var f = file.files && file.files[0];
-      if (!f) return;
-      var nameLower = (f.name || '').toLowerCase();
-      var isCsv = /\.csv$/.test(nameLower);
-      toast('Chargement du fichier…', 'info');
-
-      if (isCsv) {
-        readFileAsText(f).then(function (txt) {
-          var raw = parseDelimitedText(txt, {});
-          if (!raw || !raw.rows.length) { toast('CSV vide ou illisible', 'warning'); return; }
-          IMP.headers = raw.headers;
-          IMP.rows = raw.rows;
-          IMP.mapping = {};
-          IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function(r) { return r[i]; })); });
-          showMappingStep();
-        }).catch(function (err) { toast('Lecture CSV impossible : ' + err.message, 'error'); });
-        return;
-      }
-
-      // Excel
-      ensureXLSX().then(function () {
-        var reader = new FileReader();
-        reader.onload = function (e) {
-          try {
-            var wb = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-            var sheet = wb.Sheets[wb.SheetNames[0]];
-            var rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
-            if (!rows.length) { toast('Fichier vide', 'warning'); return; }
-            IMP.headers = (rows[0] || []).map(function (h) { return String(h || '').trim(); });
-            IMP.rows = rows.slice(1).filter(function (r) { return r.some(function (v) { return String(v || '').trim(); }); });
-            IMP.mapping = {};
-            IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function(r) { return r[i]; })); });
-            showMappingStep();
-          } catch (err) {
-            toast('Lecture impossible : ' + err.message, 'error');
-          }
-        };
-        reader.readAsArrayBuffer(f);
-      }).catch(function (err) { toast(err.message, 'error'); });
+      handleImportFile(file.files && file.files[0]);
     });
+
+    // Zone de dépôt : drag & drop fichier
+    var drop = document.querySelector('[data-v30-imp-drop]');
+    if (drop) {
+      ['dragenter', 'dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+          drop.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'dragend'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          // Ne retire le surlignage que si le curseur quitte vraiment la zone
+          if (ev === 'dragleave' && e.relatedTarget && drop.contains(e.relatedTarget)) return;
+          drop.classList.remove('is-dragover');
+        });
+      });
+      drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.remove('is-dragover');
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        handleImportFile(f);
+      });
+    }
+
+    // Empêche le navigateur d'ouvrir un fichier déposé à côté de la zone
+    var impModal = getModal('import');
+    if (impModal) {
+      ['dragover', 'drop'].forEach(function (ev) {
+        impModal.addEventListener(ev, function (e) { e.preventDefault(); });
+      });
+    }
 
     // Onglet collage texte
     var pasteParse = document.querySelector('[data-v30-imp-paste-parse]');

@@ -405,9 +405,14 @@
       {# Onglet fichier (Excel + CSV) #}
       <div data-v30-imp-panel="file">
         <div data-v30-imp-step="file">
-          <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">Charge un fichier <strong>.xlsx</strong>, <strong>.xls</strong> ou <strong>.csv</strong>. La première ligne doit contenir les en-têtes. Les colonnes seront auto-mappées (nom, entreprise, tel, email, fonction, linkedin).</p>
-          <input type="file" data-v30-imp-file accept=".xlsx,.xls,.csv" class="input">
-          <p class="muted" style="font-size: 11.5px; margin-top: 10px;">Pour un fichier CSV : délimiteur détecté automatiquement (<code>,</code>, <code>;</code>, tabulation) avec fallback d'encodage CP1252 si nécessaire.</p>
+          <label class="v30-imp-drop" data-v30-imp-drop>
+            <input type="file" data-v30-imp-file accept=".xlsx,.xls,.csv" class="v30-imp-drop__input">
+            <span class="v30-imp-drop__icon" aria-hidden="true">{{ ui.icon('upload', 24) }}</span>
+            <span class="v30-imp-drop__title">Glisse ton fichier ici, ou <span class="v30-imp-drop__link">parcours tes fichiers</span></span>
+            <span class="v30-imp-drop__formats"><strong>.xlsx</strong> · <strong>.xls</strong> · <strong>.csv</strong> — la première ligne doit contenir les en-têtes</span>
+            <span class="v30-imp-drop__file" data-v30-imp-drop-file hidden>{{ ui.icon('file', 13) }} <span data-v30-imp-drop-file-name></span></span>
+          </label>
+          <p class="muted" style="font-size: 11.5px; margin-top: 12px;">Colonnes auto-mappées (nom, entreprise, tel, email, fonction, linkedin). Pour un CSV : délimiteur détecté automatiquement (<code>,</code>, <code>;</code>, tabulation) avec fallback d'encodage CP1252 si nécessaire.</p>
         </div>
       </div>
 
