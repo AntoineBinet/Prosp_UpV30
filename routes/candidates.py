@@ -18,7 +18,7 @@ from utils.ai_helpers import _call_ai, _call_ollama_direct, _load_ai_config
 from utils.auth import _candidate_owned, _require_same_origin, _uid, login_required, role_required, validate_payload
 from utils.common import _now_iso, _today_iso
 from utils.db import _conn
-from utils.files import _candidate_attachment_dir, _validate_upload
+from utils.files import _candidate_attachment_dir, _extract_pdf_text, _validate_upload
 
 candidates_bp = Blueprint("candidates", __name__)
 
@@ -932,6 +932,136 @@ def api_candidates_delete():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# v32.84 — Extraction texte multi-format + enrichissement IA de fiche
+# ═══════════════════════════════════════════════════════════════════
+
+# Extensions dont on sait extraire le texte pour l'enrichissement IA.
+_ENRICHABLE_EXTS = {".pdf", ".docx", ".txt", ".xlsx", ".csv"}
+
+# Champs candidat que l'IA peut renseigner depuis un document. Tous présents
+# dans la liste ALLOWED de api_candidate_put (sinon le PUT les ignorerait).
+_DOC_ENRICH_KEYS = (
+    "name", "prenom", "role", "location", "sector", "domaine_principal",
+    "tech", "years_experience", "phone", "email", "linkedin", "langues",
+    "disponibilite", "mobilite", "permis_travail", "pretentions_salariales",
+    "remuneration_actuelle", "motif_recherche", "fonctions_recherchees",
+    "eval_technique", "eval_personnalite", "eval_communication",
+)
+
+
+def _extract_text_from_file(file_path: Path, ext: str, max_chars: int = 8000) -> str:
+    """Extrait le texte d'un document (PDF, DOCX, TXT, XLSX, CSV) pour l'IA.
+
+    Retourne une chaîne vide si le format est non supporté ou en cas d'échec.
+    """
+    ext = (ext or "").lower()
+    try:
+        if ext == ".pdf":
+            return _extract_pdf_text(file_path, max_chars=max_chars)
+        if ext == ".docx":
+            from docx import Document as _Docx
+            doc = _Docx(str(file_path))
+            parts = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
+            for table in doc.tables:
+                for trow in table.rows:
+                    cells = [c.text.strip() for c in trow.cells if c.text and c.text.strip()]
+                    if cells:
+                        parts.append(" | ".join(cells))
+            return "\n".join(parts)[:max_chars].strip()
+        if ext in (".txt", ".csv"):
+            raw = file_path.read_bytes()
+            for enc in ("utf-8", "cp1252", "latin-1"):
+                try:
+                    return raw.decode(enc)[:max_chars].strip()
+                except UnicodeDecodeError:
+                    continue
+            return raw.decode("utf-8", errors="ignore")[:max_chars].strip()
+        if ext == ".xlsx":
+            import openpyxl
+            wb = openpyxl.load_workbook(str(file_path), read_only=True, data_only=True)
+            lines, total = [], 0
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    vals = [str(v).strip() for v in row if v not in (None, "")]
+                    if not vals:
+                        continue
+                    line = " | ".join(vals)
+                    lines.append(line)
+                    total += len(line) + 1
+                    if total > max_chars:
+                        break
+                if total > max_chars:
+                    break
+            wb.close()
+            return "\n".join(lines)[:max_chars].strip()
+    except Exception as e:
+        logger.warning("_extract_text_from_file(%s) error: %s", file_path, e)
+    return ""
+
+
+def _ai_extract_candidate_fields(doc_text: str, source_label: str = "document",
+                                 timeout: int = 120) -> dict:
+    """Analyse le texte d'un document via l'IA locale et renvoie les champs candidat.
+
+    Lève json.JSONDecodeError / ValueError si la réponse IA est inexploitable,
+    ou propage l'exception réseau si l'IA est indisponible.
+    """
+    doc_text = (doc_text or "").strip()
+    if not doc_text:
+        return {}
+    prompt = f"""Tu es un assistant RH expert. Analyse le {source_label} ci-dessous (il peut s'agir d'un CV, d'un dossier de compétences, d'une fiche d'entretien ou d'un profil LinkedIn) et extrais les informations concernant le candidat.
+
+--- DÉBUT DU DOCUMENT ---
+{doc_text}
+--- FIN DU DOCUMENT ---
+
+Retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balise markdown. Mets null pour toute information réellement absente du document — n'invente jamais une valeur :
+{{
+  "name": "Prénom NOM complet du candidat",
+  "prenom": "Prénom seul",
+  "role": "Poste ou titre principal (ex: Ingénieur Systèmes Embarqués)",
+  "location": "Ville ou région de résidence",
+  "sector": "Secteur d'activité principal (ex: Industrie, Défense, IT)",
+  "domaine_principal": "Domaine d'expertise détaillé",
+  "tech": "Compétences techniques principales, séparées par des virgules",
+  "years_experience": <nombre entier d'années d'expérience professionnelle, ou null>,
+  "phone": "Numéro de téléphone",
+  "email": "Adresse email",
+  "linkedin": "URL complète du profil LinkedIn",
+  "langues": "Langues parlées et niveaux (ex: Français natif, Anglais courant)",
+  "disponibilite": "Disponibilité ou date de prise de poste",
+  "mobilite": "Zones de mobilité géographique",
+  "permis_travail": "Permis de travail / nationalité si le document le précise",
+  "pretentions_salariales": "Prétentions salariales",
+  "remuneration_actuelle": "Rémunération actuelle",
+  "motif_recherche": "Motivation de la recherche ou du changement de poste",
+  "fonctions_recherchees": "Postes ou fonctions recherchés",
+  "eval_technique": "Synthèse de l'évaluation technique (seulement si fiche d'entretien)",
+  "eval_personnalite": "Synthèse personnalité / savoir-être (seulement si fiche d'entretien)",
+  "eval_communication": "Synthèse de la communication (seulement si fiche d'entretien)"
+}}"""
+    result_text = _call_ai(prompt, timeout=timeout)
+    clean = (result_text or "").strip()
+    if clean.startswith("```"):
+        clean = re.sub(r'^```[^\n]*\n?', '', clean)
+        clean = re.sub(r'\n?```$', '', clean)
+    json_match = re.search(r'\{[\s\S]*\}', clean)
+    if not json_match:
+        raise ValueError("La réponse de l'IA ne contient pas de JSON exploitable")
+    raw = json.loads(json_match.group(0))
+    if not isinstance(raw, dict):
+        raise ValueError("La réponse de l'IA n'est pas un objet JSON")
+    fields: dict = {}
+    for key in _DOC_ENRICH_KEYS:
+        if key not in raw or raw[key] is None:
+            continue
+        val = str(raw[key]).strip()
+        if val and val.lower() not in ("null", "none", "n/a", "na", "-", "—", "non précisé"):
+            fields[key] = val
+    return fields
+
+
+# ═══════════════════════════════════════════════════════════════════
 # v27.x PARTIE 3: Extraction DC PDF + upload DC
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1018,8 +1148,8 @@ Réponds uniquement avec le JSON, sans aucun texte autour."""
 
 @candidates_bp.post("/api/candidates/<int:cid>/dc-enrich")
 def api_candidate_dc_enrich(cid):
-    """Lit le DC existant sur disque et l'analyse via IA pour pré-remplir la fiche candidat.
-    Retourne: { ok, fields: { name, prenom, role, location, years_experience, sector, tech, phone, email, linkedin, domaine_principal } }
+    """Lit le DC PDF existant sur disque et l'analyse via IA pour enrichir la fiche.
+    Retourne: { ok, fields: {...} }. La validation se fait côté client.
     """
     uid = _uid()
     if not uid:
@@ -1037,74 +1167,20 @@ def api_candidate_dc_enrich(cid):
     if not pdf_files:
         return jsonify(ok=False, error="Aucun DC trouvé pour ce candidat. Chargez un PDF d'abord."), 404
 
-    pdf_path = pdf_files[0]
-    pdf_text = ""
-    try:
-        import io as _io
-        with open(str(pdf_path), "rb") as f:
-            pdf_bytes = f.read()
-        try:
-            from pdfminer.high_level import extract_text as _extract_pdf  # type: ignore
-            pdf_text = _extract_pdf(_io.BytesIO(pdf_bytes), maxpages=10) or ""
-        except ImportError:
-            pass
-        if not pdf_text:
-            try:
-                import pypdf  # type: ignore
-                reader = pypdf.PdfReader(_io.BytesIO(pdf_bytes))
-                for page in reader.pages[:10]:
-                    pdf_text += page.extract_text() or ""
-            except ImportError:
-                pass
-        if not pdf_text.strip():
-            return jsonify(ok=False, error="Impossible d'extraire le texte du PDF (bibliothèque PDF manquante ou PDF scanné)."), 422
-    except Exception as e:
-        return jsonify(ok=False, error=f"Erreur lecture PDF : {e}"), 500
-
-    pdf_text_short = pdf_text[:6000]
-    prompt = f"""Tu es un assistant RH expert. Voici le contenu d'un dossier de compétences (DC) d'un candidat :
-
----
-{pdf_text_short}
----
-
-Extrais les informations suivantes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
-{{
-  "name": "Prénom NOM du candidat",
-  "prenom": "Prénom seul",
-  "role": "Poste ou titre principal (ex: Consultant Automatisme, Ingénieur Systèmes Embarqués)",
-  "location": "Ville ou région (ex: Lyon, Paris, Mobile France)",
-  "years_experience": <nombre entier d'années d'expérience professionnelle, ou null>,
-  "sector": "Secteur d'activité principal (ex: Industrie, Défense, Automotive, IT)",
-  "tech": "Compétences techniques principales, séparées par des virgules (ex: Python, Java, AUTOSAR)",
-  "phone": "Numéro de téléphone (null si absent)",
-  "email": "Adresse email (null si absente)",
-  "linkedin": "URL LinkedIn complète (null si absente)",
-  "domaine_principal": "Domaine principal détaillé (ex: Systèmes embarqués, Automatisme industriel)"
-}}
-
-Si une information est absente, mets null."""
+    pdf_text = _extract_text_from_file(pdf_files[0], ".pdf", max_chars=8000)
+    if not pdf_text or len(pdf_text) < 20:
+        return jsonify(ok=False, error="Impossible d'extraire le texte du PDF (PDF scanné, protégé ou bibliothèque PDF manquante)."), 422
 
     try:
-        result_text = _call_ai(prompt, timeout=90)
-        clean = result_text.strip()
-        if clean.startswith("```"):
-            clean = re.sub(r'^```[^\n]*\n?', '', clean)
-            clean = re.sub(r'\n?```$', '', clean)
-        json_match = re.search(r'\{[\s\S]*\}', clean)
-        if not json_match:
-            return jsonify(ok=False, error="L'IA n'a pas retourné de JSON valide"), 422
-        fields = json.loads(json_match.group(0))
-        # Convertir years_experience en string pour l'affichage
-        if fields.get("years_experience") is not None:
-            fields["years_experience"] = str(fields["years_experience"])
-        return jsonify(ok=True, fields=fields)
+        fields = _ai_extract_candidate_fields(pdf_text, source_label="dossier de compétences")
     except (json.JSONDecodeError, ValueError) as e:
-        logger.warning("DC enrich JSON parse error: %s", e)
-        return jsonify(ok=False, error="L'IA n'a pas retourné un JSON valide"), 422
+        logger.warning("DC enrich JSON parse error cid=%s: %s", cid, e)
+        return jsonify(ok=False, error="L'IA n'a pas retourné un résultat exploitable."), 422
     except Exception as e:
-        logger.warning("DC enrich error: %s", e)
+        logger.warning("DC enrich error cid=%s: %s", cid, e)
         return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
+
+    return jsonify(ok=True, fields=fields)
 
 
 @candidates_bp.post("/api/candidates/upload-dc")
@@ -1478,6 +1554,52 @@ def api_candidate_attachment_delete(att_id):
             logger.warning("[candidate-attachment] delete file error att=%s: %s", att_id, e)
         conn.execute("DELETE FROM candidate_attachments WHERE id=? AND owner_id=?;", (att_id, uid))
     return jsonify(ok=True)
+
+
+@candidates_bp.post("/api/candidate-attachments/<int:att_id>/enrich")
+def api_candidate_attachment_enrich(att_id):
+    """Analyse une pièce jointe candidat (CV, fiche d'entretien, DC, profil
+    LinkedIn exporté en PDF…) via l'IA locale et renvoie les champs détectés.
+
+    Retourne: { ok, fields: {...} } — aucun champ n'est appliqué ici, la
+    validation manuelle se fait côté client dans une modale de comparaison.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, candidate_id, filename, original_name FROM candidate_attachments "
+            "WHERE id=? AND owner_id=?;",
+            (att_id, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+
+    ext = os.path.splitext(row["original_name"] or row["filename"] or "")[1].lower()
+    if ext not in _ENRICHABLE_EXTS:
+        return jsonify(ok=False, error="Format non analysable par l'IA. Formats acceptés : "
+                       "PDF, DOCX, XLSX, TXT. Pour un profil LinkedIn, exportez-le en PDF."), 415
+
+    file_path = _candidate_attachment_dir(uid, row["candidate_id"]) / row["filename"]
+    if not file_path.is_file():
+        return jsonify(ok=False, error="Fichier introuvable sur le disque"), 404
+
+    doc_text = _extract_text_from_file(file_path, ext, max_chars=8000)
+    if not doc_text or len(doc_text) < 20:
+        return jsonify(ok=False, error="Impossible d'extraire du texte de ce document "
+                       "(fichier vide, scanné en image ou protégé)."), 422
+
+    try:
+        fields = _ai_extract_candidate_fields(doc_text, source_label="document")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("Attachment enrich JSON parse error att=%s: %s", att_id, e)
+        return jsonify(ok=False, error="L'IA n'a pas retourné un résultat exploitable."), 422
+    except Exception as e:
+        logger.warning("Attachment enrich error att=%s: %s", att_id, e)
+        return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
+
+    return jsonify(ok=True, fields=fields)
 
 
 # ═══════════════════════════════════════════════════════════════════

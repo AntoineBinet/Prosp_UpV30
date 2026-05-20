@@ -2,6 +2,26 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.84] — 2026-05-20 · Enrichissement de la fiche candidat depuis les documents (IA)
+
+- **Bouton « Enrichir » sur chaque pièce jointe** : dans la fiche
+  candidat, chaque document analysable (PDF, DOCX, XLSX, TXT) de la
+  section « Pièces jointes » affiche un bouton ✨ qui envoie son contenu
+  à l'IA locale pour en extraire les informations du candidat — CV,
+  fiches d'entretien, dossiers de compétences, profils LinkedIn exportés
+  en PDF.
+- **Vérification manuelle obligatoire** : les champs détectés (identité,
+  poste, compétences, coordonnées, mobilité, disponibilité, prétentions
+  salariales, évaluations…) sont présentés dans une fenêtre de
+  comparaison « valeur actuelle / valeur extraite ». Rien n'est appliqué
+  sans cocher explicitement les champs voulus.
+- **Section DC** : le bouton « Enrichir » du dossier de compétences
+  utilise désormais la même extraction enrichie (jusqu'à 22 champs).
+- **Formats** : PDF, DOCX, XLSX, TXT et CSV sont analysés. Les images et
+  captures d'écran ne le sont pas — pour un profil LinkedIn, l'exporter
+  en PDF avant de le joindre.
+- API : `POST /api/candidate-attachments/<id>/enrich`.
+
 ## [32.83] — 2026-05-20 · Fiche EC1 — mobilité en cases à cocher + Excel fidèle au template
 
 - **Mobilité en cases à cocher** : dans le formulaire EC1 (modale de
